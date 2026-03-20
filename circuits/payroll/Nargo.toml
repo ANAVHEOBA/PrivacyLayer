@@ -1,0 +1,8 @@
+[package]
+name = "payroll"
+type = "bin"
+authors = ["1GEBIO"]
+compiler_version = ">=0.31.0"
+
+[dependencies]
+std = { tag = "v0.31.0" }

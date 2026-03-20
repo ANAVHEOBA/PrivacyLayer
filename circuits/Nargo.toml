@@ -3,4 +3,7 @@ members = [
     "commitment",
     "merkle",
     "withdraw",
+    "escrow",
+    "payroll",
+    "multisig",
 ]
