@@ -4,4 +4,5 @@ members = [
     "merkle",
     "withdraw",
     "escrow",
+    "payroll",
 ]
