@@ -3,6 +3,7 @@ use dep::merkle;
 use dep::withdraw;
 use dep::escrow;
 use dep::payroll;
+use dep::multisig;
 use dep::lib::hash;
 
 #[test]
@@ -48,7 +49,7 @@ fn integration_escrow_release_flow() {
 fn integration_payroll_batch_flow() {
     let payroll_id: Field = 1;
     let employer: Field = 0xEEEE;
-    let total: Field = 800; // 100 * 8
+    let total: Field = 800;
     
     let mut recipients: [Field; 8] = [0; 8];
     let mut amounts: [Field; 8] = [100; 8];
@@ -61,4 +62,26 @@ fn integration_payroll_batch_flow() {
     }
     
     dep::payroll::main(payroll_id, employer, total, recipients, amounts, secrets, commitments);
+}
+
+#[test]
+fn integration_multisig_2_of_3_flow() {
+    let nullifier: Field = 0xCCCC;
+    let secret: Field = 0xDDDD;
+    let pk1 = std::hash::pedersen_hash([0x111]);
+    let pk2 = std::hash::pedersen_hash([0x222]);
+    let pk3 = std::hash::pedersen_hash([0x333]);
+
+    let commitment = hash::compute_multisig_commitment(nullifier, secret, pk1, pk2, pk3);
+    let hash_path: [Field; 20] = [0; 20];
+    let root = merkle::compute_merkle_root(commitment, 7, hash_path);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+
+    // Provide secrets for 1 and 3 (Threshold met)
+    dep::multisig::main(
+        nullifier, secret, 7, hash_path, root, nullifier_hash,
+        pk1, pk2, pk3,
+        0x111, 0, 0x333,
+        true, false, true
+    );
 }
