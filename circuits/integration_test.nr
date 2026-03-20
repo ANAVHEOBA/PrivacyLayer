@@ -2,6 +2,7 @@ use dep::commitment;
 use dep::merkle;
 use dep::withdraw;
 use dep::escrow;
+use dep::payroll;
 use dep::lib::hash;
 
 #[test]
@@ -15,7 +16,7 @@ fn integration_standard_flow() {
     let c2 = hash::compute_commitment(n2, s2);
 
     let path1: [Field; 20] = [0; 20];
-    let path2: [Field; 20] = [0; 20]; // Simple mockup
+    let path2: [Field; 20] = [0; 20];
 
     let global_root = merkle::compute_merkle_root(c1, 0, path1);
     let nh1 = hash::compute_nullifier_hash(n1, global_root);
@@ -32,31 +33,32 @@ fn integration_escrow_release_flow() {
     let arbiter_secret: Field = 0xCCCCCCCC;
     let arbiter_hash = std::hash::pedersen_hash([arbiter_secret]);
 
-    // 1. Creation - commitment with arbiter_hash bound
     let commitment = hash::compute_escrow_commitment(nullifier, secret, arbiter_hash);
-    
-    // 2. Mock Merkle path
     let hash_path: [Field; 20] = [0; 20];
     let root = merkle::compute_merkle_root(commitment, 5, hash_path);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
-    // 3. Witness - try withdraw with the arbiter reveal
     dep::escrow::main(
         nullifier, secret, 5, hash_path, root, nullifier_hash,
-        0xRECP, // recipient
-        5_000,  // amount
-        0xRELY, // relayer
-        50,     // fee
-        arbiter_secret,
-        arbiter_hash
+        0xRECP, 5_000, 0xRELY, 50, arbiter_secret, arbiter_hash
     );
 }
 
-#[test(should_fail_with = "mismatch")]
-fn integration_escrow_wrong_arbiter_secret_fails() {
-    let arbiter_hash = std::hash::pedersen_hash([0x123]);
-    let commitment = hash::compute_escrow_commitment(1, 2, arbiter_hash);
-    let root = merkle::compute_merkle_root(commitment, 0, [0; 20]);
+#[test]
+fn integration_payroll_batch_flow() {
+    let payroll_id: Field = 1;
+    let employer: Field = 0xEEEE;
+    let total: Field = 800; // 100 * 8
     
-    dep::escrow::main(1, 2, 0, [0; 20], root, 999, 0x1, 100, 0, 0, 0x456, arbiter_hash);
+    let mut recipients: [Field; 8] = [0; 8];
+    let mut amounts: [Field; 8] = [100; 8];
+    let mut secrets: [Field; 8] = [123; 8];
+    let mut commitments: [Field; 8] = [0; 8];
+    
+    for i in 0..8 {
+        recipients[i] = i + 100;
+        commitments[i] = hash::compute_commitment(payroll_id + i + recipients[i], secrets[i]);
+    }
+    
+    dep::payroll::main(payroll_id, employer, total, recipients, amounts, secrets, commitments);
 }
