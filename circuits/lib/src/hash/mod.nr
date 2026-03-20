@@ -5,25 +5,25 @@
 
 use std::hash::pedersen_hash;
 
-/// Compute commitment from nullifier and secret.
-/// commitment = Hash(nullifier, secret)
 pub fn compute_commitment(nullifier: Field, secret: Field) -> Field {
     pedersen_hash([nullifier, secret])
 }
 
-/// Compute commitment for escrow with arbiter release.
-/// commitment = Hash(nullifier, pedersen_hash([secret, arbiter_hash]))
 pub fn compute_escrow_commitment(nullifier: Field, secret: Field, arbiter_hash: Field) -> Field {
     pedersen_hash([nullifier, pedersen_hash([secret, arbiter_hash])])
 }
 
-/// Compute nullifier hash bound to a specific root.
-/// nullifier_hash = Hash(nullifier, root)
+/// New: Compute commitment for multisig notes.
+/// commitment = Hash(nullifier, Hash(secret, Hash(pk1, Hash(pk2, pk3))))
+pub fn compute_multisig_commitment(nullifier: Field, secret: Field, pk1: Field, pk2: Field, pk3: Field) -> Field {
+    let combined_keys = pedersen_hash([pk1, pedersen_hash([pk2, pk3])]);
+    pedersen_hash([nullifier, pedersen_hash([secret, combined_keys])])
+}
+
 pub fn compute_nullifier_hash(nullifier: Field, root: Field) -> Field {
     pedersen_hash([nullifier, root])
 }
 
-/// Compute parent hash in Merkle tree.
 pub fn hash_pair(left: Field, right: Field) -> Field {
     pedersen_hash([left, right])
 }
