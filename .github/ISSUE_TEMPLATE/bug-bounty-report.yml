@@ -1,0 +1,179 @@
+name: Bug Bounty Report
+description: Report a security vulnerability through the PrivacyLayer Bug Bounty Program
+title: "[BUG BOUNTY] "
+labels: ["bounty", "security", "triage"]
+assignees: ["ANAVHEOBA"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        ## PrivacyLayer Bug Bounty Report
+
+        Thank you for helping secure PrivacyLayer! Please fill out this form as completely as possible.
+
+        **IMPORTANT:** For **Critical** and **High** severity vulnerabilities, do NOT use this template.
+        Instead, submit via [GitHub Security Advisories](https://github.com/ANAVHEOBA/PrivacyLayer/security/advisories/new)
+        to ensure your report remains private.
+
+        This template is intended for **Medium**, **Low**, and **Informational** findings only.
+
+        See our [Bug Bounty Program](docs/BUG_BOUNTY_PROGRAM.md) for full details on scope, rewards, and rules.
+
+  - type: input
+    id: summary
+    attributes:
+      label: Vulnerability Summary
+      description: A brief one-line summary of the vulnerability.
+      placeholder: "e.g., Missing input validation in deposit function allows zero-value commitments"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: severity
+    attributes:
+      label: Severity Assessment
+      description: Your assessment of the vulnerability severity. See our severity classifications in the Bug Bounty Program docs.
+      options:
+        - Medium
+        - Low
+        - Informational
+      default: 1
+    validations:
+      required: true
+
+  - type: dropdown
+    id: component
+    attributes:
+      label: Affected Component
+      description: Which part of PrivacyLayer is affected?
+      options:
+        - Smart Contracts (Soroban/Rust)
+        - ZK Circuits (Noir)
+        - SDK (TypeScript)
+        - Frontend (Next.js)
+        - Deployment Scripts
+        - Documentation
+        - Multiple Components
+      default: 0
+    validations:
+      required: true
+
+  - type: textarea
+    id: affected-files
+    attributes:
+      label: Affected Files
+      description: List the specific files and line numbers affected.
+      placeholder: |
+        - `contracts/privacy_pool/src/core/deposit.rs` (lines 42-58)
+        - `contracts/privacy_pool/src/utils/validation.rs` (lines 10-15)
+    validations:
+      required: true
+
+  - type: textarea
+    id: description
+    attributes:
+      label: Detailed Description
+      description: Provide a thorough description of the vulnerability, including the root cause and why it is a security concern.
+      placeholder: |
+        Describe the vulnerability in detail. Include:
+        - What is the root cause?
+        - Why is this a security concern?
+        - What assumptions does it violate?
+    validations:
+      required: true
+
+  - type: textarea
+    id: attack-scenario
+    attributes:
+      label: Attack Scenario
+      description: Describe step-by-step how an attacker could exploit this vulnerability.
+      placeholder: |
+        1. Attacker prepares a malicious input...
+        2. Attacker calls the deposit function with...
+        3. The contract fails to validate...
+        4. As a result, the attacker can...
+    validations:
+      required: true
+
+  - type: textarea
+    id: poc
+    attributes:
+      label: Proof of Concept
+      description: Provide code, scripts, test cases, or transaction sequences that demonstrate the vulnerability.
+      render: rust
+      placeholder: |
+        // Example test case or exploit code
+        #[test]
+        fn test_vulnerability() {
+            // Setup
+            // ...
+            // Exploit
+            // ...
+            // Assert unexpected behavior
+        }
+    validations:
+      required: false
+
+  - type: textarea
+    id: impact
+    attributes:
+      label: Impact Analysis
+      description: What is the worst-case impact? How many users or how much funds could be affected?
+      placeholder: |
+        - Funds at risk: ...
+        - Users affected: ...
+        - Privacy impact: ...
+        - Protocol availability impact: ...
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggested-fix
+    attributes:
+      label: Suggested Fix
+      description: Optional. Your recommended approach to resolving the vulnerability.
+      placeholder: |
+        To fix this issue, consider:
+        1. Adding input validation for...
+        2. Modifying the constraint in...
+    validations:
+      required: false
+
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Provide details about your testing environment.
+      placeholder: |
+        - Branch/Commit: main @ abc1234
+        - Noir version: 0.x.x
+        - Rust version: 1.x.x
+        - Soroban SDK version: x.x.x
+        - OS: Ubuntu 22.04
+    validations:
+      required: false
+
+  - type: textarea
+    id: additional-context
+    attributes:
+      label: Additional Context
+      description: Any other information that might help us understand and reproduce the issue.
+    validations:
+      required: false
+
+  - type: checkboxes
+    id: acknowledgements
+    attributes:
+      label: Acknowledgements
+      description: Please confirm the following before submitting.
+      options:
+        - label: I have read the [Bug Bounty Program](docs/BUG_BOUNTY_PROGRAM.md) rules and scope
+          required: true
+        - label: This vulnerability is NOT Critical or High severity (those must use GitHub Security Advisories)
+          required: true
+        - label: I have tested this against my own local deployment or testnet (not mainnet)
+          required: true
+        - label: I have not publicly disclosed this vulnerability
+          required: true
+        - label: I agree to the coordinated disclosure timeline (90 days)
+          required: true
