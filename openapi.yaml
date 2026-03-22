@@ -1,0 +1,51 @@
+openapi: 3.0.3
+info:
+  title: PrivacyLayer API
+  description: API documentation for PrivacyLayer relayer and smart contract integrations.
+  version: 1.0.0
+paths:
+  /relay:
+    post:
+      summary: Submit a transaction to the relayer
+      description: Forwards an encrypted transaction to the target smart contract via the relayer network.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                txPayload:
+                  type: string
+                  description: Hex-encoded encrypted transaction payload.
+                targetAddress:
+                  type: string
+                  description: Target contract address.
+              required:
+                - txPayload
+                - targetAddress
+      responses:
+        '200':
+          description: Transaction successfully relayed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  txHash:
+                    type: string
+                    description: The transaction hash on the blockchain.
+        '400':
+          description: Invalid request parameters
+  /status/{txHash}:
+    get:
+      summary: Get transaction status
+      parameters:
+        - name: txHash
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Status retrieved successfully
