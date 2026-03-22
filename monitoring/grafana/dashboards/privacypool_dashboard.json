@@ -1,0 +1,345 @@
+{
+  "dashboard": {
+    "title": "PrivacyLayer Performance Monitoring",
+    "uid": "privacypool-main",
+    "tags": ["privacypool", "blockchain", "stellar", "soroban"],
+    "timezone": "browser",
+    "refresh": "30s",
+    "time": {
+      "from": "now-1h",
+      "to": "now"
+    },
+    "panels": [
+      {
+        "title": "System Overview",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 0, "w": 24, "h": 1}
+      },
+      {
+        "title": "Pool Balance",
+        "type": "stat",
+        "gridPos": {"x": 0, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "privacypool_balance",
+          "legendFormat": "Balance"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area",
+          "unit": "XLM"
+        }
+      },
+      {
+        "title": "Total Deposits",
+        "type": "stat",
+        "gridPos": {"x": 4, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "privacypool_deposit_count_total",
+          "legendFormat": "Deposits"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "title": "Total Withdrawals",
+        "type": "stat",
+        "gridPos": {"x": 8, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "privacypool_withdraw_count_total",
+          "legendFormat": "Withdrawals"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "title": "Merkle Tree Usage",
+        "type": "gauge",
+        "gridPos": {"x": 12, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "privacypool_merkle_leaves_count / 1048576 * 100",
+          "legendFormat": "Usage %"
+        }],
+        "options": {
+          "showThresholdMarkers": true,
+          "fieldConfig": {
+            "defaults": {
+              "max": 100,
+              "min": 0,
+              "thresholds": {
+                "mode": "absolute",
+                "steps": [
+                  {"color": "green", "value": 0},
+                  {"color": "yellow", "value": 70},
+                  {"color": "red", "value": 90}
+                ]
+              }
+            }
+          }
+        }
+      },
+      {
+        "title": "Pool Status",
+        "type": "stat",
+        "gridPos": {"x": 16, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "privacypool_paused",
+          "legendFormat": "Status"
+        }],
+        "options": {
+          "colorMode": "background",
+          "mappings": [
+            {"type": "value", "options": {"0": {"text": "Active", "color": "green"}}},
+            {"type": "value", "options": {"1": {"text": "Paused", "color": "red"}}}
+          ]
+        }
+      },
+      {
+        "title": "Success Rate",
+        "type": "stat",
+        "gridPos": {"x": 20, "y": 1, "w": 4, "h": 4},
+        "targets": [{
+          "expr": "avg(rate(privacypool_deposit_count_total[5m]) / (rate(privacypool_deposit_count_total[5m]) + rate(privacypool_deposit_errors_total[5m]) + 0.001))",
+          "legendFormat": "Rate"
+        }],
+        "options": {
+          "unit": "percentunit",
+          "colorMode": "value"
+        }
+      },
+
+      {
+        "title": "Operation Metrics",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 5, "w": 24, "h": 1}
+      },
+      {
+        "title": "Operation Throughput",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 6, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(privacypool_deposit_count_total[5m])",
+            "legendFormat": "Deposits/s"
+          },
+          {
+            "expr": "rate(privacypool_withdraw_count_total[5m])",
+            "legendFormat": "Withdrawals/s"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "title": "Operation Latency",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 6, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(privacypool_deposit_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Deposit P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(privacypool_deposit_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Deposit P95"
+          },
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(privacypool_withdraw_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Withdraw P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(privacypool_withdraw_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "Withdraw P95"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"},
+          "yaxes": [{"format": "s"}]
+        }
+      },
+
+      {
+        "title": "Error Tracking",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 14, "w": 24, "h": 1}
+      },
+      {
+        "title": "Error Rate by Type",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 15, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(privacypool_deposit_errors_total[5m])",
+            "legendFormat": "Deposit Errors"
+          },
+          {
+            "expr": "rate(privacypool_withdraw_errors_total[5m])",
+            "legendFormat": "Withdraw Errors"
+          },
+          {
+            "expr": "rate(privacypool_zk_proof_failures_total[5m])",
+            "legendFormat": "ZK Proof Failures"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+
+      {
+        "title": "ZK Proof Performance",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 23, "w": 24, "h": 1}
+      },
+      {
+        "title": "Proof Verification Time",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.50, sum(rate(privacypool_zk_proof_verification_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P50"
+          },
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(privacypool_zk_proof_verification_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95"
+          },
+          {
+            "expr": "histogram_quantile(0.99, sum(rate(privacypool_zk_proof_verification_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P99"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"},
+          "yaxes": [{"format": "s"}]
+        }
+      },
+      {
+        "title": "ZK Proof Success Rate",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 24, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(privacypool_withdraw_count_total[5m]) / (rate(privacypool_withdraw_count_total[5m]) + rate(privacypool_zk_proof_failures_total[5m]) + 0.001)",
+            "legendFormat": "Success Rate"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"},
+          "yaxes": [{"format": "percentunit", "max": 1, "min": 0}]
+        }
+      },
+
+      {
+        "title": "Merkle Tree Metrics",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 32, "w": 24, "h": 1}
+      },
+      {
+        "title": "Tree Growth",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 33, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "privacypool_merkle_leaves_count",
+            "legendFormat": "Leaves"
+          },
+          {
+            "expr": "rate(privacypool_merkle_leaves_count[1h])",
+            "legendFormat": "Growth/h"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "title": "Insert Latency",
+        "type": "timeseries",
+        "gridPos": {"x": 12, "y": 33, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "histogram_quantile(0.95, sum(rate(privacypool_merkle_insert_latency_seconds_bucket[5m])) by (le))",
+            "legendFormat": "P95"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"},
+          "yaxes": [{"format": "s"}]
+        }
+      },
+
+      {
+        "title": "Security Metrics",
+        "type": "row",
+        "collapsed": false,
+        "gridPos": {"x": 0, "y": 41, "w": 24, "h": 1}
+      },
+      {
+        "title": "Security Events",
+        "type": "timeseries",
+        "gridPos": {"x": 0, "y": 42, "w": 12, "h": 8},
+        "targets": [
+          {
+            "expr": "rate(privacypool_nullifier_double_spend_attempts_total[5m])",
+            "legendFormat": "Double Spend Attempts"
+          },
+          {
+            "expr": "rate(privacypool_unauthorized_access_attempts_total[5m])",
+            "legendFormat": "Unauthorized Access"
+          },
+          {
+            "expr": "rate(privacypool_root_validation_failures_total[5m])",
+            "legendFormat": "Root Validation Failures"
+          }
+        ],
+        "options": {
+          "legend": {"displayMode": "list", "placement": "bottom"},
+          "tooltip": {"mode": "multi"}
+        }
+      },
+      {
+        "title": "Nullifier Stats",
+        "type": "stat",
+        "gridPos": {"x": 12, "y": 42, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "privacypool_nullifier_spent_count",
+          "legendFormat": "Spent Nullifiers"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      },
+      {
+        "title": "Admin Operations",
+        "type": "stat",
+        "gridPos": {"x": 18, "y": 42, "w": 6, "h": 4},
+        "targets": [{
+          "expr": "privacypool_admin_operations_total",
+          "legendFormat": "Total Admin Ops"
+        }],
+        "options": {
+          "colorMode": "value",
+          "graphMode": "area"
+        }
+      }
+    ]
+  }
+}

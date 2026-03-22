@@ -1,0 +1,253 @@
+# ============================================================
+# PrivacyLayer — Prometheus Alerting Rules
+# ============================================================
+# Comprehensive alerting rules for the PrivacyLayer system.
+# These rules detect issues with operations, security, and performance.
+# ============================================================
+
+groups:
+  # ──────────────────────────────────────────────────────────
+  # Core Operations Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_operations
+    rules:
+      # High deposit error rate
+      - alert: HighDepositErrorRate
+        expr: |
+          rate(privacypool_deposit_errors_total[5m]) 
+          / 
+          (rate(privacypool_deposit_count_total[5m]) + 0.001) 
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: deposit
+        annotations:
+          summary: "High deposit error rate detected"
+          description: "Deposit error rate is {{ $value | humanizePercentage }} over the last 5 minutes. Expected < 10%."
+
+      # High withdraw error rate
+      - alert: HighWithdrawErrorRate
+        expr: |
+          rate(privacypool_withdraw_errors_total[5m]) 
+          / 
+          (rate(privacypool_withdraw_count_total[5m]) + 0.001) 
+          > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: withdraw
+        annotations:
+          summary: "High withdrawal error rate detected"
+          description: "Withdrawal error rate is {{ $value | humanizePercentage }} over the last 5 minutes."
+
+      # Slow deposit operations
+      - alert: SlowDepositLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(privacypool_deposit_latency_seconds_bucket[5m])) by (le)
+          ) > 30
+        for: 10m
+        labels:
+          severity: warning
+          component: deposit
+        annotations:
+          summary: "Slow deposit operations detected"
+          description: "P95 deposit latency is {{ $value }}s. Expected < 30s."
+
+      # Slow withdraw operations
+      - alert: SlowWithdrawLatency
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(privacypool_withdraw_latency_seconds_bucket[5m])) by (le)
+          ) > 60
+        for: 10m
+        labels:
+          severity: warning
+          component: withdraw
+        annotations:
+          summary: "Slow withdrawal operations detected"
+          description: "P95 withdrawal latency is {{ $value }}s. Expected < 60s."
+
+  # ──────────────────────────────────────────────────────────
+  # ZK Proof Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_zk_proofs
+    rules:
+      # High proof verification failures
+      - alert: HighZkProofFailureRate
+        expr: |
+          rate(privacypool_zk_proof_failures_total[5m]) 
+          / 
+          (rate(privacypool_withdraw_count_total[5m]) + 0.001) 
+          > 0.05
+        for: 5m
+        labels:
+          severity: critical
+          component: zk_proofs
+        annotations:
+          summary: "High ZK proof verification failure rate"
+          description: "ZK proof failures are {{ $value | humanizePercentage }} of withdrawals. This may indicate a bug or attack."
+
+      # Slow proof verification
+      - alert: SlowZkProofVerification
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(privacypool_zk_proof_verification_seconds_bucket[5m])) by (le)
+          ) > 5
+        for: 10m
+        labels:
+          severity: warning
+          component: zk_proofs
+        annotations:
+          summary: "Slow ZK proof verification"
+          description: "P95 proof verification time is {{ $value }}s. This affects withdrawal performance."
+
+  # ──────────────────────────────────────────────────────────
+  # Merkle Tree Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_merkle
+    rules:
+      # Tree approaching capacity
+      - alert: MerkleTreeNearCapacity
+        expr: privacypool_merkle_leaves_count > 1000000
+        for: 1h
+        labels:
+          severity: warning
+          component: merkle
+        annotations:
+          summary: "Merkle tree approaching maximum capacity"
+          description: "Tree has {{ $value }} leaves (max: 1,048,576). Plan for migration or expansion."
+
+      # Tree at capacity
+      - alert: MerkleTreeFull
+        expr: privacypool_merkle_leaves_count >= 1048576
+        for: 1m
+        labels:
+          severity: critical
+          component: merkle
+        annotations:
+          summary: "Merkle tree is full"
+          description: "Tree has reached maximum capacity. Deposits will fail."
+
+      # Slow merkle insertions
+      - alert: SlowMerkleInsert
+        expr: |
+          histogram_quantile(0.95, 
+            sum(rate(privacypool_merkle_insert_latency_seconds_bucket[5m])) by (le)
+          ) > 1
+        for: 10m
+        labels:
+          severity: warning
+          component: merkle
+        annotations:
+          summary: "Slow merkle tree insertions"
+          description: "P95 merkle insert latency is {{ $value }}s. Expected < 1s."
+
+  # ──────────────────────────────────────────────────────────
+  # Security Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_security
+    rules:
+      # Double spend attempts detected
+      - alert: DoubleSpendAttempts
+        expr: rate(privacypool_nullifier_double_spend_attempts_total[5m]) > 0
+        for: 1m
+        labels:
+          severity: critical
+          component: security
+        annotations:
+          summary: "Double spend attempts detected"
+          description: "{{ $value }} double spend attempts per second. Investigate immediately."
+
+      # Unauthorized access attempts
+      - alert: UnauthorizedAccessAttempts
+        expr: rate(privacypool_unauthorized_access_attempts_total[5m]) > 0.1
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "Multiple unauthorized access attempts"
+          description: "Rate of {{ $value }}/s unauthorized access attempts detected."
+
+      # Root validation failures
+      - alert: HighRootValidationFailures
+        expr: rate(privacypool_root_validation_failures_total[5m]) > 0.5
+        for: 5m
+        labels:
+          severity: warning
+          component: security
+        annotations:
+          summary: "High root validation failure rate"
+          description: "{{ $value }}/s root validation failures. May indicate client sync issues."
+
+  # ──────────────────────────────────────────────────────────
+  # Pool State Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_state
+    rules:
+      # Pool balance anomaly
+      - alert: PoolBalanceAnomaly
+        expr: |
+          privacypool_balance != 
+          privacypool_merkle_leaves_count * privacypool_denomination
+        for: 10m
+        labels:
+          severity: critical
+          component: state
+        annotations:
+          summary: "Pool balance does not match expected value"
+          description: "Balance ({{ $value }}) does not match leaves * denomination. Audit required."
+
+      # Pool paused unexpectedly
+      - alert: PoolPausedUnexpectedly
+        expr: privacypool_paused == 1
+        for: 1h
+        labels:
+          severity: warning
+          component: state
+        annotations:
+          summary: "Pool is paused"
+          description: "The pool has been paused for more than 1 hour. Check admin actions."
+
+  # ──────────────────────────────────────────────────────────
+  # System Health Alerts
+  # ──────────────────────────────────────────────────────────
+  - name: privacypool_system
+    rules:
+      # High storage read operations
+      - alert: HighStorageReadOps
+        expr: rate(privacypool_storage_read_ops_total[5m]) > 1000
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "High rate of storage read operations"
+          description: "{{ $value }}/s storage read operations. Consider caching strategies."
+
+      # High storage write operations
+      - alert: HighStorageWriteOps
+        expr: rate(privacypool_storage_write_ops_total[5m]) > 500
+        for: 10m
+        labels:
+          severity: warning
+          component: storage
+        annotations:
+          summary: "High rate of storage write operations"
+          description: "{{ $value }}/s storage write operations. May impact gas costs."
+
+      # Contract call latency
+      - alert: HighContractCallLatency
+        expr: |
+          histogram_quantile(0.99, 
+            sum(rate(privacypool_contract_call_duration_seconds_bucket[5m])) by (le)
+          ) > 120
+        for: 5m
+        labels:
+          severity: critical
+          component: system
+        annotations:
+          summary: "Very high contract call latency"
+          description: "P99 contract call latency is {{ $value }}s. System may be overloaded."

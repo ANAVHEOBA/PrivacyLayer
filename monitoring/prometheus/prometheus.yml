@@ -1,0 +1,29 @@
+# Prometheus Configuration for PrivacyLayer
+
+global:
+  scrape_interval: 15s
+  evaluation_interval: 15s
+  external_labels:
+    monitor: 'privacypool-monitor'
+
+alerting:
+  alertmanagers:
+    - static_configs:
+        - targets:
+          - alertmanager:9093
+
+rule_files:
+  - '/etc/prometheus/alert_rules.yml'
+
+scrape_configs:
+  - job_name: 'privacypool'
+    metrics_path: '/metrics'
+    static_configs:
+      - targets:
+          - 'privacypool:9090'
+        labels:
+          environment: 'production'
+          
+  - job_name: 'prometheus'
+    static_configs:
+      - targets: ['localhost:9090']
