@@ -1,0 +1,36 @@
+{
+  "name": "@privacylayer/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for PrivacyLayer — ZK-proof shielded pool on Stellar Soroban",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --config jest.config.js",
+    "test:watch": "jest --watch",
+    "test:coverage": "jest --coverage",
+    "lint": "eslint src/ --ext .ts",
+    "clean": "rm -rf dist"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "privacy",
+    "zk-proof",
+    "groth16",
+    "bn254",
+    "poseidon",
+    "monitoring"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@types/jest": "^29.5.12",
+    "@types/node": "^20.11.0",
+    "jest": "^29.7.0",
+    "ts-jest": "^29.1.2",
+    "typescript": "^5.3.3"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
