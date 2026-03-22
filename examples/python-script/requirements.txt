@@ -1,0 +1,5 @@
+# PrivacyLayer Python Integration Example
+# pip install -r requirements.txt
+
+stellar-sdk>=10.0.0
+requests>=2.31.0

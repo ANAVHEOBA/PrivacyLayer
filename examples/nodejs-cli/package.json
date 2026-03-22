@@ -1,0 +1,23 @@
+{
+  "name": "@privacylayer/nodejs-cli-example",
+  "version": "0.1.0",
+  "private": true,
+  "description": "PrivacyLayer Node.js CLI — command-line interface for shielded transactions on Stellar/Soroban",
+  "type": "module",
+  "scripts": {
+    "build": "tsc",
+    "deposit": "tsx src/cli.ts deposit",
+    "withdraw": "tsx src/cli.ts withdraw",
+    "status": "tsx src/cli.ts status",
+    "monitor": "tsx src/cli.ts monitor",
+    "check": "tsx src/cli.ts check-nullifier"
+  },
+  "dependencies": {
+    "@stellar/stellar-sdk": "^12.0.0"
+  },
+  "devDependencies": {
+    "@types/node": "^20.14.0",
+    "tsx": "^4.16.0",
+    "typescript": "^5.5.0"
+  }
+}
