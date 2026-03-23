@@ -1,0 +1,4 @@
+# No external dependencies required — uses only Python stdlib
+# In production, add:
+# solana-py>=0.30.0
+# pynoir>=0.1.0
