@@ -1,0 +1,4 @@
+__pycache__/
+notes/
+node_modules/
+*.pyc
