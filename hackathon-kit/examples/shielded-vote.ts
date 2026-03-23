@@ -5,6 +5,12 @@
  * Voters prove they're eligible without revealing which vote is theirs.
  */
 
+
+/** Convert bytes to short hex string */
+function toHex(bytes: Uint8Array, length = 8): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+}
+
 interface Voter {
   id: string;
   secret: Uint8Array;
@@ -49,7 +55,7 @@ async function castVote(voter: Voter, choice: number): Promise<Vote> {
   const proof = {
     publicInputs: {
       voterTreeRoot: 'simulated_voter_tree_root',
-      nullifierHash: `nullifier_${Buffer.from(voter.secret).toString('hex').slice(0, 8)}`,
+      nullifierHash: `nullifier_${toHex(voter.secret)}`,
       choice,
     },
     proof: 'simulated_vote_proof',

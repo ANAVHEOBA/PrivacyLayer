@@ -9,6 +9,12 @@
 // This is a conceptual example showing the flow.
 // Actual implementation depends on the deployed PrivacyLayer SDK.
 
+
+/** Convert bytes to short hex string */
+function toHex(bytes: Uint8Array, length = 8): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+}
+
 interface Note {
   amount: number;
   secret: Uint8Array;
@@ -24,7 +30,7 @@ function createNote(amount: number): Note {
   const nullifier = crypto.getRandomValues(new Uint8Array(32));
   
   // In production, this would use Pedersen hash from the Noir circuit
-  const commitment = `commitment_${Buffer.from(secret).toString('hex').slice(0, 8)}`;
+  const commitment = `commitment_${toHex(secret)}`;
   
   return { amount, secret, nullifier, commitment };
 }
@@ -67,7 +73,7 @@ async function generateWithdrawalProof(
   const proof = {
     publicInputs: {
       root: merkleRoot,
-      nullifierHash: `hash_${Buffer.from(note.nullifier).toString('hex').slice(0, 8)}`,
+      nullifierHash: `hash_${toHex(note.nullifier)}`,
       recipient,
       amount: note.amount,
     },

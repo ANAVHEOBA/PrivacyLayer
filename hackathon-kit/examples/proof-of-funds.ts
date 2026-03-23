@@ -9,6 +9,12 @@
  * Generate a range proof: proves balance >= threshold
  * without revealing the actual balance.
  */
+
+/** Convert bytes to short hex string */
+function toHex(bytes: Uint8Array, length = 8): string {
+  return Array.from(bytes).map(b => b.toString(16).padStart(2, '0')).join('').slice(0, length);
+}
+
 async function proveMinBalance(
   actualBalance: number,
   threshold: number,
@@ -32,7 +38,7 @@ async function proveMinBalance(
   
   const proof = {
     publicInputs: {
-      balanceCommitment: `commitment_${Buffer.from(secret).toString('hex').slice(0, 8)}`,
+      balanceCommitment: `commitment_${toHex(secret)}`,
       threshold,
       merkleRoot: 'simulated_state_root',
     },

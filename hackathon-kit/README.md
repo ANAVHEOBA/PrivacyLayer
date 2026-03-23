@@ -11,9 +11,9 @@ hackathon-kit/
 ├── JUDGING.md             ← Scoring rubric & criteria
 ├── PRIZES.md              ← Prize structure & ideas
 ├── examples/
-│   ├── private-transfer/  ← Basic private token transfer
-│   ├── shielded-vote/     ← Anonymous voting example
-│   └── proof-of-funds/    ← Prove balance without revealing amount
+│   ├── private-transfer.ts  ← Basic private token transfer
+│   ├── shielded-vote.ts     ← Anonymous voting example
+│   └── proof-of-funds.ts   ← Prove balance without revealing amount
 └── cheatsheet.md          ← API reference card
 ```
 
