@@ -47,14 +47,10 @@ pub fn compute_root(
         // At level i: if bit i is 0, current is left child; if 1, it's right child
         let is_right = index_bits[i] != 0;
 
-        // Optimize: compute both possibilities and select using is_right
-        // This avoids two multiplications per iteration
-        let left_right = [current, hash_path[i]];
-        let right_left = [hash_path[i], current];
-        
-        // Select based on is_right
-        let left = left_right[is_right as usize];
-        let right = right_left[is_right as usize];
+        // Optimize: avoid array indexing with variable indices by using conditional selection
+        // This is more efficient than array lookups which may add constraints
+        let left = if is_right { hash_path[i] } else { current };
+        let right = if is_right { current } else { hash_path[i] };
 
         current = hash::hash_pair(left, right);
     }
