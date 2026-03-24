@@ -1,0 +1,127 @@
+# GraphQL Schema for PrivacyLayer Event Indexer
+# Provides queries and subscriptions for all contract events
+
+type DepositEvent {
+  id: String!
+  commitment: String!
+  leafIndex: Int!
+  root: String!
+  txHash: String!
+  timestamp: String!
+  ledger: String!
+}
+
+type WithdrawEvent {
+  id: String!
+  nullifierHash: String!
+  recipient: String!
+  relayer: String
+  fee: String!
+  amount: String!
+  txHash: String!
+  timestamp: String!
+  ledger: String!
+}
+
+type PoolPausedEvent {
+  id: String!
+  admin: String!
+  txHash: String!
+  timestamp: String!
+  ledger: String!
+}
+
+type PoolUnpausedEvent {
+  id: String!
+  admin: String!
+  txHash: String!
+  timestamp: String!
+  ledger: String!
+}
+
+type VkUpdatedEvent {
+  id: String!
+  admin: String!
+  txHash: String!
+  timestamp: String!
+  ledger: String!
+}
+
+type MerkleTreeState {
+  currentRoot: String!
+  leafCount: Int!
+  lastUpdated: String!
+}
+
+type IndexerStats {
+  totalDeposits: Int!
+  totalWithdrawals: Int!
+  currentLedger: String!
+  lastIndexedLedger: String!
+  isPaused: Boolean!
+}
+
+# Pagination input
+input PaginationInput {
+  skip: Int = 0
+  take: Int = 20
+}
+
+# Filter inputs
+input DepositFilterInput {
+  commitment: String
+  leafIndexMin: Int
+  leafIndexMax: Int
+  timestampAfter: String
+  timestampBefore: String
+}
+
+input WithdrawFilterInput {
+  nullifierHash: String
+  recipient: String
+  relayer: String
+  timestampAfter: String
+  timestampBefore: String
+}
+
+type Query {
+  # Deposit queries
+  deposits(pagination: PaginationInput, filter: DepositFilterInput): [DepositEvent!]!
+  deposit(id: String!): DepositEvent
+  depositByCommitment(commitment: String!): DepositEvent
+  
+  # Withdrawal queries
+  withdrawals(pagination: PaginationInput, filter: WithdrawFilterInput): [WithdrawEvent!]!
+  withdraw(id: String!): WithdrawEvent
+  withdrawByNullifierHash(nullifierHash: String!): WithdrawEvent
+  
+  # Admin event queries
+  poolPausedEvents(pagination: PaginationInput): [PoolPausedEvent!]!
+  poolUnpausedEvents(pagination: PaginationInput): [PoolUnpausedEvent!]!
+  vkUpdatedEvents(pagination: PaginationInput): [VkUpdatedEvent!]!
+  
+  # State queries
+  merkleTreeState: MerkleTreeState!
+  indexerStats: IndexerStats!
+  
+  # Utility queries
+  isCommitmentUsed(commitment: String!): Boolean!
+  isNullifierUsed(nullifierHash: String!): Boolean!
+}
+
+type Subscription {
+  # Real-time event subscriptions
+  onDeposit: DepositEvent!
+  onWithdraw: WithdrawEvent!
+  onPoolPaused: PoolPausedEvent!
+  onPoolUnpaused: PoolUnpausedEvent!
+  onVkUpdated: VkUpdatedEvent!
+  
+  # State change subscriptions
+  onMerkleTreeUpdate: MerkleTreeState!
+}
+
+schema {
+  query: Query
+  subscription: Subscription
+}
