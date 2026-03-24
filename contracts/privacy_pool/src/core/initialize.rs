@@ -7,14 +7,13 @@ use soroban_sdk::{Address, Env};
 use crate::crypto::merkle;
 use crate::storage::config;
 use crate::types::errors::Error;
-use crate::types::state::{Denomination, PoolConfig, VerifyingKey};
+use crate::types::state::{PoolConfig, VerifyingKey};
 
 /// Initialize the privacy pool with configuration.
 ///
 /// # Arguments
 /// - `admin`       : address that can pause/update the pool
 /// - `token`       : token contract (use Stellar native XLM or USDC SAC)
-/// - `denomination`: fixed deposit/withdrawal amount
 /// - `vk`          : Groth16 verifying key for the withdrawal circuit
 ///
 /// # Errors
@@ -23,7 +22,6 @@ pub fn execute(
     env: Env,
     admin: Address,
     token: Address,
-    denomination: Denomination,
     vk: VerifyingKey,
 ) -> Result<(), Error> {
     // Check if already initialized
@@ -35,7 +33,6 @@ pub fn execute(
     let pool_config = PoolConfig {
         admin,
         token,
-        denomination,
         tree_depth: merkle::TREE_DEPTH,
         root_history_size: merkle::ROOT_HISTORY_SIZE,
         paused: false,

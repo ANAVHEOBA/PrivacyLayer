@@ -23,30 +23,30 @@ impl PrivacyPool {
     /// Initialize the privacy pool.
     ///
     /// Must be called once before any deposits or withdrawals.
-    /// Sets the admin, token, denomination, and verifying key.
+    /// Sets the admin, token, and verifying key.
     pub fn initialize(
         env: Env,
         admin: Address,
         token: Address,
-        denomination: Denomination,
         vk: VerifyingKey,
     ) -> Result<(), Error> {
-        initialize::execute(env, admin, token, denomination, vk)
+        initialize::execute(env, admin, token, vk)
     }
 
     // ──────────────────────────────────────────────────────────
     // Core Operations
     // ──────────────────────────────────────────────────────────
 
-    /// Deposit into the shielded pool.
+    /// Deposit into the shielded pool for a specific denomination.
     ///
     /// Transfers denomination amount and inserts commitment into Merkle tree.
     pub fn deposit(
         env: Env,
         from: Address,
+        denomination: Denomination,
         commitment: BytesN<32>,
     ) -> Result<(u32, BytesN<32>), Error> {
-        deposit::execute(env, from, commitment)
+        deposit::execute(env, from, denomination, commitment)
     }
 
     /// Withdraw from the shielded pool using a ZK proof.
@@ -64,19 +64,19 @@ impl PrivacyPool {
     // View Functions
     // ──────────────────────────────────────────────────────────
 
-    /// Returns the current Merkle root (most recent).
-    pub fn get_root(env: Env) -> Result<BytesN<32>, Error> {
-        view::get_root(env)
+    /// Returns the current Merkle root for a denomination (most recent).
+    pub fn get_root_by_denomination(env: Env, denomination: Denomination) -> Result<BytesN<32>, Error> {
+        view::get_root_by_denomination(env, denomination)
     }
 
-    /// Returns the total number of deposits.
-    pub fn deposit_count(env: Env) -> u32 {
-        view::deposit_count(env)
+    /// Returns the total number of deposits for a denomination.
+    pub fn deposit_count_by_denomination(env: Env, denomination: Denomination) -> u32 {
+        view::deposit_count_by_denomination(env, denomination)
     }
 
-    /// Check if a root is in the historical root buffer.
-    pub fn is_known_root(env: Env, root: BytesN<32>) -> bool {
-        view::is_known_root(env, root)
+    /// Check if a root is in the historical root buffer for a denomination.
+    pub fn is_known_root_for_denomination(env: Env, root: BytesN<32>, denomination: Denomination) -> bool {
+        view::is_known_root_for_denomination(env, root, denomination)
     }
 
     /// Check if a nullifier has been spent.
@@ -87,6 +87,11 @@ impl PrivacyPool {
     /// Returns the pool configuration.
     pub fn get_config_view(env: Env) -> Result<PoolConfig, Error> {
         view::get_config(env)
+    }
+
+    /// Returns all supported denominations.
+    pub fn get_all_denominations(env: Env) -> Vec<Denomination> {
+        view::get_all_denominations(env)
     }
 
     // ──────────────────────────────────────────────────────────

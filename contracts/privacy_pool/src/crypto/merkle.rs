@@ -74,49 +74,49 @@ pub fn zero_at_level(env: &Env, level: u32) -> BytesN<32> {
 // Storage Accessors
 // ──────────────────────────────────────────────────────────────
 
-pub fn get_tree_state(env: &Env) -> TreeState {
+pub fn get_tree_state(env: &Env, denom: u32) -> TreeState {
     env.storage()
         .persistent()
-        .get(&DataKey::TreeState)
+        .get(&DataKey::TreeState(denom))
         .unwrap_or_default()
 }
 
-pub fn save_tree_state(env: &Env, state: &TreeState) {
+pub fn save_tree_state(env: &Env, denom: u32, state: &TreeState) {
     env.storage()
         .persistent()
-        .set(&DataKey::TreeState, state);
+        .set(&DataKey::TreeState(denom), state);
 }
 
-pub fn get_root(env: &Env, index: u32) -> Option<BytesN<32>> {
+pub fn get_root(env: &Env, denom: u32, index: u32) -> Option<BytesN<32>> {
     env.storage()
         .persistent()
-        .get(&DataKey::Root(index % ROOT_HISTORY_SIZE))
+        .get(&DataKey::Root(denom, index % ROOT_HISTORY_SIZE))
 }
 
-pub fn save_root(env: &Env, index: u32, root: BytesN<32>) {
+pub fn save_root(env: &Env, denom: u32, index: u32, root: BytesN<32>) {
     env.storage()
         .persistent()
-        .set(&DataKey::Root(index % ROOT_HISTORY_SIZE), &root);
+        .set(&DataKey::Root(denom, index % ROOT_HISTORY_SIZE), &root);
 }
 
-pub fn get_filled_subtree(env: &Env, level: u32) -> BytesN<32> {
+pub fn get_filled_subtree(env: &Env, denom: u32, level: u32) -> BytesN<32> {
     env.storage()
         .persistent()
-        .get(&DataKey::FilledSubtree(level))
+        .get(&DataKey::FilledSubtree(denom, level))
         .unwrap_or_else(|| zero_at_level(env, level))
 }
 
-pub fn save_filled_subtree(env: &Env, level: u32, hash: BytesN<32>) {
+pub fn save_filled_subtree(env: &Env, denom: u32, level: u32, hash: BytesN<32>) {
     env.storage()
         .persistent()
-        .set(&DataKey::FilledSubtree(level), &hash);
+        .set(&DataKey::FilledSubtree(denom, level), &hash);
 }
 
 // ──────────────────────────────────────────────────────────────
 // Merkle Tree Operations
 // ──────────────────────────────────────────────────────────────
 
-/// Insert a commitment into the incremental Merkle tree.
+/// Insert a commitment into the incremental Merkle tree for a specific denomination.
 ///
 /// Updates the filled subtrees and computes the new Merkle root.
 /// O(depth) = O(20) hash operations per insertion.
@@ -126,8 +126,8 @@ pub fn save_filled_subtree(env: &Env, level: u32, hash: BytesN<32>) {
 ///
 /// # Errors
 /// - `Error::TreeFull` if all 2^20 leaf slots are used
-pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Error> {
-    let mut state = get_tree_state(env);
+pub fn insert(env: &Env, denom: u32, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Error> {
+    let mut state = get_tree_state(env, denom);
 
     let max_leaves = 1u32 << TREE_DEPTH;
     if state.next_index >= max_leaves {
@@ -146,10 +146,10 @@ pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Er
             // Left child → save as filled subtree, right = zero
             left = current_hash.clone();
             right = zero_at_level(env, level);
-            save_filled_subtree(env, level, current_hash.clone());
+            save_filled_subtree(env, denom, level, current_hash.clone());
         } else {
             // Right child → left = previously saved filled subtree
-            left = get_filled_subtree(env, level);
+            left = get_filled_subtree(env, denom, level);
             right = current_hash.clone();
         }
 
@@ -161,11 +161,11 @@ pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Er
 
     // Save root to circular history buffer
     let new_root_index = state.current_root_index.wrapping_add(1) % ROOT_HISTORY_SIZE;
-    save_root(env, new_root_index, new_root.clone());
+    save_root(env, denom, new_root_index, new_root.clone());
 
     state.current_root_index = new_root_index;
     state.next_index = leaf_index + 1;
-    save_tree_state(env, &state);
+    save_tree_state(env, denom, &state);
 
     Ok((leaf_index, new_root))
 }
@@ -174,9 +174,9 @@ pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Er
 // Root History
 // ──────────────────────────────────────────────────────────────
 
-/// Check if a given root is in the historical root buffer.
-pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
-    let state = get_tree_state(env);
+/// Check if a given root is in the historical root buffer for a denomination.
+pub fn is_known_root(env: &Env, denom: u32, root: &BytesN<32>) -> bool {
+    let state = get_tree_state(env, denom);
 
     if state.next_index == 0 {
         return false;
@@ -184,7 +184,7 @@ pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
 
     let mut index = state.current_root_index;
     for _ in 0..ROOT_HISTORY_SIZE {
-        if let Some(stored_root) = get_root(env, index) {
+        if let Some(stored_root) = get_root(env, denom, index) {
             if stored_root == *root {
                 return true;
             }
@@ -199,11 +199,11 @@ pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
     false
 }
 
-/// Returns the current (most recent) Merkle root.
-pub fn current_root(env: &Env) -> Option<BytesN<32>> {
-    let state = get_tree_state(env);
+/// Returns the current (most recent) Merkle root for a denomination.
+pub fn current_root(env: &Env, denom: u32) -> Option<BytesN<32>> {
+    let state = get_tree_state(env, denom);
     if state.next_index == 0 {
         return None;
     }
-    get_root(env, state.current_root_index)
+    get_root(env, denom, state.current_root_index)
 }

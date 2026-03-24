@@ -21,6 +21,7 @@ pub struct DepositEvent {
     pub commitment: BytesN<32>,
     pub leaf_index: u32,
     pub root: BytesN<32>,
+    pub denomination: Denomination,
 }
 
 #[contractevent]
@@ -31,6 +32,7 @@ pub struct WithdrawEvent {
     pub relayer: Option<Address>,
     pub fee: i128,
     pub amount: i128,
+    pub denomination: Denomination,
 }
 
 #[contractevent]
@@ -65,11 +67,13 @@ pub fn emit_deposit(
     commitment: BytesN<32>,
     leaf_index: u32,
     root: BytesN<32>,
+    denomination: Denomination,
 ) {
     DepositEvent {
         commitment,
         leaf_index,
         root,
+        denomination,
     }.publish(env);
 }
 
@@ -92,6 +96,7 @@ pub fn emit_withdraw(
     relayer: Option<Address>,
     fee: i128,
     amount: i128,
+    denomination: Denomination,
 ) {
     WithdrawEvent {
         nullifier_hash,
@@ -99,6 +104,7 @@ pub fn emit_withdraw(
         relayer,
         fee,
         amount,
+        denomination,
     }.publish(env);
 }
 
