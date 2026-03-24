@@ -66,6 +66,7 @@ fn main(
 
     // -- Step 2: Verify Merkle inclusion --
     // Prove that commitment is a leaf in the tree with the given root
+    // Use unconstrained to compute index bits to reduce constraints
     merkle::verify_inclusion(commitment, leaf_index, hash_path, root);
 
     // -- Step 3: Verify nullifier hash --
