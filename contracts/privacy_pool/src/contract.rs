@@ -94,13 +94,32 @@ impl PrivacyPool {
     // ──────────────────────────────────────────────────────────
 
     /// Pause the pool (admin only).
-    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
-        admin::pause(env, admin)
+    /// Stores pause reason and timestamp for audit trail.
+    pub fn pause(env: Env, admin: Address, pause_reason: soroban_sdk::String) -> Result<(), Error> {
+        admin::pause(env, admin, pause_reason)
     }
 
     /// Unpause the pool (admin only).
     pub fn unpause(env: Env, admin: Address) -> Result<(), Error> {
         admin::unpause(env, admin)
+    }
+
+    /// Check if the pool is paused.
+    /// Returns (is_paused, Option<PauseInfo>) with audit trail.
+    pub fn is_paused(env: Env) -> Result<(bool, Option<crate::types::state::PauseInfo>), Error> {
+        admin::is_paused(env)
+    }
+
+    /// Emergency withdraw - admin can recover funds during security incidents.
+    /// Pool MUST be paused before calling.
+    pub fn emergency_withdraw(
+        env: Env,
+        admin: Address,
+        recipient: Address,
+        amount: i128,
+        reason: soroban_sdk::String,
+    ) -> Result<(), Error> {
+        admin::emergency_withdraw(env, admin, recipient, amount, reason)
     }
 
     /// Update the Groth16 verifying key (admin only).

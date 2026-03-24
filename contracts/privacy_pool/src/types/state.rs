@@ -30,6 +30,8 @@ pub enum DataKey {
     Nullifier(BytesN<32>),
     /// Verification key for the Groth16 proof system
     VerifyingKey,
+    /// Pause information (timestamp, reason)
+    PauseInfo,
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -155,4 +157,21 @@ pub struct Proof {
     pub b: BytesN<128>,
     /// G1 point: C (64 bytes, uncompressed)
     pub c: BytesN<64>,
+}
+
+// ──────────────────────────────────────────────────────────────
+// Pause State
+// ──────────────────────────────────────────────────────────────
+
+/// Pause information for audit trail and transparency.
+/// Stores when the pool was paused and why.
+#[contracttype]
+#[derive(Clone, Debug, Default)]
+pub struct PauseInfo {
+    /// Timestamp when the pool was paused (Unix timestamp)
+    pub pause_timestamp: u64,
+    /// Reason for the pause (for audit trail)
+    pub pause_reason: soroban_sdk::String,
+    /// Admin address that initiated the pause
+    pub paused_by: Address,
 }

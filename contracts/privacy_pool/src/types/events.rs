@@ -37,18 +37,31 @@ pub struct WithdrawEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolPausedEvent {
     pub admin: Address,
+    pub pause_reason: soroban_sdk::String,
+    pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolUnpausedEvent {
     pub admin: Address,
+    pub timestamp: u64,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VkUpdatedEvent {
     pub admin: Address,
+}
+
+#[contractevent]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct EmergencyWithdrawEvent {
+    pub admin: Address,
+    pub recipient: Address,
+    pub amount: i128,
+    pub timestamp: u64,
+    pub reason: soroban_sdk::String,
 }
 
 /// Emitted when a commitment is successfully inserted into the shielded pool.
@@ -107,17 +120,30 @@ pub fn emit_withdraw(
 // ──────────────────────────────────────────────────────────────
 
 /// Emitted when the pool is paused by the admin.
-pub fn emit_pool_paused(env: &Env, admin: Address) {
-    PoolPausedEvent { admin }.publish(env);
+pub fn emit_pool_paused(env: &Env, admin: Address, pause_reason: soroban_sdk::String, timestamp: u64) {
+    PoolPausedEvent { admin, pause_reason, timestamp }.publish(env);
 }
 
 /// Emitted when the pool is unpaused by the admin.
-pub fn emit_pool_unpaused(env: &Env, admin: Address) {
-    PoolUnpausedEvent { admin }.publish(env);
+pub fn emit_pool_unpaused(env: &Env, admin: Address, timestamp: u64) {
+    PoolUnpausedEvent { admin, timestamp }.publish(env);
 }
 
 /// Emitted when the verifying key is updated by the admin.
 /// This is a critical operation — must be carefully audited.
 pub fn emit_vk_updated(env: &Env, admin: Address) {
     VkUpdatedEvent { admin }.publish(env);
+}
+
+/// Emitted when emergency withdrawal is executed by admin.
+/// This is a critical operation — used only in security incidents.
+pub fn emit_emergency_withdraw(
+    env: &Env,
+    admin: Address,
+    recipient: Address,
+    amount: i128,
+    timestamp: u64,
+    reason: soroban_sdk::String,
+) {
+    EmergencyWithdrawEvent { admin, recipient, amount, timestamp, reason }.publish(env);
 }

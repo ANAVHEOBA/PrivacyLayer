@@ -201,7 +201,8 @@ fn test_deposit_zero_commitment_rejected() {
 fn test_deposit_while_paused_fails() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    let reason = soroban_sdk::String::from_str(&t.env, "Security maintenance");
+    t.client.pause(&t.admin, &reason);
 
     let result = t.client.try_deposit(&t.alice, &commitment(&t.env, 1));
     assert!(result.is_err());
@@ -265,8 +266,9 @@ fn test_pause_blocks_deposits() {
     // Deposit works before pause
     t.client.deposit(&t.alice, &commitment(&t.env, 1));
 
-    // Pause
-    t.client.pause(&t.admin);
+    // Pause with reason
+    let reason = soroban_sdk::String::from_str(&t.env, "Security incident");
+    t.client.pause(&t.admin, &reason);
 
     // Deposit blocked
     let result = t.client.try_deposit(&t.alice, &commitment(&t.env, 2));
@@ -277,7 +279,8 @@ fn test_pause_blocks_deposits() {
 fn test_unpause_restores_deposits() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    let reason = soroban_sdk::String::from_str(&t.env, "Maintenance");
+    t.client.pause(&t.admin, &reason);
     t.client.unpause(&t.admin);
 
     // Deposit works again
@@ -289,7 +292,8 @@ fn test_unpause_restores_deposits() {
 fn test_non_admin_cannot_pause() {
     let t = TestEnv::setup();
     t.init();
-    let result = t.client.try_pause(&t.alice); // alice is not admin
+    let reason = soroban_sdk::String::from_str(&t.env, "Test");
+    let result = t.client.try_pause(&t.alice, &reason); // alice is not admin
     assert!(result.is_err());
 }
 
@@ -297,7 +301,8 @@ fn test_non_admin_cannot_pause() {
 fn test_non_admin_cannot_unpause() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    let reason = soroban_sdk::String::from_str(&t.env, "Test");
+    t.client.pause(&t.admin, &reason);
     let result = t.client.try_unpause(&t.bob);
     assert!(result.is_err());
 }
@@ -316,6 +321,166 @@ fn test_admin_can_set_vk() {
     t.init();
     // No panic = success
     t.client.set_verifying_key(&t.admin, &dummy_vk(&t.env));
+}
+
+// ──────────────────────────────────────────────────────────────
+// Emergency Pause Mechanism Tests
+// ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_is_paused_returns_false_initially() {
+    let t = TestEnv::setup();
+    t.init();
+    let (is_paused, pause_info) = t.client.is_paused();
+    assert!(!is_paused);
+    assert!(pause_info.is_none());
+}
+
+#[test]
+fn test_is_paused_returns_true_after_pause() {
+    let t = TestEnv::setup();
+    t.init();
+    let reason = soroban_sdk::String::from_str(&t.env, "Emergency");
+    t.client.pause(&t.admin, &reason);
+    
+    let (is_paused, pause_info) = t.client.is_paused();
+    assert!(is_paused);
+    assert!(pause_info.is_some());
+    
+    let info = pause_info.unwrap();
+    assert_eq!(info.pause_reason, reason);
+    assert_eq!(info.paused_by, t.admin);
+}
+
+#[test]
+fn test_pause_is_idempotent() {
+    let t = TestEnv::setup();
+    t.init();
+    let reason = soroban_sdk::String::from_str(&t.env, "First pause");
+    
+    // Pause twice should not error
+    t.client.pause(&t.admin, &reason);
+    t.client.pause(&t.admin, &reason);
+    
+    let (is_paused, _) = t.client.is_paused();
+    assert!(is_paused);
+}
+
+#[test]
+fn test_unpause_is_idempotent() {
+    let t = TestEnv::setup();
+    t.init();
+    let reason = soroban_sdk::String::from_str(&t.env, "Pause");
+    
+    t.client.pause(&t.admin, &reason);
+    t.client.unpause(&t.admin);
+    t.client.unpause(&t.admin); // Second unpause should not error
+    
+    let (is_paused, _) = t.client.is_paused();
+    assert!(!is_paused);
+}
+
+#[test]
+fn test_emergency_withdraw_requires_paused_pool() {
+    let t = TestEnv::setup();
+    t.init();
+    
+    // Pool is not paused
+    let reason = soroban_sdk::String::from_str(&t.env, "Emergency withdraw");
+    let result = t.client.try_emergency_withdraw(
+        &t.admin,
+        &t.bob,
+        &100,
+        &reason,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_withdraw_requires_admin() {
+    let t = TestEnv::setup();
+    t.init();
+    let reason = soroban_sdk::String::from_str(&t.env, "Pause");
+    t.client.pause(&t.admin, &reason);
+    
+    // Alice is not admin
+    let withdraw_reason = soroban_sdk::String::from_str(&t.env, "Emergency");
+    let result = t.client.try_emergency_withdraw(
+        &t.alice,
+        &t.bob,
+        &100,
+        &withdraw_reason,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_withdraw_rejects_zero_amount() {
+    let t = TestEnv::setup();
+    t.init();
+    let reason = soroban_sdk::String::from_str(&t.env, "Pause");
+    t.client.pause(&t.admin, &reason);
+    
+    let withdraw_reason = soroban_sdk::String::from_str(&t.env, "Emergency");
+    let result = t.client.try_emergency_withdraw(
+        &t.admin,
+        &t.bob,
+        &0,
+        &withdraw_reason,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_withdraw_rejects_excessive_amount() {
+    let t = TestEnv::setup();
+    t.init();
+    
+    // Make one deposit
+    t.client.deposit(&t.alice, &commitment(&t.env, 1));
+    
+    // Pause
+    let reason = soroban_sdk::String::from_str(&t.env, "Security incident");
+    t.client.pause(&t.admin, &reason);
+    
+    // Try to withdraw more than balance
+    let withdraw_reason = soroban_sdk::String::from_str(&t.env, "Emergency");
+    let result = t.client.try_emergency_withdraw(
+        &t.admin,
+        &t.bob,
+        &(2 * DENOM_AMOUNT), // More than contract balance
+        &withdraw_reason,
+    );
+    assert!(result.is_err());
+}
+
+#[test]
+fn test_emergency_withdraw_succeeds() {
+    let t = TestEnv::setup();
+    t.init();
+    
+    // Make a deposit
+    t.client.deposit(&t.alice, &commitment(&t.env, 1));
+    let contract_balance_before = t.contract_balance();
+    let bob_before = t.token_balance(&t.bob);
+    
+    // Pause
+    let pause_reason = soroban_sdk::String::from_str(&t.env, "Security incident");
+    t.client.pause(&t.admin, &pause_reason);
+    
+    // Emergency withdraw
+    let withdraw_amount = DENOM_AMOUNT / 2;
+    let withdraw_reason = soroban_sdk::String::from_str(&t.env, "Recovering funds");
+    t.client.emergency_withdraw(
+        &t.admin,
+        &t.bob,
+        &withdraw_amount,
+        &withdraw_reason,
+    );
+    
+    // Verify balances
+    assert_eq!(t.token_balance(&t.bob), bob_before + withdraw_amount);
+    assert_eq!(t.contract_balance(), contract_balance_before - withdraw_amount);
 }
 
 // ──────────────────────────────────────────────────────────────

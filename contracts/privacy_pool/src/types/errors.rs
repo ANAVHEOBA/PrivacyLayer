@@ -63,4 +63,12 @@ pub enum Error {
     PointNotOnCurve = 70,
     /// BN254 pairing check failed unexpectedly
     PairingFailed = 71,
+
+    // ── Emergency Operations ───────────────────────────
+    /// Emergency withdrawal amount exceeds available balance
+    EmergencyWithdrawExceedsBalance = 80,
+    /// Pool must be paused for emergency withdrawal
+    PoolNotPaused = 81,
+    /// Invalid emergency withdrawal amount (must be > 0)
+    InvalidEmergencyAmount = 82,
 }
