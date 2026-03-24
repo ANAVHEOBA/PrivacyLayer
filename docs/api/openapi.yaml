@@ -1,0 +1,698 @@
+openapi: 3.1.0
+info:
+  title: PrivacyLayer API
+  description: |
+    PrivacyLayer is a compliance-forward private transaction protocol on Stellar Soroban.
+    
+    This API provides endpoints for:
+    - Managing shielded pool deposits and withdrawals
+    - Generating zero-knowledge proofs
+    - Querying contract state and events
+    - Relayer services for gasless transactions
+    
+    ## Authentication
+    Most endpoints are public. Relayer endpoints require API key authentication.
+    
+    ## Rate Limits
+    - Public endpoints: 100 requests/minute
+    - Relayer endpoints: 1000 requests/minute
+    
+    ## Base URLs
+    - Testnet: `https://api-testnet.privacylayer.io`
+    - Mainnet: `https://api.privacylayer.io`
+  version: 1.0.0
+  contact:
+    name: PrivacyLayer Team
+    url: https://github.com/ANAVHEOBA/PrivacyLayer
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://api-testnet.privacylayer.io
+    description: Testnet
+  - url: https://api.privacylayer.io
+    description: Mainnet
+
+tags:
+  - name: Pool
+    description: Shielded pool operations
+  - name: Deposit
+    description: Deposit operations
+  - name: Withdraw
+    description: Withdrawal operations
+  - name: Proof
+    description: ZK proof generation
+  - name: Relayer
+    description: Relayer services
+  - name: Events
+    description: Event queries
+  - name: Health
+    description: Service health checks
+
+paths:
+  /v1/pool/info:
+    get:
+      tags: [Pool]
+      summary: Get pool information
+      description: Returns current pool state including Merkle root, total deposits, and pause status
+      operationId: getPoolInfo
+      responses:
+        '200':
+          description: Pool information
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolInfo'
+              example:
+                merkleRoot: "0x1234567890abcdef..."
+                leafCount: 1234
+                denomination: "1000000000"
+                asset: "XLM"
+                isPaused: false
+                totalDeposits: 1234
+                totalWithdrawals: 567
+
+  /v1/pool/denominations:
+    get:
+      tags: [Pool]
+      summary: Get supported denominations
+      description: Returns list of supported deposit denominations
+      operationId: getDenominations
+      responses:
+        '200':
+          description: List of denominations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  denominations:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Denomination'
+
+  /v1/deposit/prepare:
+    post:
+      tags: [Deposit]
+      summary: Prepare deposit
+      description: |
+        Generates commitment and prepares deposit transaction.
+        
+        The client should:
+        1. Call this endpoint to get commitment
+        2. Sign the transaction with their wallet
+        3. Submit the transaction to Stellar network
+      operationId: prepareDeposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareDepositRequest'
+      responses:
+        '200':
+          description: Deposit preparation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrepareDepositResponse'
+
+  /v1/deposit/estimate:
+    post:
+      tags: [Deposit]
+      summary: Estimate deposit cost
+      description: Estimates gas cost for deposit transaction
+      operationId: estimateDeposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstimateDepositRequest'
+      responses:
+        '200':
+          description: Cost estimation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostEstimation'
+
+  /v1/withdraw/prepare:
+    post:
+      tags: [Withdraw]
+      summary: Prepare withdrawal
+      description: |
+        Generates ZK proof and prepares withdrawal transaction.
+        
+        The client should:
+        1. Provide note and recipient address
+        2. System generates Merkle proof and ZK proof
+        3. Sign and submit the transaction
+      operationId: prepareWithdraw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrepareWithdrawRequest'
+      responses:
+        '200':
+          description: Withdrawal preparation data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrepareWithdrawResponse'
+
+  /v1/withdraw/estimate:
+    post:
+      tags: [Withdraw]
+      summary: Estimate withdrawal cost
+      description: Estimates gas cost for withdrawal transaction
+      operationId: estimateWithdraw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EstimateWithdrawRequest'
+      responses:
+        '200':
+          description: Cost estimation
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CostEstimation'
+
+  /v1/proof/generate:
+    post:
+      tags: [Proof]
+      summary: Generate ZK proof
+      description: Generates a Groth16 proof for withdrawal
+      operationId: generateProof
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GenerateProofRequest'
+      responses:
+        '200':
+          description: Generated proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ZKProof'
+
+  /v1/merkle/root:
+    get:
+      tags: [Proof]
+      summary: Get current Merkle root
+      description: Returns the current Merkle tree root
+      operationId: getMerkleRoot
+      responses:
+        '200':
+          description: Merkle root
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  root:
+                    type: string
+                    description: 32-byte hex string
+                    example: "0x1234567890abcdef..."
+                  leafCount:
+                    type: integer
+                    example: 1234
+
+  /v1/merkle/proof/{commitment}:
+    get:
+      tags: [Proof]
+      summary: Get Merkle proof
+      description: Generates Merkle inclusion proof for a commitment
+      operationId: getMerkleProof
+      parameters:
+        - name: commitment
+          in: path
+          required: true
+          schema:
+            type: string
+          description: 32-byte commitment hex string
+      responses:
+        '200':
+          description: Merkle proof
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MerkleProof'
+        '404':
+          description: Commitment not found
+
+  /v1/relayer/submit:
+    post:
+      tags: [Relayer]
+      summary: Submit transaction via relayer
+      description: |
+        Submits a withdrawal transaction through the relayer service.
+        The relayer pays gas fees and takes a fee from the withdrawal.
+        
+        Requires API key authentication.
+      operationId: relayerSubmit
+      security:
+        - ApiKeyAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RelayerSubmitRequest'
+      responses:
+        '200':
+          description: Transaction submitted
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayerSubmitResponse'
+        '400':
+          description: Invalid request
+        '401':
+          description: Unauthorized
+
+  /v1/relayer/status/{txHash}:
+    get:
+      tags: [Relayer]
+      summary: Get relayed transaction status
+      description: Returns status of a relayed transaction
+      operationId: relayerStatus
+      parameters:
+        - name: txHash
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Transaction status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RelayerStatus'
+
+  /v1/events/deposits:
+    get:
+      tags: [Events]
+      summary: Query deposit events
+      description: Returns paginated list of deposit events
+      operationId: getDepositEvents
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: take
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: fromLedger
+          in: query
+          schema:
+            type: integer
+          description: Start from this ledger
+        - name: toLedger
+          in: query
+          schema:
+            type: integer
+          description: End at this ledger
+      responses:
+        '200':
+          description: List of deposit events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DepositEvent'
+                  total:
+                    type: integer
+
+  /v1/events/withdrawals:
+    get:
+      tags: [Events]
+      summary: Query withdrawal events
+      description: Returns paginated list of withdrawal events
+      operationId: getWithdrawalEvents
+      parameters:
+        - name: skip
+          in: query
+          schema:
+            type: integer
+            default: 0
+        - name: take
+          in: query
+          schema:
+            type: integer
+            default: 20
+            maximum: 100
+        - name: recipient
+          in: query
+          schema:
+            type: string
+          description: Filter by recipient address
+      responses:
+        '200':
+          description: List of withdrawal events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  events:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/WithdrawalEvent'
+                  total:
+                    type: integer
+
+  /v1/health:
+    get:
+      tags: [Health]
+      summary: Health check
+      description: Returns service health status
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthStatus'
+
+components:
+  securitySchemes:
+    ApiKeyAuth:
+      type: apiKey
+      in: header
+      name: X-API-Key
+
+  schemas:
+    PoolInfo:
+      type: object
+      properties:
+        merkleRoot:
+          type: string
+          description: Current Merkle tree root (32-byte hex)
+        leafCount:
+          type: integer
+          description: Number of leaves in Merkle tree
+        denomination:
+          type: string
+          description: Fixed deposit amount in stroops
+        asset:
+          type: string
+          enum: [XLM, USDC]
+        isPaused:
+          type: boolean
+        totalDeposits:
+          type: integer
+        totalWithdrawals:
+          type: integer
+        verifyingKeyHash:
+          type: string
+          description: Hash of current verifying key
+
+    Denomination:
+      type: object
+      properties:
+        amount:
+          type: string
+          description: Amount in stroops
+        asset:
+          type: string
+        minDeposit:
+          type: string
+        maxDeposit:
+          type: string
+
+    PrepareDepositRequest:
+      type: object
+      required:
+        - nullifier
+        - secret
+      properties:
+        nullifier:
+          type: string
+          description: Random 31-byte nullifier (hex)
+        secret:
+          type: string
+          description: Random 31-byte secret (hex)
+
+    PrepareDepositResponse:
+      type: object
+      properties:
+        commitment:
+          type: string
+          description: Poseidon(nullifier, secret) - 32-byte hex
+        expectedLeafIndex:
+          type: integer
+        transactionXDR:
+          type: string
+          description: Unsigned transaction XDR
+
+    EstimateDepositRequest:
+      type: object
+      properties:
+        asset:
+          type: string
+          enum: [XLM, USDC]
+
+    EstimateWithdrawRequest:
+      type: object
+      properties:
+        asset:
+          type: string
+          enum: [XLM, USDC]
+        useRelayer:
+          type: boolean
+
+    CostEstimation:
+      type: object
+      properties:
+        gasEstimate:
+          type: integer
+        feeEstimate:
+          type: string
+          description: Fee in stroops
+
+    PrepareWithdrawRequest:
+      type: object
+      required:
+        - note
+        - recipient
+      properties:
+        note:
+          type: string
+          description: Encrypted note (hex)
+        recipient:
+          type: string
+          description: Stellar address to receive funds
+        relayer:
+          type: string
+          description: Optional relayer address
+        fee:
+          type: string
+          description: Fee for relayer (stroops)
+
+    PrepareWithdrawResponse:
+      type: object
+      properties:
+        nullifierHash:
+          type: string
+        merkleProof:
+          $ref: '#/components/schemas/MerkleProof'
+        zkProof:
+          $ref: '#/components/schemas/ZKProof'
+        transactionXDR:
+          type: string
+
+    GenerateProofRequest:
+      type: object
+      required:
+        - nullifier
+        - secret
+        - merkleProof
+        - recipient
+      properties:
+        nullifier:
+          type: string
+        secret:
+          type: string
+        merkleProof:
+          $ref: '#/components/schemas/MerkleProof'
+        recipient:
+          type: string
+        relayer:
+          type: string
+        fee:
+          type: string
+
+    MerkleProof:
+      type: object
+      properties:
+        root:
+          type: string
+        leaf:
+          type: string
+        pathElements:
+          type: array
+          items:
+            type: string
+        pathIndices:
+          type: array
+          items:
+            type: integer
+
+    ZKProof:
+      type: object
+      properties:
+        pi_a:
+          type: array
+          items:
+            type: string
+        pi_b:
+          type: array
+          items:
+            type: array
+            items:
+              type: string
+        pi_c:
+          type: array
+          items:
+            type: string
+        protocol:
+          type: string
+          enum: [groth16]
+        curve:
+          type: string
+          enum: [bn128]
+
+    DepositEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        commitment:
+          type: string
+        leafIndex:
+          type: integer
+        root:
+          type: string
+        txHash:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        ledger:
+          type: integer
+
+    WithdrawalEvent:
+      type: object
+      properties:
+        id:
+          type: string
+        nullifierHash:
+          type: string
+        recipient:
+          type: string
+        relayer:
+          type: string
+          nullable: true
+        fee:
+          type: string
+        amount:
+          type: string
+        txHash:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+        ledger:
+          type: integer
+
+    RelayerSubmitRequest:
+      type: object
+      required:
+        - proof
+        - nullifierHash
+        - recipient
+      properties:
+        proof:
+          $ref: '#/components/schemas/ZKProof'
+        nullifierHash:
+          type: string
+        recipient:
+          type: string
+        relayer:
+          type: string
+        fee:
+          type: string
+
+    RelayerSubmitResponse:
+      type: object
+      properties:
+        txHash:
+          type: string
+        status:
+          type: string
+          enum: [pending, submitted, confirmed, failed]
+        fee:
+          type: string
+
+    RelayerStatus:
+      type: object
+      properties:
+        txHash:
+          type: string
+        status:
+          type: string
+          enum: [pending, submitted, confirmed, failed]
+        confirmedAt:
+          type: string
+          format: date-time
+          nullable: true
+        ledger:
+          type: integer
+          nullable: true
+
+    HealthStatus:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        version:
+          type: string
+        uptime:
+          type: integer
+          description: Uptime in seconds
+        components:
+          type: object
+          properties:
+            database:
+              type: string
+              enum: [connected, disconnected]
+            sorobanRpc:
+              type: string
+              enum: [connected, disconnected]
+            prover:
+              type: string
+              enum: [available, unavailable]
+        timestamp:
+          type: string
+          format: date-time
