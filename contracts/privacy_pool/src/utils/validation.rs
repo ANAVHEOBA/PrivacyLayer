@@ -39,9 +39,9 @@ pub fn require_non_zero_commitment(env: &Env, commitment: &BytesN<32>) -> Result
     }
 }
 
-/// Validate that the root is in the historical root buffer.
-pub fn require_known_root(env: &Env, root: &BytesN<32>) -> Result<(), Error> {
-    if !merkle::is_known_root(env, root) {
+/// Validate that the root is in the historical root buffer for a denomination.
+pub fn require_known_root_for_denomination(env: &Env, denom: u32, root: &BytesN<32>) -> Result<(), Error> {
+    if !merkle::is_known_root(env, denom, root) {
         Err(Error::UnknownRoot)
     } else {
         Ok(())

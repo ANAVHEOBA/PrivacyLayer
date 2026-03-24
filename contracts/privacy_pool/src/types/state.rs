@@ -18,18 +18,20 @@ use soroban_sdk::{contracttype, Address, BytesN};
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataKey {
-    /// Contract configuration (admin, denomination, etc.)
+    /// Contract configuration (admin, etc.)
     Config,
-    /// Current Merkle tree state (root index, next leaf index)
-    TreeState,
-    /// Historical Merkle roots — DataKey::Root(index) → BytesN<32>
-    Root(u32),
-    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(level) → BytesN<32>
-    FilledSubtree(u32),
+    /// Current Merkle tree state per denomination — DataKey::TreeState(denom) → TreeState
+    TreeState(u32),
+    /// Historical Merkle roots per denomination — DataKey::Root(denom, index) → BytesN<32>
+    Root(u32, u32),
+    /// Merkle tree filled subtree hashes at each level per denomination — DataKey::FilledSubtree(denom, level) → BytesN<32>
+    FilledSubtree(u32, u32),
     /// Spent nullifier hashes — DataKey::Nullifier(hash) → bool
     Nullifier(BytesN<32>),
     /// Verification key for the Groth16 proof system
     VerifyingKey,
+    /// List of supported denominations
+    Denominations,
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -39,29 +41,47 @@ pub enum DataKey {
 /// Fixed denomination amounts supported by the pool.
 /// Using fixed denominations prevents amount-based correlation attacks.
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
 pub enum Denomination {
     /// 10 XLM (in stroops: 10 * 10_000_000)
-    Xlm10,
+    Ten,
     /// 100 XLM
-    Xlm100,
+    Hundred,
     /// 1000 XLM
-    Xlm1000,
-    /// 100 USDC (6 decimal places: 100 * 1_000_000)
-    Usdc100,
-    /// 1000 USDC
-    Usdc1000,
+    Thousand,
+    /// 10000 XLM
+    TenThousand,
 }
 
 impl Denomination {
     /// Returns the stroop/microunit amount for this denomination.
     pub fn amount(&self) -> i128 {
         match self {
-            Denomination::Xlm10   =>     100_000_000, // 10 XLM
-            Denomination::Xlm100  =>   1_000_000_000, // 100 XLM
-            Denomination::Xlm1000 =>  10_000_000_000, // 1000 XLM
-            Denomination::Usdc100  =>      100_000_000, // 100 USDC (6 dec)
-            Denomination::Usdc1000 =>    1_000_000_000, // 1000 USDC
+            Denomination::Ten        =>     100_000_000, // 10 XLM
+            Denomination::Hundred    =>   1_000_000_000, // 100 XLM
+            Denomination::Thousand   =>  10_000_000_000, // 1000 XLM
+            Denomination::TenThousand => 100_000_000_000, // 10000 XLM
+        }
+    }
+    
+    /// Convert to u32 for storage key
+    pub fn to_u32(&self) -> u32 {
+        match self {
+            Denomination::Ten => 10,
+            Denomination::Hundred => 100,
+            Denomination::Thousand => 1000,
+            Denomination::TenThousand => 10000,
+        }
+    }
+    
+    /// Convert from u32
+    pub fn from_u32(value: u32) -> Option<Self> {
+        match value {
+            10 => Some(Denomination::Ten),
+            100 => Some(Denomination::Hundred),
+            1000 => Some(Denomination::Thousand),
+            10000 => Some(Denomination::TenThousand),
+            _ => None,
         }
     }
 }
@@ -74,8 +94,6 @@ pub struct PoolConfig {
     pub admin: Address,
     /// Token contract address (XLM native or USDC)
     pub token: Address,
-    /// Fixed deposit denomination enforced by the pool
-    pub denomination: Denomination,
     /// Merkle tree depth (always 20)
     pub tree_depth: u32,
     /// Maximum number of historical roots to keep
@@ -143,6 +161,8 @@ pub struct PublicInputs {
     pub relayer: BytesN<32>,
     /// Relayer fee (zero if none)
     pub fee: BytesN<32>,
+    /// Denomination identifier
+    pub denomination: BytesN<32>,
 }
 
 /// Groth16 proof — three elliptic curve points on BN254.

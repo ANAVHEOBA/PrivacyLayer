@@ -2,13 +2,13 @@
 // Withdrawal Logic
 // ============================================================
 
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, Env, BytesN};
 
-use crate::crypto::verifier;
+use crate::crypto::{verifier, merkle};
 use crate::storage::{config, nullifier};
 use crate::types::errors::Error;
 use crate::types::events::emit_withdraw;
-use crate::types::state::{Proof, PublicInputs};
+use crate::types::state::{Proof, PublicInputs, Denomination, DataKey};
 use crate::utils::{address_decoder, validation};
 
 /// Execute a withdrawal from the shielded pool using a ZK proof.
@@ -27,6 +27,7 @@ use crate::utils::{address_decoder, validation};
 /// - `Error::NullifierAlreadySpent` if nullifier was already used
 /// - `Error::FeeExceedsAmount`     if fee > denomination amount
 /// - `Error::InvalidProof`         if Groth16 verification fails
+/// - `Error::WrongAmount`          if amount doesn't match denomination
 pub fn execute(
     env: Env,
     proof: Proof,
@@ -36,10 +37,15 @@ pub fn execute(
     let pool_config = config::load(&env)?;
     validation::require_not_paused(&pool_config)?;
 
-    let denomination_amount = pool_config.denomination.amount();
+    // Decode denomination from public inputs
+    let denomination = decode_denomination(&env, &pub_inputs.denomination)?;
+    let denomination_amount = denomination.amount();
 
-    // Step 1: Validate root is in history
-    validation::require_known_root(&env, &pub_inputs.root)?;
+    // Step 1: Validate root is in history for this denomination
+    let denom_value = denomination.to_u32();
+    if !merkle::is_known_root(&env, denom_value, &pub_inputs.root) {
+        return Err(Error::UnknownRoot);
+    }
 
     // Step 2: Check nullifier not already spent
     validation::require_nullifier_unspent(&env, &pub_inputs.nullifier_hash)?;
@@ -79,9 +85,21 @@ pub fn execute(
         relayer_opt.clone(),
         fee,
         denomination_amount,
+        denomination,
     );
 
     Ok(true)
+}
+
+/// Decode denomination from 32-byte field element
+fn decode_denomination(env: &Env, denom_bytes: &BytesN<32>) -> Result<Denomination, Error> {
+    // Convert to u32 by taking the last 4 bytes
+    let bytes = denom_bytes.to_array();
+    let mut value_bytes = [0u8; 4];
+    value_bytes.copy_from_slice(&bytes[28..32]);
+    let value = u32::from_be_bytes(value_bytes);
+    
+    Denomination::from_u32(value).ok_or(Error::WrongAmount)
 }
 
 /// Transfer funds to recipient and optionally to relayer.

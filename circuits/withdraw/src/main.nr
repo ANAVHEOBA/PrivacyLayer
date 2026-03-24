@@ -58,6 +58,7 @@ fn main(
     amount: pub Field,
     relayer: pub Field,
     fee: pub Field,
+    denomination: pub Field,
 ) {
     // -- Step 1: Reconstruct commitment --
     // commitment = Hash(nullifier, secret)
@@ -81,6 +82,17 @@ fn main(
     
     // Relayer must be zero if fee is zero
     validation::validate_relayer(relayer, fee);
+    
+    // Verify amount matches denomination
+    // Denomination values: 10=10000000, 100=100000000, 1000=1000000000, 10000=10000000000
+    let expected_amount = match denomination {
+        10 => 100_000_000,
+        100 => 1_000_000_000,
+        1000 => 10_000_000_000,
+        10000 => 100_000_000_000,
+        _ => 0,
+    };
+    assert(amount == expected_amount, "amount must match denomination");
     
     // Bind recipient to prevent front-running
     // (In Groth16, all pub inputs are automatically bound to the proof)
@@ -109,13 +121,14 @@ fn test_valid_withdrawal() {
 
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
     let recipient: Field = 0xABCD;
-    let amount: Field = 100_0000000; // 100 XLM in stroops
+    let amount: Field = 1_000_000_000; // 100 XLM in stroops
     let relayer: Field = 0;
     let fee: Field = 0;
+    let denomination: Field = 100; // Hundred denomination
 
     main(
         nullifier, secret, 0, hash_path,
-        root, nullifier_hash, recipient, amount, relayer, fee
+        root, nullifier_hash, recipient, amount, relayer, fee, denomination
     );
 }
 
@@ -129,13 +142,14 @@ fn test_withdrawal_with_relayer_fee() {
 
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
     let recipient: Field = 0xDEAD;
-    let amount: Field = 100_0000000;
+    let amount: Field = 1_000_000_000;
     let relayer: Field = 0xBEEF;
-    let fee: Field = 1_0000000; // 1 XLM fee
+    let fee: Field = 10_000_000; // 1 XLM fee
+    let denomination: Field = 100; // Hundred denomination
 
     main(
         nullifier, secret, 0, hash_path,
-        root, nullifier_hash, recipient, amount, relayer, fee
+        root, nullifier_hash, recipient, amount, relayer, fee, denomination
     );
 }
 
