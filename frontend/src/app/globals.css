@@ -1,0 +1,241 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* 
+ * PrivacyLayer CSS Variables for Dark Mode Theme
+ * Based on WCAG AA contrast requirements
+ */
+
+@layer base {
+  :root {
+    /* Light mode colors */
+    --background: 0 0% 100%;           /* #ffffff */
+    --foreground: 222.2 84% 4.9%;      /* #0a0a0f - Near black */
+    
+    --primary: 172 66% 50%;            /* #14b8a6 - Teal */
+    --primary-foreground: 0 0% 100%;   /* White text on primary */
+    
+    --secondary: 210 40% 96.1%;        /* #eff6ff - Light blue-gray */
+    --secondary-foreground: 222.2 47.4% 11.2%;
+    
+    --accent: 210 40% 96.1%;
+    --accent-foreground: 222.2 47.4% 11.2%;
+    
+    --muted: 210 40% 96.1%;
+    --muted-foreground: 215.4 16.3% 46.9%;
+    
+    --card: 0 0% 100%;
+    --card-foreground: 222.2 84% 4.9%;
+    
+    --border: 214.3 31.8% 91.4%;       /* Light gray border */
+    --ring: 172 66% 50%;               /* Focus ring - teal */
+    
+    /* Status colors */
+    --success: 142 76% 36%;            /* Green */
+    --warning: 38 92% 50%;             /* Amber */
+    --error: 0 84% 60%;                /* Red */
+    
+    /* Opacity variants for light mode */
+    --primary-10: 172 66% 50% / 0.1;
+    --primary-20: 172 66% 50% / 0.2;
+    
+    --radius: 0.5rem;
+  }
+  
+  .dark {
+    /* Dark mode colors */
+    --background: 222.2 84% 4.9%;      /* #0a0a0f - Near black */
+    --foreground: 210 40% 98%;         /* #fafafa - Off white */
+    
+    --primary: 168 84% 55%;            /* #2dd4bf - Lighter teal for dark mode */
+    --primary-foreground: 222.2 84% 4.9%;
+    
+    --secondary: 217.2 32.6% 17.5%;    /* Dark blue-gray */
+    --secondary-foreground: 210 40% 98%;
+    
+    --accent: 217.2 32.6% 17.5%;
+    --accent-foreground: 210 40% 98%;
+    
+    --muted: 217.2 32.6% 17.5%;
+    --muted-foreground: 215 20.2% 65.1%;
+    
+    --card: 222.2 84% 7%;              /* Slightly lighter than bg */
+    --card-foreground: 210 40% 98%;
+    
+    --border: 217.2 32.6% 25%;         /* Visible border on dark */
+    --ring: 168 84% 55%;               /* Focus ring - lighter teal */
+    
+    /* Status colors (adjusted for dark mode visibility) */
+    --success: 142 76% 46%;            /* Brighter green */
+    --warning: 38 92% 60%;             /* Brighter amber */
+    --error: 0 84% 65%;                /* Brighter red */
+    
+    /* Opacity variants for dark mode */
+    --primary-10: 168 84% 55% / 0.1;
+    --primary-20: 168 84% 55% / 0.2;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+  
+  body {
+    @apply bg-background text-foreground;
+    font-feature-settings: "rlig" 1, "calt" 1;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+  
+  /* Smooth transitions for theme changes */
+  html {
+    transition: background-color 0.3s ease, color 0.3s ease;
+  }
+  
+  /* Focus styles */
+  *:focus-visible {
+    @apply outline-none ring-2 ring-ring ring-offset-2 ring-offset-background;
+  }
+  
+  /* Selection colors - using custom property */
+  ::selection {
+    background-color: hsl(var(--primary-20));
+    color: hsl(var(--foreground));
+  }
+}
+
+@layer components {
+  /* Card component */
+  .card {
+    @apply rounded-lg border bg-card text-card-foreground shadow-sm;
+  }
+  
+  /* Button variants */
+  .btn {
+    @apply inline-flex items-center justify-center rounded-md text-sm font-medium 
+           transition-colors focus-visible:outline-none focus-visible:ring-2 
+           focus-visible:ring-ring focus-visible:ring-offset-2 
+           disabled:opacity-50 disabled:pointer-events-none ring-offset-background;
+  }
+  
+  .btn-primary {
+    @apply bg-primary text-primary-foreground h-10 py-2 px-4;
+  }
+  
+  .btn-primary:hover {
+    background-color: hsl(var(--primary) / 0.9);
+  }
+  
+  .btn-primary:active {
+    background-color: hsl(var(--primary) / 0.8);
+  }
+  
+  .btn-secondary {
+    @apply bg-secondary text-secondary-foreground h-10 py-2 px-4;
+  }
+  
+  .btn-secondary:hover {
+    background-color: hsl(var(--secondary) / 0.8);
+  }
+  
+  .btn-secondary:active {
+    background-color: hsl(var(--secondary) / 0.7);
+  }
+  
+  .btn-outline {
+    @apply border bg-transparent text-foreground h-10 py-2 px-4;
+    border-color: hsl(var(--ring));
+  }
+  
+  .btn-outline:hover {
+    @apply bg-secondary;
+  }
+  
+  .btn-ghost {
+    @apply text-foreground h-10 py-2 px-4;
+  }
+  
+  .btn-ghost:hover {
+    @apply bg-secondary;
+  }
+  
+  /* Input styles */
+  .input {
+    @apply flex h-10 w-full rounded-md border bg-background 
+           px-3 py-2 text-sm file:border-0 
+           file:bg-transparent file:text-sm file:font-medium 
+           focus-visible:outline-none 
+           disabled:cursor-not-allowed disabled:opacity-50;
+  }
+  
+  .input {
+    border-color: hsl(var(--border));
+  }
+  
+  .input::placeholder {
+    color: hsl(var(--muted-foreground));
+  }
+  
+  .input:focus-visible {
+    @apply ring-2 ring-offset-2;
+    ring-color: hsl(var(--ring));
+    ring-offset-color: hsl(var(--background));
+  }
+  
+  /* Badge styles */
+  .badge {
+    @apply inline-flex items-center rounded-full border px-2.5 py-0.5 
+           text-xs font-semibold transition-colors focus:outline-none;
+  }
+  
+  .badge-primary {
+    @apply border-transparent bg-primary text-primary-foreground;
+  }
+  
+  .badge-secondary {
+    @apply border-transparent bg-secondary text-secondary-foreground;
+  }
+  
+  .badge-outline {
+    @apply text-foreground;
+  }
+  
+  /* Skeleton loading */
+  .skeleton {
+    @apply animate-pulse rounded-md;
+    background-color: hsl(var(--muted));
+  }
+}
+
+/* Custom scrollbar for dark mode */
+@layer utilities {
+  .scrollbar-thin {
+    scrollbar-width: thin;
+    scrollbar-color: hsl(var(--muted)) transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-track {
+    background: transparent;
+  }
+  
+  .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--muted));
+    border-radius: 4px;
+  }
+  
+  .dark .scrollbar-thin::-webkit-scrollbar-thumb {
+    background-color: hsl(var(--border));
+  }
+}
+
+/* Prevent flash of unstyled content */
+html:not(.hydrated) {
+  visibility: hidden;
+}
