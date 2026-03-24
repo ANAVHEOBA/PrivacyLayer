@@ -1,0 +1,56 @@
+{
+  "name": "@privacylayer/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for PrivacyLayer - Zero-knowledge shielded pool on Stellar Soroban",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "files": [
+    "dist"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write src/**/*.ts",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm test && npm run lint"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "zk",
+    "zero-knowledge",
+    "privacy",
+    "cryptography"
+  ],
+  "author": "PrivacyLayer Contributors",
+  "license": "MIT",
+  "dependencies": {
+    "@stellar/stellar-sdk": "^12.0.0",
+    "bignumber.js": "^9.1.0",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/ANAVHEOBA/PrivacyLayer.git",
+    "directory": "sdk"
+  },
+  "bugs": {
+    "url": "https://github.com/ANAVHEOBA/PrivacyLayer/issues"
+  },
+  "homepage": "https://github.com/ANAVHEOBA/PrivacyLayer#readme"
+}
