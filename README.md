@@ -1,227 +1,229 @@
-# 🔐 PrivacyLayer
+# PrivacyLayer Hackathon Starter Kit
 
-> **The first ZK-proof shielded pool on Stellar Soroban** — powered by Protocol 25's native BN254 and Poseidon cryptographic primitives.
+> Everything you need to build privacy-preserving applications on Stellar in 24 hours.
 
-[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
-[![Stellar Protocol 25](https://img.shields.io/badge/Stellar-Protocol%2025-blue)](https://stellar.org)
-[![Built with Noir](https://img.shields.io/badge/ZK-Noir-black)](https://noir-lang.org)
-[![Soroban](https://img.shields.io/badge/Smart%20Contracts-Soroban-purple)](https://soroban.stellar.org)
-
-## Overview
-
-PrivacyLayer enables **compliance-forward private transactions** on Stellar. Users deposit fixed-denomination XLM or USDC into a shielded pool, then withdraw to any address using a zero-knowledge proof — with no on-chain link between deposit and withdrawal.
-
-Inspired by [Penumbra](https://github.com/penumbra-zone/penumbra) (Cosmos) and [Aztec Network](https://github.com/AztecProtocol/aztec-packages) (Ethereum), adapted natively for the Stellar/Soroban ecosystem.
-
-### Why Now?
-
-Stellar Protocol 25 (X-Ray, January 2026) added:
-- ✅ **BN254 elliptic curve** operations (`G1`/`G2` add, scalar mul, pairing)
-- ✅ **Poseidon / Poseidon2** hash functions
-- ✅ Both are native Soroban host functions — no external libraries needed
-
-No Soroban dApp has used these yet. PrivacyLayer is the first.
-
----
-
-## Architecture
-
-```
-User                   PrivacyLayer SDK               Soroban Contract
- │                          │                               │
- │── deposit(amount) ──────►│                               │
- │                          │── generateNote() ────────────►│
- │                          │   (nullifier, secret)         │
- │                          │── Poseidon(nullifier,secret)  │
- │                          │   = commitment               │
- │                          │── deposit(commitment) ───────►│
- │                          │                    insert into│
- │◄── noteBackup ───────────│                    MerkleTree │
- │                          │                               │
- │── withdraw(note) ────────►│                               │
- │                          │── syncMerkleTree() ──────────►│
- │                          │◄── leaves[] ─────────────────│
- │                          │── generateMerkleProof()       │
- │                          │── generateZKProof() [WASM]    │
- │                          │   Groth16 via Noir prover     │
- │                          │── withdraw(proof) ───────────►│
- │                          │                    verifyG16  │
- │                          │                    BN254 pair │
- │◄── funds at new addr ────│◄── transfer() ───────────────│
-```
-
-### Core Cryptographic Flow
-
-| Step | Operation | Protocol 25 Primitive |
-|------|-----------|----------------------|
-| Deposit | `commitment = Poseidon(nullifier ∥ secret)` | `poseidon2_hash` host fn |
-| Store | Insert commitment into on-chain Merkle tree | Soroban storage |
-| Withdraw (prove) | ZK proof: know preimage of a commitment in the tree | Noir circuit (BN254) |
-| Withdraw (verify) | Groth16 pairing check on-chain | `bn254_pairing` host fn |
-
----
-
-## Repository Structure
-
-```
-PrivacyLayer/
-├── circuits/              # ZK circuits written in Noir
-│   ├── commitment/        # Commitment scheme (Poseidon)
-│   │   └── src/main.nr
-│   ├── withdraw/          # Withdrawal proof (Merkle + nullifier)
-│   │   └── src/main.nr
-│   ├── merkle/            # Merkle tree circuit library
-│   │   └── src/lib.nr
-│   ├── lib/               # Shared circuit utilities
-│   │   └── src/
-│   │       ├── hash/      # Hash functions
-│   │       ├── merkle/    # Merkle utilities
-│   │       └── validation/# Input validation
-│   └── integration_test.nr
-├── contracts/             # Soroban smart contracts (Rust)
-│   └── privacy_pool/
-│       └── src/
-│           ├── contract.rs        # Main contract interface
-│           ├── lib.rs             # Library entry point
-│           ├── core/              # Core business logic
-│           │   ├── deposit.rs     # Deposit operations
-│           │   ├── withdraw.rs    # Withdrawal operations
-│           │   ├── admin.rs       # Admin functions
-│           │   ├── initialize.rs  # Contract initialization
-│           │   └── view.rs        # View/query functions
-│           ├── crypto/            # Cryptographic operations
-│           │   ├── merkle.rs      # Incremental Merkle tree (depth=20)
-│           │   └── verifier.rs    # Groth16 verifier via BN254 host fns
-│           ├── storage/           # State management
-│           │   ├── config.rs      # Configuration storage
-│           │   └── nullifier.rs   # Nullifier tracking
-│           ├── types/             # Type definitions
-│           │   ├── state.rs       # Contract state types
-│           │   ├── events.rs      # Contract events
-│           │   └── errors.rs      # Error types
-│           ├── utils/             # Utility functions
-│           │   ├── validation.rs  # Input validation
-│           │   └── address_decoder.rs
-│           ├── test.rs            # Unit tests
-│           └── integration_test.rs# Integration tests
-├── sdk/                   # TypeScript client SDK (planned)
-│   └── src/
-│       ├── note.ts        # Note generation
-│       ├── deposit.ts     # Deposit flow
-│       ├── withdraw.ts    # Withdraw flow (proof generation)
-│       ├── merkle.ts      # Client-side Merkle sync
-│       └── __tests__/     # Jest tests
-├── frontend/              # Next.js dApp (planned)
-├── scripts/               # Deploy + key setup (planned)
-├── contracts/privacy_pool/ARCHITECTURE.md  # Contract architecture docs
-└── docs/                  # Documentation (planned)
-```
-
----
-
-## Getting Started
-
-### Prerequisites
+## Quick Start (5 minutes)
 
 ```bash
-# Rust (for Soroban contracts)
-curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
-rustup target add wasm32-unknown-unknown
+# Clone the starter kit
+git clone https://github.com/your-team/privacylayer-hackathon.git
+cd privacylayer-hackathon
 
-# Stellar CLI
-cargo install --locked stellar-cli
+# Install dependencies
+npm install
 
-# Noir toolchain (nargo)
-curl -L https://raw.githubusercontent.com/noir-lang/noirup/refs/heads/main/install | bash
-noirup
+# Copy environment template
+cp .env.example .env
+# Edit .env with your Stellar testnet credentials
 
-# Node.js 18+ (for SDK and frontend)
-# Use nvm: https://github.com/nvm-sh/nvm
+# Run the example
+npm run dev
 ```
 
-### Build Circuits
+## What's Included
 
-```bash
-cd circuits/commitment
-nargo build       # Compile commitment circuit
-nargo test        # Run circuit tests
+| Component | Description | Time |
+|-----------|-------------|------|
+| **Boilerplate** | React + Vite + PrivacyLayer SDK starter | 0 min (included) |
+| **Quick Start** | Step-by-step getting started guide | 10 min |
+| **Examples** | 3 complete example projects | 30 min each |
+| **Judging Criteria** | What judges look for | 5 min |
+| **Prize Ideas** | Suggested project directions | 5 min |
 
-cd ../withdraw
-nargo build       # Compile withdrawal circuit
-nargo test
+## Project Structure
 
-cd ../merkle
-nargo build       # Compile merkle library
+```
+privacylayer-hackathon/
+├── README.md                 # This file
+├── docs/
+│   ├── quick-start.md        # 10-minute setup guide
+│   ├── architecture.md       # Understanding PrivacyLayer
+│   └── troubleshooting.md    # Common issues & fixes
+├── examples/
+│   ├── private-payments/     # Send/receive private payments
+│   ├── anonymous-voting/     # Private voting system
+│   └── confidential-dao/     # DAO with private treasury
+├── templates/
+│   ├── react-starter/        # Minimal React template
+│   ├── vue-starter/          # Minimal Vue template
+│   └── vanilla-js/           # No-framework version
+└── resources/
+    ├── judging-rubric.md     # How you'll be scored
+    └── prize-categories.md   # What to build for prizes
 ```
 
-### Build Contracts
+## Example Projects
 
-```bash
-cd contracts
-cargo build --target wasm32-unknown-unknown --release
-cargo test        # Run unit and integration tests
+### 1. Private Payments App
+Send and receive USDC privately on Stellar.
+
+**Key features:**
+- Shield USDC into private pool
+- Send to anyone (even without PrivacyLayer)
+- View transaction history
+- Export for taxes
+
+**Code:** `examples/private-payments/`
+
+### 2. Anonymous Voting
+Create and participate in private polls.
+
+**Key features:**
+- Create voting proposals
+- Cast votes without revealing identity
+- Tally results privately
+- Prove participation without doxxing
+
+**Code:** `examples/anonymous-voting/`
+
+### 3. Confidential DAO
+Manage DAO treasury with private transactions.
+
+**Key features:**
+- Private payroll distribution
+- Shielded grant payments
+- Anonymous contributor rewards
+- Public reporting with private details
+
+**Code:** `examples/confidential-dao/`
+
+## Understanding PrivacyLayer
+
+PrivacyLayer brings zero-knowledge privacy to Stellar:
+
+- **Shielded Pools:** Hide transaction amounts and participants
+- **zk-SNARKs:** Cryptographic proofs that verify without revealing
+- **Compliance:** Optional viewing keys for audits
+- **Performance:** Fast finality on Stellar (~5 seconds)
+
+**Architecture:**
+```
+User Wallet → PrivacyLayer SDK → Stellar Network
+                 ↓
+         Zero-Knowledge Circuit
+                 ↓
+         Shielded Pool Contract
 ```
 
-## Current Status
+## Judging Criteria
 
-✅ Circuits: Commitment, withdrawal, and merkle circuits implemented  
-✅ Contracts: Full privacy pool contract with deposit/withdraw/admin functions  
-🚧 SDK: TypeScript client SDK (planned)  
-🚧 Frontend: Next.js dApp (planned)  
-🚧 Scripts: Deployment automation (planned)
+Projects are scored on:
 
----
+| Category | Weight | What Judges Look For |
+|----------|--------|---------------------|
+| **Privacy** | 30% | Effective use of PrivacyLayer features |
+| **Innovation** | 25% | Novel application of privacy tech |
+| **Functionality** | 25% | Working demo with real transactions |
+| **Presentation** | 20% | Clear pitch, good documentation |
 
-## Roadmap & Issues
+**Bonus points for:**
+- Creative use cases we haven't thought of
+- Integration with other Stellar protocols
+- Social impact or accessibility features
+- Clean, production-ready code
 
-We're tracking development through GitHub Issues. Key areas:
+## Prize Categories
 
-- **Circuits**: Optimization, additional proof types, circuit auditing
-- **Contracts**: Gas optimization, additional admin features, testnet deployment
-- **SDK**: TypeScript/JavaScript client library for note generation and proof creation
-- **Frontend**: Web interface with Freighter wallet integration
-- **Documentation**: Architecture docs, API references, tutorials
-- **Testing**: Comprehensive test coverage, fuzzing, security audits
+### Grand Prize
+Best overall privacy application using PrivacyLayer.
 
-Check the [Issues tab](https://github.com/ANAVHEOBA/PrivacyLayer/issues) for specific tasks and bounties.
+**Ideas:**
+- Privacy-preserving DeFi dashboard
+- Anonymous social platform
+- Confidential business payments
+- Private charity donations
 
----
+### Best Developer Experience
+Best tools, SDKs, or documentation for PrivacyLayer.
 
-## Security
+**Ideas:**
+- VS Code extension for PrivacyLayer
+- CLI tool for common operations
+- Enhanced documentation with interactive examples
+- Testing framework for private transactions
 
-> **⚠️ AUDIT STATUS: Unaudited. Do not use in production.**
+### Best Real-World Use Case
+Most practical application for everyday users.
 
-This project uses zero-knowledge cryptography. While the mathematical primitives (BN254, Poseidon) are battle-tested, the circuit logic and contract integration require a formal security audit before mainnet deployment.
+**Ideas:**
+- Private subscription payments
+- Confidential salary negotiations
+- Anonymous feedback system
+- Privacy-preserving marketplace
 
-See [`docs/threat-model.md`](docs/threat-model.md) for known risks.
+### Best Integration
+Best combination of PrivacyLayer with other protocols.
 
----
+**Ideas:**
+- PrivacyLayer + Soroban smart contracts
+- PrivacyLayer + Anchor for private fiat on/off ramps
+- PrivacyLayer + Stellar DEX for private trading
+- PrivacyLayer + IPFS for private file payments
 
-## Contributing
+## Resources
 
-We welcome contributions! Here's how to get started:
+### Documentation
+- [PrivacyLayer Docs](https://docs.privacylayer.io)
+- [Stellar Developer Docs](https://developers.stellar.org)
+- [zk-SNARKs Explained](https://docs.privacylayer.io/learn/zk-proofs)
 
-1. Check the [Issues](https://github.com/ANAVHEOBA/PrivacyLayer/issues) tab for open tasks
-2. Comment on an issue to claim it
-3. Fork the repo and create a feature branch
-4. Submit a PR referencing the issue number
+### Support
+- [Discord](https://discord.gg/privacylayer) - Real-time help
+- [GitHub Issues](https://github.com/ANAVHEOBA/PrivacyLayer/issues) - Bug reports
+- [Dev Forum](https://forum.privacylayer.io) - Discussion
 
-See [`CONTRIBUTING.md`](CONTRIBUTING.md) for detailed guidelines.
+### Testnet
+- **Network:** Stellar Testnet
+- **Friendbot:** Request test XLM
+- **Explorer:** [Stellar Expert](https://stellar.expert)
 
-This project is funded via [Drips Wave](https://www.drips.network/wave) — contributors earn USDC for completing issues.
+## Submission Checklist
 
----
+Before submitting your project:
+
+- [ ] Code is in a public GitHub repository
+- [ ] README includes setup instructions
+- [ ] Demo video (2-3 minutes) uploaded
+- [ ] Live demo deployed (Vercel/Netlify recommended)
+- [ ] Team members listed in submission
+- [ ] PrivacyLayer features clearly demonstrated
+
+## Timeline (24-Hour Hackathon)
+
+| Time | Activity |
+|------|----------|
+| Hour 0 | Kickoff, team formation |
+| Hour 1-2 | Idea validation, architecture planning |
+| Hour 2-4 | Environment setup, first transaction |
+| Hour 4-12 | Core development |
+| Hour 12-16 | Feature completion, testing |
+| Hour 16-20 | Polish, documentation, demo prep |
+| Hour 20-22 | Practice pitch, final fixes |
+| Hour 22-24 | Submit, celebrate! |
+
+## Tips for Success
+
+1. **Start Simple:** Get a basic transaction working first
+2. **Test Early:** Don't wait until hour 20 to try testnet
+3. **Document As You Go:** Write README sections as you build
+4. **Focus on Privacy:** Make privacy the star, not an afterthought
+5. **Show, Don't Tell:** Working demo beats perfect architecture
+
+## Need Help?
+
+Stuck on something? Check these resources:
+
+- **SDK Issues:** See `docs/troubleshooting.md`
+- **Conceptual Questions:** Read `docs/architecture.md`
+- **Live Help:** Join Discord #hackathon channel
+- **Example Code:** Study the `examples/` directory
 
 ## License
 
-MIT — see [`LICENSE`](LICENSE)
+MIT - Use this starter kit for any hackathon or personal project.
 
 ---
 
-## References
+**Built with ❤️ by the PrivacyLayer community**
 
-
-- [CAP-0074: BN254 Host Functions](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0074.md)
-- [CAP-0075: Poseidon Hash](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
-- [Noir Language Docs](https://noir-lang.org/docs)
-- [Soroban SDK Docs](https://docs.rs/soroban-sdk)
+**Good luck, and may your transactions be private! 🛡️**
