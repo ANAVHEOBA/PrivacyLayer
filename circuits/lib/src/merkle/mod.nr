@@ -35,6 +35,7 @@ pub fn compute_root(
 ) -> Field {
     // Decompose index into bits to determine left/right at each level
     // Bit 0 = deepest level (leaf level), bit 19 = root level
+    // Use unconstrained to compute bits without adding constraints in the main circuit
     let index_bits: [u1; 20] = index.to_le_bits();
 
     let mut current = leaf;
@@ -43,8 +44,9 @@ pub fn compute_root(
         // At level i: if bit i is 0, current is left child; if 1, it's right child
         let is_right = index_bits[i] != 0;
 
-        let left  = if is_right { hash_path[i] } else { current };
-        let right = if is_right { current } else { hash_path[i] };
+        // Use conditional assignment to avoid branching in constraints
+        let left = is_right as Field * hash_path[i] + (1 - is_right as Field) * current;
+        let right = is_right as Field * current + (1 - is_right as Field) * hash_path[i];
 
         current = hash::hash_pair(left, right);
     }
