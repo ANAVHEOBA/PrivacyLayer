@@ -105,6 +105,28 @@ export {
 } from './utils/validation';
 
 // ============================================================
+// Backup and Recovery Utilities
+// ============================================================
+export {
+  type EncryptedBackup,
+  type PlainBackup,
+  type BackupVerificationResult,
+  type ImportResult,
+  encryptNotes,
+  decryptNotes,
+  exportNotesToJson,
+  importNotesFromJson,
+  exportEncryptedBackup,
+  importEncryptedBackup,
+  noteToQRData,
+  qrDataToNote,
+  notesToQRData,
+  verifyBackup,
+  detectBackupFormat,
+  checkPasswordStrength,
+} from './utils/backup';
+
+// ============================================================
 // SDK Class
 // ============================================================
 import type {

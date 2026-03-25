@@ -3,10 +3,12 @@
 import { useState } from 'react';
 import { DepositSimulator } from './DepositSimulator';
 import { WithdrawSimulator } from './WithdrawSimulator';
+import { BackupManager } from './BackupManager';
+import { RecoveryManager } from './RecoveryManager';
 import { motion } from 'framer-motion';
-import { ArrowDownToLine, ArrowUpFromLine, Shield, Zap, AlertTriangle } from 'lucide-react';
+import { ArrowDownToLine, ArrowUpFromLine, Shield, Zap, AlertTriangle, HardDrive, Upload } from 'lucide-react';
 
-type SimulationTab = 'deposit' | 'withdraw';
+type SimulationTab = 'deposit' | 'withdraw' | 'backup' | 'recover';
 
 export function TransactionSimulator() {
   const [activeTab, setActiveTab] = useState<SimulationTab>('deposit');
@@ -15,7 +17,7 @@ export function TransactionSimulator() {
     <div className="max-w-4xl mx-auto">
       {/* Tab Selector */}
       <div className="flex justify-center mb-8">
-        <div className="glass-card p-1 flex gap-1">
+        <div className="glass-card p-1 flex gap-1 flex-wrap justify-center">
           <button
             onClick={() => setActiveTab('deposit')}
             className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
@@ -38,6 +40,28 @@ export function TransactionSimulator() {
             <ArrowUpFromLine className="w-4 h-4" />
             Withdraw
           </button>
+          <button
+            onClick={() => setActiveTab('backup')}
+            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+              activeTab === 'backup'
+                ? 'bg-green-500 text-white shadow-lg shadow-green-500/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <HardDrive className="w-4 h-4" />
+            Backup
+          </button>
+          <button
+            onClick={() => setActiveTab('recover')}
+            className={`px-6 py-3 rounded-xl font-medium transition-all flex items-center gap-2 ${
+              activeTab === 'recover'
+                ? 'bg-blue-500 text-white shadow-lg shadow-blue-500/25'
+                : 'text-slate-400 hover:text-white hover:bg-slate-800/50'
+            }`}
+          >
+            <Upload className="w-4 h-4" />
+            Recover
+          </button>
         </div>
       </div>
 
@@ -48,7 +72,10 @@ export function TransactionSimulator() {
         animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.2 }}
       >
-        {activeTab === 'deposit' ? <DepositSimulator /> : <WithdrawSimulator />}
+        {activeTab === 'deposit' && <DepositSimulator />}
+        {activeTab === 'withdraw' && <WithdrawSimulator />}
+        {activeTab === 'backup' && <BackupManager />}
+        {activeTab === 'recover' && <RecoveryManager />}
       </motion.div>
 
       {/* Info Cards */}
@@ -56,17 +83,17 @@ export function TransactionSimulator() {
         <InfoCard
           icon={<Shield className="w-5 h-5" />}
           title="Privacy First"
-          description="All simulations run locally. No data is sent to any server."
+          description="All operations run locally. No data is sent to any server."
         />
         <InfoCard
           icon={<Zap className="w-5 h-5" />}
-          title="Real-time Estimation"
-          description="Gas estimates based on current network conditions."
+          title="Secure Encryption"
+          description="AES-256-GCM encryption with PBKDF2 key derivation."
         />
         <InfoCard
           icon={<AlertTriangle className="w-5 h-5" />}
-          title="Error Prediction"
-          description="Identify potential issues before submitting transactions."
+          title="Validated Backups"
+          description="All notes are validated before backup and recovery."
         />
       </div>
     </div>
