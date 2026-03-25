@@ -195,6 +195,14 @@ This project uses zero-knowledge cryptography. While the mathematical primitives
 
 See [`docs/threat-model.md`](docs/threat-model.md) for known risks.
 
+### Bug Bounty Program
+
+We run a bug bounty program through [Immunefi](https://immunefi.com/) to reward security researchers who identify vulnerabilities in our circuits, contracts, and cryptographic logic.
+
+- **Report vulnerabilities**: See [`SECURITY.md`](SECURITY.md) for reporting instructions
+- **Full program details**: See [`docs/bug-bounty-policy.md`](docs/bug-bounty-policy.md) for scope, reward tiers, and rules
+- **Do NOT open public issues** for security vulnerabilities
+
 ---
 
 ## Contributing
