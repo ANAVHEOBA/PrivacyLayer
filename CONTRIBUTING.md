@@ -217,3 +217,17 @@ Bounty amounts are listed in each issue. Payment is processed after PR merge.
 - Open a new discussion for general questions
 
 Thank you for contributing to PrivacyLayer! 🙏
+
+
+### Backup Strategy
+We regularly backup the following important repository files:
+- `circuits/commitment/Nargo.toml`
+- `contracts/Cargo.toml`
+- `contracts/privacy_pool/test_snapshots/integration_test/*.json`
+- `contracts/privacy_pool/test_snapshots/test/*.json`
+
+### Automated Testing
+We automate tests for the following scenarios:
+- data corruption
+- sudden loss of data
+- partial corruption of the blockchain
