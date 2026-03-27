@@ -114,7 +114,8 @@ PrivacyLayer/
 ├── frontend/              # Next.js dApp (planned)
 ├── scripts/               # Deploy + key setup (planned)
 ├── contracts/privacy_pool/ARCHITECTURE.md  # Contract architecture docs
-└── docs/                  # Documentation (planned)
+└── docs/                  # Documentation
+    └── USER_GUIDE.md      # End-user guide (deposit, withdrawal, safety)
 ```
 
 ---
@@ -184,6 +185,8 @@ We're tracking development through GitHub Issues. Key areas:
 - **Testing**: Comprehensive test coverage, fuzzing, security audits
 
 Check the [Issues tab](https://github.com/ANAVHEOBA/PrivacyLayer/issues) for specific tasks and bounties.
+
+For a non-technical walkthrough, see [`docs/USER_GUIDE.md`](docs/USER_GUIDE.md).
 
 ---
 
