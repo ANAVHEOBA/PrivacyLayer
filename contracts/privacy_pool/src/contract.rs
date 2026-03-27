@@ -49,6 +49,17 @@ impl PrivacyPool {
         deposit::execute(env, from, commitment)
     }
 
+    /// Update the pool's paused state.
+    ///
+    /// Can only be called by the admin.
+    pub fn set_pause(env: Env, admin: Address, paused: bool) -> Result<(), Error> {
+        if paused {
+            admin::pause(env, admin)
+        } else {
+            admin::unpause(env, admin)
+        }
+    }
+
     /// Withdraw from the shielded pool using a ZK proof.
     ///
     /// Verifies proof and transfers funds to recipient.
