@@ -10,3 +10,4 @@ pub mod deposit;
 pub mod initialize;
 pub mod view;
 pub mod withdraw;
+pub mod batch;

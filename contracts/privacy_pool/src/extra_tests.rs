@@ -125,10 +125,25 @@ fn test_deposit_fails_if_alice_has_insufficient_funds() {
 }
 
 #[test]
-fn test_merkle_is_known_root_with_zero_history() {
+fn test_batch_deposit_multiple_commitments() {
     let env = Env::default();
-    let (client, _token_id, _admin, _alice) = setup_env(&env);
-    // Note: Not initialized, but we check the view function logic
-    let fake_root = BytesN::from_array(&env, &[1u8; 32]);
-    assert!(!client.is_known_root(&fake_root));
+    let (client, token_id, admin, alice) = setup_env(&env);
+    client.initialize(&admin, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
+
+    let count = 5;
+    let total_denom = Denomination::Xlm100.amount() * count as i128;
+    StellarAssetClient::new(&env, &token_id).mint(&alice, &total_denom);
+
+    let mut commitments = soroban_sdk::Vec::new(&env);
+    for i in 0..count {
+        commitments.push_back(commitment(&env, i));
+    }
+
+    let results = client.batch_deposit(&alice, &commitments);
+    assert_eq!(results.len(), count);
+    assert_eq!(client.deposit_count(), count);
+    
+    // Check balance
+    assert_eq!(TokenClient::new(&env, &token_id).balance(&alice), 0);
+    assert_eq!(TokenClient::new(&env, &token_id).balance(&client.address), total_denom);
 }

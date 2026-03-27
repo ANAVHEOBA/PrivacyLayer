@@ -7,7 +7,7 @@
 
 use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 
-use crate::core::{admin, deposit, initialize, view, withdraw};
+use crate::core::{admin, deposit, initialize, view, withdraw, batch};
 use crate::types::errors::Error;
 use crate::types::state::{Denomination, PoolConfig, Proof, PublicInputs, VerifyingKey};
 
@@ -47,6 +47,17 @@ impl PrivacyPool {
         commitment: BytesN<32>,
     ) -> Result<(u32, BytesN<32>), Error> {
         deposit::execute(env, from, commitment)
+    }
+
+    /// Execute multiple deposits in a single transaction.
+    ///
+    /// Transacts multiple commitments and batch transfers funds.
+    pub fn batch_deposit(
+        env: Env,
+        from: Address,
+        commitments: soroban_sdk::Vec<BytesN<32>>,
+    ) -> Result<soroban_sdk::Vec<(u32, BytesN<32>)>, Error> {
+        batch::execute_batch(env, from, commitments)
     }
 
     /// Update the pool's paused state.
