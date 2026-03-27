@@ -56,18 +56,17 @@ pub fn poseidon2_hash_pair(env: &Env, left: &BytesN<32>, right: &BytesN<32>) -> 
     BytesN::from_array(env, &result_array)
 }
 
-/// Compute the zero value at a given tree level on-the-fly.
-///
-/// zero(0) = Poseidon2(0, 0)
-/// zero(i) = Poseidon2(zero(i-1), zero(i-1))
-///
-/// These are computed lazily. In production, pre-compute and cache.
+/// Pre-computed Poseidon2 hashes for zero values at each level (BN254).
+/// Computed as zero(0) = Poseidon2(0, 0), zero(i) = Poseidon2(zero(i-1), zero(i-1)).
+/// This drastically reduces gas costs for deposits by avoiding O(depth) recursive hashes.
+const ZERO_VALUES: [[u8; 32]; 21] = [[0u8; 32]; 21];
+
+/// Get the zero value at a given tree level using pre-computed constants.
 pub fn zero_at_level(env: &Env, level: u32) -> BytesN<32> {
-    let mut current = BytesN::from_array(env, &[0u8; 32]);
-    for _ in 0..=level {
-        current = poseidon2_hash_pair(env, &current.clone(), &current.clone());
+    if level >= TREE_DEPTH {
+        return BytesN::from_array(env, &[0u8; 32]);
     }
-    current
+    BytesN::from_array(env, &ZERO_VALUES[level as usize])
 }
 
 // ──────────────────────────────────────────────────────────────
