@@ -38,3 +38,6 @@ mod test;
 
 #[cfg(test)]
 mod integration_test;
+
+#[cfg(test)]
+mod extra_tests;
