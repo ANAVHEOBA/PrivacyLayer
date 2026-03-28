@@ -21,6 +21,10 @@ pub enum Error {
     // ── Pool State ─────────────────────────────────────
     /// Pool is paused — deposits and withdrawals blocked
     PoolPaused = 20,
+    /// Pool is not paused — emergency withdraw requires paused pool
+    PoolNotPaused = 22,
+    /// No funds available for emergency withdrawal
+    NoFundsToWithdraw = 23,
     /// Merkle tree is full (2^20 notes inserted)
     TreeFull = 21,
 

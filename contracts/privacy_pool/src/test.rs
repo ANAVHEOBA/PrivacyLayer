@@ -17,7 +17,7 @@
 use soroban_sdk::{
     testutils::Address as _,
     token::{Client as TokenClient, StellarAssetClient},
-    Address, BytesN, Env, Vec,
+    Address, BytesN, Env, String, Vec,
 };
 
 use crate::{
@@ -201,7 +201,7 @@ fn test_deposit_zero_commitment_rejected() {
 fn test_deposit_while_paused_fails() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    t.client.pause(&t.admin, &String::from_str(&t.env, "test pause"));
 
     let result = t.client.try_deposit(&t.alice, &commitment(&t.env, 1));
     assert!(result.is_err());
@@ -266,7 +266,7 @@ fn test_pause_blocks_deposits() {
     t.client.deposit(&t.alice, &commitment(&t.env, 1));
 
     // Pause
-    t.client.pause(&t.admin);
+    t.client.pause(&t.admin, &String::from_str(&t.env, "test pause"));
 
     // Deposit blocked
     let result = t.client.try_deposit(&t.alice, &commitment(&t.env, 2));
@@ -277,7 +277,7 @@ fn test_pause_blocks_deposits() {
 fn test_unpause_restores_deposits() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    t.client.pause(&t.admin, &String::from_str(&t.env, "test pause"));
     t.client.unpause(&t.admin);
 
     // Deposit works again
@@ -289,7 +289,7 @@ fn test_unpause_restores_deposits() {
 fn test_non_admin_cannot_pause() {
     let t = TestEnv::setup();
     t.init();
-    let result = t.client.try_pause(&t.alice); // alice is not admin
+    let result = t.client.try_pause(&t.alice, &String::from_str(&t.env, "test pause")); // alice is not admin
     assert!(result.is_err());
 }
 
@@ -297,7 +297,7 @@ fn test_non_admin_cannot_pause() {
 fn test_non_admin_cannot_unpause() {
     let t = TestEnv::setup();
     t.init();
-    t.client.pause(&t.admin);
+    t.client.pause(&t.admin, &String::from_str(&t.env, "test pause"));
     let result = t.client.try_unpause(&t.bob);
     assert!(result.is_err());
 }
