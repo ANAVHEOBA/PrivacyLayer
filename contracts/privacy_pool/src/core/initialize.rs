@@ -2,7 +2,7 @@
 // Initialization Logic
 // ============================================================
 
-use soroban_sdk::{Address, Env};
+use soroban_sdk::{Address, Env, String};
 
 use crate::crypto::merkle;
 use crate::storage::config;
@@ -39,6 +39,8 @@ pub fn execute(
         tree_depth: merkle::TREE_DEPTH,
         root_history_size: merkle::ROOT_HISTORY_SIZE,
         paused: false,
+        pause_timestamp: 0,
+        pause_reason: String::from_str(&env, ""),
     };
 
     // Save configuration and verifying key

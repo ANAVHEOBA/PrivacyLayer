@@ -7,7 +7,7 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, String};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
@@ -82,6 +82,10 @@ pub struct PoolConfig {
     pub root_history_size: u32,
     /// Whether deposits/withdrawals are paused
     pub paused: bool,
+    /// Timestamp (ledger sequence) when the pool was last paused
+    pub pause_timestamp: u64,
+    /// Reason string recorded when the pool was paused
+    pub pause_reason: String,
 }
 
 /// Merkle tree state — updated on every deposit.

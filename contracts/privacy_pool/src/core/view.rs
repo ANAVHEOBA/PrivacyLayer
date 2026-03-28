@@ -29,6 +29,14 @@ pub fn is_spent(env: Env, nullifier_hash: BytesN<32>) -> bool {
     nullifier::is_spent(&env, &nullifier_hash)
 }
 
+/// Check if the pool is currently paused.
+pub fn is_paused(env: Env) -> bool {
+    match config::load(&env) {
+        Ok(cfg) => cfg.paused,
+        Err(_) => false,
+    }
+}
+
 /// Returns the pool configuration.
 pub fn get_config(env: Env) -> Result<PoolConfig, Error> {
     config::load(&env)
