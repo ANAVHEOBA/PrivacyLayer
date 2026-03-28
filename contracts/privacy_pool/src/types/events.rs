@@ -9,7 +9,7 @@
 //   - Withdrawals: emit only nullifier_hash + recipient (no link to deposit)
 // ============================================================
 
-use soroban_sdk::{contractevent, Address, BytesN, Env};
+use soroban_sdk::{contractevent, Address, BytesN, Env, String};
 
 // ──────────────────────────────────────────────────────────────
 // Deposit Events
@@ -37,12 +37,15 @@ pub struct WithdrawEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolPausedEvent {
     pub admin: Address,
+    pub pause_timestamp: u64,
+    pub reason: String,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolUnpausedEvent {
     pub admin: Address,
+    pub unpause_timestamp: u64,
 }
 
 #[contractevent]
@@ -107,13 +110,13 @@ pub fn emit_withdraw(
 // ──────────────────────────────────────────────────────────────
 
 /// Emitted when the pool is paused by the admin.
-pub fn emit_pool_paused(env: &Env, admin: Address) {
-    PoolPausedEvent { admin }.publish(env);
+pub fn emit_pool_paused(env: &Env, admin: Address, pause_timestamp: u64, reason: String) {
+    PoolPausedEvent { admin, pause_timestamp, reason }.publish(env);
 }
 
 /// Emitted when the pool is unpaused by the admin.
-pub fn emit_pool_unpaused(env: &Env, admin: Address) {
-    PoolUnpausedEvent { admin }.publish(env);
+pub fn emit_pool_unpaused(env: &Env, admin: Address, unpause_timestamp: u64) {
+    PoolUnpausedEvent { admin, unpause_timestamp }.publish(env);
 }
 
 /// Emitted when the verifying key is updated by the admin.
