@@ -1,0 +1,24 @@
+# PrivacyLayer Robot Rules
+# https://github.com/ANAVHEOBA/PrivacyLayer
+
+User-agent: *
+Allow: /
+
+# Disallow sensitive paths (if site is ever published)
+Disallow: /blob/main/contracts/
+Disallow: /tree/main/circuits/commitment/
+Disallow: /tree/main/circuits/withdraw/
+
+# Allow search engines to crawl all public content
+Allow: /tree/main/
+Allow: /blob/main/
+Allow: /tree/main/docs/
+Allow: /blob/main/docs/
+Allow: /issues
+Allow: /pulls
+
+# Sitemap
+Sitemap: https://github.com/ANAVHEOBA/PrivacyLayer/sitemap.xml
+
+# Crawl delay (optional, be considerate)
+Crawl-delay: 1
