@@ -225,3 +225,7 @@ MIT — see [`LICENSE`](LICENSE)
 - [CAP-0075: Poseidon Hash](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
 - [Noir Language Docs](https://noir-lang.org/docs)
 - [Soroban SDK Docs](https://docs.rs/soroban-sdk)
+
+### Security Best Practices Guide
+
+* [SECURITY_GUIDE](SECURITY_GUIDE/)
