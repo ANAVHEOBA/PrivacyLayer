@@ -1,0 +1,65 @@
+name: SDK
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  sdk-checks:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Detect SDK package
+        id: sdk
+        run: |
+          if [[ -f sdk/package.json ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache SDK dependencies
+        if: steps.sdk.outputs.present == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            sdk/node_modules
+          key: ${{ runner.os }}-sdk-npm-${{ hashFiles('sdk/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-sdk-npm-
+
+      - name: Skip placeholder SDK workflow
+        if: steps.sdk.outputs.present != 'true'
+        run: echo "SDK package is not present yet. Skipping SDK CI until sdk/package.json exists."
+
+      - name: Install dependencies
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm ci
+
+      - name: Run linter
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm run lint --if-present
+
+      - name: Run type checker
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm run typecheck --if-present
+
+      - name: Run unit tests
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm test -- --runInBand

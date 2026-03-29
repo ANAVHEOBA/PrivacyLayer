@@ -1,0 +1,108 @@
+name: Code Quality
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  rust-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: contracts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-quality-cargo-${{ hashFiles('contracts/Cargo.toml', 'contracts/privacy_pool/Cargo.toml', 'contracts/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-quality-cargo-
+
+      - name: Check formatting
+        run: cargo fmt --all --check
+
+      - name: Run clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+
+      - name: Run cargo audit
+        run: |
+          cargo install cargo-audit --locked
+          cargo audit
+
+  node-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Detect SDK package
+        id: sdk
+        run: |
+          if [[ -f sdk/package.json ]]; then
+            echo "present=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "present=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Cache SDK dependencies
+        if: steps.sdk.outputs.present == 'true'
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.npm
+            sdk/node_modules
+          key: ${{ runner.os }}-quality-sdk-npm-${{ hashFiles('sdk/package-lock.json') }}
+          restore-keys: |
+            ${{ runner.os }}-quality-sdk-npm-
+
+      - name: Skip placeholder quality checks
+        if: steps.sdk.outputs.present != 'true'
+        run: echo "SDK package is not present yet. Skipping ESLint/Prettier/security checks."
+
+      - name: Install SDK dependencies
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm ci
+
+      - name: Run ESLint
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm run lint --if-present
+
+      - name: Run Prettier check
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm run format:check --if-present
+
+      - name: Run npm audit
+        if: steps.sdk.outputs.present == 'true'
+        working-directory: sdk
+        run: npm audit --audit-level=high
