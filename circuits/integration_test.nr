@@ -226,10 +226,3 @@ fn integration_withdraw_with_relayer() {
         100_000_000,     // 10 XLM fee
     );
 }
-
-
-### Data Corruption Test
-Test sudden loss of data and partial corruption of the blockchain:
-- data corruption
-- sudden loss of data
-- partial corruption of the blockchain
