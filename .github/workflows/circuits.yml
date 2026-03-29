@@ -1,0 +1,72 @@
+name: Circuits
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  noir-circuits:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: circuits
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Noir toolchain
+        run: |
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/refs/heads/main/install | bash
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+          "$HOME/.nargo/bin/noirup"
+
+      - name: Cache Noir artifacts
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.nargo
+            circuits/target
+            circuits/**/target
+          key: ${{ runner.os }}-noir-${{ hashFiles('circuits/Nargo.toml', 'circuits/**/Nargo.toml', 'circuits/**/*.nr') }}
+          restore-keys: |
+            ${{ runner.os }}-noir-
+
+      - name: Check Noir toolchain
+        run: |
+          noirup --version || true
+          nargo --version
+
+      - name: Compile all circuits
+        run: nargo compile --workspace
+
+      - name: Run circuit tests
+        run: |
+          for circuit in commitment merkle withdraw; do
+            echo "Running tests for ${circuit}"
+            nargo test --package "${circuit}"
+          done
+
+      - name: Report constraint counts
+        run: |
+          mkdir -p ../artifacts
+          {
+            echo "# Noir Constraint Report"
+            echo
+            for circuit in commitment merkle withdraw; do
+              echo "## ${circuit}"
+              nargo info --package "${circuit}" || echo "nargo info not available for ${circuit}"
+              echo
+            done
+          } | tee ../artifacts/circuit-constraints.md
+
+      - name: Upload circuit artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: circuit-constraints
+          path: artifacts/circuit-constraints.md

@@ -1,0 +1,60 @@
+name: Contracts
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  rust-contracts:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    defaults:
+      run:
+        shell: bash
+        working-directory: contracts
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32-unknown-unknown
+          components: rustfmt, clippy
+
+      - name: Cache cargo registry and build
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/
+            ~/.cargo/registry/index/
+            ~/.cargo/registry/cache/
+            ~/.cargo/git/db/
+            contracts/target/
+          key: ${{ runner.os }}-cargo-${{ hashFiles('contracts/Cargo.toml', 'contracts/privacy_pool/Cargo.toml', 'contracts/**/*.rs') }}
+          restore-keys: |
+            ${{ runner.os }}-cargo-
+
+      - name: Fetch dependencies
+        run: cargo fetch
+
+      - name: Build contract workspace
+        run: cargo build --workspace --target wasm32-unknown-unknown
+
+      - name: Run unit and integration tests
+        run: cargo test --package privacy_pool
+
+      - name: Generate coverage report
+        run: |
+          cargo install cargo-tarpaulin --locked
+          cargo tarpaulin --package privacy_pool --out Xml --output-dir ../artifacts/coverage
+
+      - name: Upload coverage artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: contracts-coverage
+          path: artifacts/coverage
