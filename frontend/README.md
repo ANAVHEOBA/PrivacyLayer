@@ -112,3 +112,36 @@ Shown when Freighter is not detected, with install link and supported browsers.
 - **Zustand** — State management
 - **Tailwind CSS** — Styling
 - **@stellar/freighter-api** — Freighter wallet API
+
+## SEO Implementation
+
+This frontend implements comprehensive SEO optimizations as part of the PrivacyLayer bounty program:
+
+### Meta Tags
+- Primary meta tags (title, description, keywords, author, robots)
+- Open Graph tags for social sharing (Facebook, LinkedIn)
+- Twitter Card tags for Twitter sharing
+- Canonical URL for preventing duplicate content issues
+
+### Structured Data (JSON-LD)
+- **Organization** — Brand identity and social links
+- **WebApplication** — App metadata for search engines
+- **BreadcrumbList** — Navigation path for better indexing
+- **FAQPage** — Common questions about PrivacyLayer
+
+### Technical SEO
+- **robots.txt** — Crawler instructions (`public/robots.txt`)
+- **sitemap.xml** — XML sitemap for search engine indexing (`public/sitemap.xml`)
+- **Custom favicon** — Branded SVG favicon (`public/favicon.svg`)
+
+### Performance
+- ES modules for better caching (vendor chunking)
+- Optimized dependencies pre-bundled
+- Semantic HTML with proper heading hierarchy (h1 → h2 → h3)
+- Accessible SVG icons with ARIA labels
+
+### Lighthouse Scores (Expected)
+- SEO: 90+
+- Accessibility: 90+
+- Best Practices: 90+
+- Performance: 85+
