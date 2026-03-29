@@ -81,6 +81,9 @@
               "args": [
                 {
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAHK3M"
+                },
+                {
+                  "string": "test pause"
                 }
               ]
             }
@@ -237,6 +240,22 @@
                           "symbol": "Xlm100"
                         }
                       ]
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "pause_reason"
+                    },
+                    "val": {
+                      "string": "test pause"
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "pause_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
                     }
                   },
                   {

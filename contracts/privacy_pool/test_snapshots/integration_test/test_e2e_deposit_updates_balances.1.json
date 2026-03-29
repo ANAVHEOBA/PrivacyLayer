@@ -249,6 +249,22 @@
                   },
                   {
                     "key": {
+                      "symbol": "pause_reason"
+                    },
+                    "val": {
+                      "string": ""
+                    }
+                  },
+                  {
+                    "key": {
+                      "symbol": "pause_timestamp"
+                    },
+                    "val": {
+                      "u64": "0"
+                    }
+                  },
+                  {
+                    "key": {
                       "symbol": "paused"
                     },
                     "val": {

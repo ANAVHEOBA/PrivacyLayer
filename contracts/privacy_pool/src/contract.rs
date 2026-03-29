@@ -5,7 +5,7 @@
 // Keeps the interface clean and focused on orchestration.
 // ============================================================
 
-use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
+use soroban_sdk::{contract, contractimpl, Address, BytesN, Env, String};
 
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
@@ -94,13 +94,25 @@ impl PrivacyPool {
     // ──────────────────────────────────────────────────────────
 
     /// Pause the pool (admin only).
-    pub fn pause(env: Env, admin: Address) -> Result<(), Error> {
-        admin::pause(env, admin)
+    /// Records the pause timestamp and reason for audit trail.
+    pub fn pause(env: Env, admin: Address, reason: String) -> Result<(), Error> {
+        admin::pause(env, admin, reason)
     }
 
     /// Unpause the pool (admin only).
     pub fn unpause(env: Env, admin: Address) -> Result<(), Error> {
         admin::unpause(env, admin)
+    }
+
+    /// Check if the pool is currently paused.
+    pub fn is_paused(env: Env) -> bool {
+        view::is_paused(env)
+    }
+
+    /// Emergency withdrawal — transfers entire token balance to admin.
+    /// Only available when pool is paused. Admin-only.
+    pub fn emergency_withdraw(env: Env, admin: Address) -> Result<i128, Error> {
+        admin::emergency_withdraw(env, admin)
     }
 
     /// Update the Groth16 verifying key (admin only).
