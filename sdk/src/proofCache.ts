@@ -11,7 +11,7 @@
  * - No cross-domain tracking possible
  */
 
-import * as poseidon from 'poseidon-lite';
+import { createHash } from 'crypto';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -46,31 +46,38 @@ export interface CacheMetadata {
  * Compute Poseidon hash of proof inputs to create a privacy-preserving cache key.
  * Uses the same Poseidon2 hash as the Stellar Protocol 25 host function.
  *
- * @param inputs - Array of bigint inputs to hash
+ * @param inputs - Proof input parameters
  * @returns Poseidon hash as hex string (cache key)
  */
+/**
+ * Compute SHA-256 hash of proof inputs to create a privacy-preserving cache key.
+ *
+ * We use SHA-256 rather than Poseidon here because:
+ * 1. The cache key does NOT need to be a ZK-circuit-compatible hash
+ * 2. SHA-256 is deterministic and collision-resistant
+ * 3. Raw inputs are never stored, only the hash of them
+ * 4. poseidon-lite provides fixed-width hashers unsuitable for variable inputs
+ *
+ * @param inputs - Proof input parameters
+ * @returns SHA-256 hash as hex string (cache key)
+ */
 export async function computeCacheKey(inputs: ProofInput): Promise<string> {
-  const fields: bigint[] = [
-    inputs.nullifier,
-    inputs.secret,
-    inputs.merkleRoot,
-    ...inputs.merklePathElements,
-    BigInt(inputs.merklePathIndices.length),
-    BigInt(BigInt(inputs.recipient) % BigInt(2 ** 128)), // truncate address
-  ];
+  // Canonical serialization: JSON with sorted keys and bigint as decimal strings
+  const obj = {
+    n: inputs.nullifier.toString(10),
+    s: inputs.secret.toString(10),
+    r: inputs.merkleRoot.toString(10),
+    p: inputs.merklePathElements.map(x => x.toString(10)),
+    i: inputs.merklePathIndices,
+    a: inputs.recipient,
+  };
+  if (inputs.relayer !== undefined) (obj as Record<string, unknown>)['l'] = inputs.relayer;
+  if (inputs.fee !== undefined) (obj as Record<string, unknown>)['f'] = inputs.fee.toString(10);
+  if (inputs.refund !== undefined) (obj as Record<string, unknown>)['d'] = inputs.refund.toString(10);
 
-  if (inputs.relayer) {
-    fields.push(BigInt(BigInt(inputs.relayer) % BigInt(2 ** 128)));
-  }
-  if (inputs.fee !== undefined) {
-    fields.push(inputs.fee);
-  }
-  if (inputs.refund !== undefined) {
-    fields.push(inputs.refund);
-  }
-
-  const hash = poseidon(fields);
-  return hash.toString(16);
+  const serialized = JSON.stringify(obj);
+  const hash = createHash('sha256').update(serialized, 'utf8').digest('hex');
+  return hash;
 }
 
 // ─── Storage Helpers ───────────────────────────────────────────────────────────
@@ -104,12 +111,18 @@ function saveCacheMetadata(meta: CacheMetadata[]): void {
 
 /**
  * Get a raw cache entry from localStorage.
+ * Restores BigInt values from their string representation.
  */
 function getRawCacheEntry(key: string): CachedProof | null {
   try {
     const raw = localStorage.getItem(CACHE_PREFIX + key);
     if (!raw) return null;
-    return JSON.parse(raw) as CachedProof;
+    return JSON.parse(raw, (_, value) => {
+      if (value && typeof value === 'object' && value.__type === 'BigInt') {
+        return BigInt(value.value);
+      }
+      return value;
+    }) as CachedProof;
   } catch {
     return null;
   }
@@ -117,10 +130,15 @@ function getRawCacheEntry(key: string): CachedProof | null {
 
 /**
  * Store a raw cache entry in localStorage.
+ * BigInt values are serialized as strings to survive JSON round-trips.
  */
 function setRawCacheEntry(key: string, entry: CachedProof): boolean {
   try {
-    localStorage.setItem(CACHE_PREFIX + key, JSON.stringify(entry));
+    // BigInt → string conversion before JSON serialization
+    const serializable = JSON.stringify(entry, (_, value) =>
+      typeof value === 'bigint' ? { __type: 'BigInt', value: value.toString(10) } : value
+    );
+    localStorage.setItem(CACHE_PREFIX + key, serializable);
 
     // Update metadata
     const meta = getCacheMetadata();
@@ -129,7 +147,7 @@ function setRawCacheEntry(key: string, entry: CachedProof): boolean {
       key,
       createdAt: entry.createdAt,
       expiresAt: entry.expiresAt,
-      size: JSON.stringify(entry).length,
+      size: serializable.length,
     };
     if (existing >= 0) {
       meta[existing] = metaEntry;
