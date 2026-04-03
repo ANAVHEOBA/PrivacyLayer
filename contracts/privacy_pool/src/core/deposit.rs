@@ -40,15 +40,15 @@ pub fn execute(
     validation::require_non_zero_commitment(&env, &commitment)?;
 
     // Transfer denomination amount from depositor to contract vault
-    let amount = pool_config.denomination.amount();
-    let token_client = token::Client::new(&env, &pool_config.token);
-    token_client.transfer(
-        &from,
-        &env.current_contract_address(),
-        &amount,
-    );
-
-    // Insert commitment into Merkle tree
+let amount = pool_config.denomination.amount();
+if amount <= 0 {
+    return Err(Error::InvalidAmount);
+}
+token::Client::new(&env, &pool_config.token).transfer(
+    &from,
+    &env.current_contract_address(),
+    &amount,
+);
     let (leaf_index, new_root) = merkle::insert(&env, commitment.clone())?;
 
     // Emit deposit event (no depositor address for privacy)
