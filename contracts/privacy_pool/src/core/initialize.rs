@@ -7,7 +7,7 @@ use soroban_sdk::{Address, Env};
 use crate::crypto::merkle;
 use crate::storage::config;
 use crate::types::errors::Error;
-use crate::types::state::{Denomination, PoolConfig, VerifyingKey};
+use crate::types::state::{Asset, Denomination, PoolConfig, VerifyingKey};
 
 /// Initialize the privacy pool with configuration.
 ///
@@ -23,6 +23,8 @@ pub fn execute(
     env: Env,
     admin: Address,
     token: Address,
+    asset: Asset,
+    asset_address: Option<Address>,
     denomination: Denomination,
     vk: VerifyingKey,
 ) -> Result<(), Error> {
@@ -31,10 +33,12 @@ pub fn execute(
         return Err(Error::AlreadyInitialized);
     }
 
-    // Create pool configuration
+    // Create pool configuration with asset type
     let pool_config = PoolConfig {
         admin,
         token,
+        asset,
+        asset_address,
         denomination,
         tree_depth: merkle::TREE_DEPTH,
         root_history_size: merkle::ROOT_HISTORY_SIZE,
