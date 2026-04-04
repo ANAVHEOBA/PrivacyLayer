@@ -45,6 +45,10 @@ pub enum Error {
     InvalidRecipient = 45,
 
     // ── Verifying Key ──────────────────────────────────
+    /// Unsupported asset type
+    UnsupportedAsset = 46,
+
+    // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set
     NoVerifyingKey = 50,
     /// Verifying key is malformed (wrong byte length)

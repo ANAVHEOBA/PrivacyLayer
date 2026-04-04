@@ -7,7 +7,40 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, Symbol};
+
+// ──────────────────────────────────────────────────────────────
+// Asset Type
+// ──────────────────────────────────────────────────────────────
+
+/// Supported asset types for privacy pools.
+/// Each asset type maps to a separate pool instance.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum Asset {
+    /// Native Stellar Lumens (XLM)
+    XLM,
+    /// USDC stablecoin (via Stellar Asset Contract)
+    USDC,
+}
+
+impl Asset {
+    /// Returns a unique storage key prefix for per-asset pool separation.
+    pub fn pool_prefix(&self) -> Symbol {
+        match self {
+            Asset::XLM => Symbol::new(&soroban_sdk::Env::default(), "pool_xlm"),
+            Asset::USDC => Symbol::new(&soroban_sdk::Env::default(), "pool_usdc"),
+        }
+    }
+
+    /// Returns the number of decimal places for this asset.
+    pub fn decimals(&self) -> u32 {
+        match self {
+            Asset::XLM => 7,   // 1 XLM = 10^7 stroops
+            Asset::USDC => 6,  // 1 USDC = 10^6 microunits
+        }
+    }
+}
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
@@ -72,8 +105,12 @@ impl Denomination {
 pub struct PoolConfig {
     /// Pool administrator (can pause, update verifying key)
     pub admin: Address,
-    /// Token contract address (XLM native or USDC)
+    /// Token contract address (XLM native or USDC SAC)
     pub token: Address,
+    /// Asset type for this pool (XLM or USDC)
+    pub asset: Asset,
+    /// USDC Stellar Asset Contract address (None for XLM native)
+    pub asset_address: Option<Address>,
     /// Fixed deposit denomination enforced by the pool
     pub denomination: Denomination,
     /// Merkle tree depth (always 20)
