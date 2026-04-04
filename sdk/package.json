@@ -1,0 +1,48 @@
+{
+  "name": "@privacylayer/sdk",
+  "version": "0.1.0",
+  "description": "TypeScript SDK for PrivacyLayer - enables developers to integrate privacy pool functionality into their applications",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js",
+      "require": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "tsc",
+    "test": "jest",
+    "lint": "eslint src --ext .ts",
+    "coverage": "jest --coverage",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "privacy",
+    "stellar",
+    "soroban",
+    "sdk"
+  ],
+  "author": "",
+  "license": "MIT",
+  "dependencies": {
+    "@stellar/stellar-sdk": "^12.0.0",
+    "bignumber.js": "^9.1.0",
+    "buffer": "^6.0.3"
+  },
+  "devDependencies": {
+    "@types/jest": "^29.5.0",
+    "@types/node": "^20.0.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.50.0",
+    "jest": "^29.7.0",
+    "prettier": "^3.0.0",
+    "ts-jest": "^29.1.0",
+    "typescript": "^5.2.0"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  }
+}
