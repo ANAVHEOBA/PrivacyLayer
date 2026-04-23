@@ -1,0 +1,33 @@
+{
+  "name": "@privacylayer/sdk",
+  "version": "0.1.0",
+  "description": "PrivacyLayer SDK — deposit/withdraw flow for the Stellar shielded pool",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "test": "jest --runInBand --forceExit",
+    "test:coverage": "jest --coverage --runInBand --forceExit",
+    "lint": "tsc --noEmit"
+  },
+  "keywords": [
+    "stellar",
+    "soroban",
+    "zk",
+    "privacy",
+    "sdk"
+  ],
+  "author": "PrivacyLayer Contributors",
+  "license": "MIT",
+  "type": "commonjs",
+  "dependencies": {
+    "@stellar/stellar-sdk": "^15.0.1"
+  },
+  "devDependencies": {
+    "@types/jest": "^30.0.0",
+    "jest": "^30.3.0",
+    "ts-jest": "^29.4.9",
+    "ts-node": "^10.9.2",
+    "typescript": "^6.0.3"
+  }
+}
