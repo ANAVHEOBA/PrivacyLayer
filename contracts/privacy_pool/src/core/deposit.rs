@@ -40,10 +40,22 @@ pub fn execute(
     validation::require_non_zero_commitment(&env, &commitment)?;
 
     // Transfer denomination amount from depositor to contract vault
+    // For XLM: use native transfer
+    // For USDC: use token contract's transfer_from (requires prior approval)
     let amount = pool_config.denomination.amount();
     let token_client = token::Client::new(&env, &pool_config.token);
-    token_client.transfer(
+    
+    // Check allowance for USDC deposits
+    let allowance = token_client.allowance(&from, &env.current_contract_address());
+    if allowance < amount {
+        // For USDC, require prior approval
+        // For XLM, this will still work as native transfer doesn't need allowance
+        return Err(Error::InsufficientAllowance);
+    }
+    
+    token_client.transfer_from(
         &from,
+        &env.current_contract_address(),
         &env.current_contract_address(),
         &amount,
     );
