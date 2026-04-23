@@ -13,23 +13,30 @@ use soroban_sdk::{contracttype, Address, BytesN};
 // Storage Keys
 // ──────────────────────────────────────────────────────────────
 
+/// Unique identifier for a pool (typically hash of token address and denomination).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct PoolId(pub BytesN<32>);
+
 /// Primary storage key enum for the contract.
 /// Each variant maps to a distinct key in persistent storage.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataKey {
-    /// Contract configuration (admin, denomination, etc.)
+    /// Contract configuration (admin, etc.) - GLOBAL
     Config,
-    /// Current Merkle tree state (root index, next leaf index)
-    TreeState,
-    /// Historical Merkle roots — DataKey::Root(index) → BytesN<32>
-    Root(u32),
-    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(level) → BytesN<32>
-    FilledSubtree(u32),
-    /// Spent nullifier hashes — DataKey::Nullifier(hash) → bool
-    Nullifier(BytesN<32>),
-    /// Verification key for the Groth16 proof system
-    VerifyingKey,
+    /// Pool-specific configuration - Scoped by PoolId
+    PoolConfig(PoolId),
+    /// Current Merkle tree state (root index, next leaf index) - Scoped by PoolId
+    TreeState(PoolId),
+    /// Historical Merkle roots — DataKey::Root(PoolId, index) → BytesN<32>
+    Root(PoolId, u32),
+    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(PoolId, level) → BytesN<32>
+    FilledSubtree(PoolId, u32),
+    /// Spent nullifier hashes — DataKey::Nullifier(PoolId, hash) → bool
+    Nullifier(PoolId, BytesN<32>),
+    /// Verification key for the Groth16 proof system - Scoped by PoolId
+    VerifyingKey(PoolId),
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -66,12 +73,18 @@ impl Denomination {
     }
 }
 
-/// Pool configuration — set at initialization, immutable.
+/// Global contract configuration.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Config {
+    /// Global administrator (can create pools, pause the contract)
+    pub admin: Address,
+}
+
+/// Pool configuration — specific to each token/denomination pair.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct PoolConfig {
-    /// Pool administrator (can pause, update verifying key)
-    pub admin: Address,
     /// Token contract address (XLM native or USDC)
     pub token: Address,
     /// Fixed deposit denomination enforced by the pool
@@ -80,7 +93,7 @@ pub struct PoolConfig {
     pub tree_depth: u32,
     /// Maximum number of historical roots to keep
     pub root_history_size: u32,
-    /// Whether deposits/withdrawals are paused
+    /// Whether this specific pool is paused
     pub paused: bool,
 }
 

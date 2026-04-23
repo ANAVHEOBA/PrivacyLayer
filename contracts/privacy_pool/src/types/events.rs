@@ -10,6 +10,7 @@
 // ============================================================
 
 use soroban_sdk::{contractevent, Address, BytesN, Env};
+use crate::types::state::{PoolId};
 
 // ──────────────────────────────────────────────────────────────
 // Deposit Events
@@ -18,6 +19,7 @@ use soroban_sdk::{contractevent, Address, BytesN, Env};
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct DepositEvent {
+    pub pool_id: PoolId,
     pub commitment: BytesN<32>,
     pub leaf_index: u32,
     pub root: BytesN<32>,
@@ -26,6 +28,7 @@ pub struct DepositEvent {
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct WithdrawEvent {
+    pub pool_id: PoolId,
     pub nullifier_hash: BytesN<32>,
     pub recipient: Address,
     pub relayer: Option<Address>,
@@ -37,36 +40,33 @@ pub struct WithdrawEvent {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolPausedEvent {
     pub admin: Address,
+    pub pool_id: PoolId,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolUnpausedEvent {
     pub admin: Address,
+    pub pool_id: PoolId,
 }
 
 #[contractevent]
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct VkUpdatedEvent {
     pub admin: Address,
+    pub pool_id: PoolId,
 }
 
 /// Emitted when a commitment is successfully inserted into the shielded pool.
-///
-/// The SDK client uses this event to sync the local Merkle tree,
-/// which is required to generate Merkle inclusion proofs for withdrawal.
-///
-/// # Privacy notes
-/// - `commitment` is public (required to build the Merkle tree)
-/// - The depositor address is NOT included (would break privacy)
-/// - The amount is NOT included (fixed denomination, trivially known)
 pub fn emit_deposit(
     env: &Env,
+    pool_id: PoolId,
     commitment: BytesN<32>,
     leaf_index: u32,
     root: BytesN<32>,
 ) {
     DepositEvent {
+        pool_id,
         commitment,
         leaf_index,
         root,
@@ -78,15 +78,9 @@ pub fn emit_deposit(
 // ──────────────────────────────────────────────────────────────
 
 /// Emitted when a withdrawal is successfully processed.
-///
-/// # Privacy notes
-/// - `nullifier_hash` is public (required to detect double-spends off-chain)
-/// - `recipient` is public (the funds go there — unavoidable)
-/// - `relayer` is public (earned fee — unavoidable)
-/// - NOTE: There is no on-chain link between this nullifier_hash
-///   and any specific deposit commitment
 pub fn emit_withdraw(
     env: &Env,
+    pool_id: PoolId,
     nullifier_hash: BytesN<32>,
     recipient: Address,
     relayer: Option<Address>,
@@ -94,6 +88,7 @@ pub fn emit_withdraw(
     amount: i128,
 ) {
     WithdrawEvent {
+        pool_id,
         nullifier_hash,
         recipient,
         relayer,
@@ -107,17 +102,16 @@ pub fn emit_withdraw(
 // ──────────────────────────────────────────────────────────────
 
 /// Emitted when the pool is paused by the admin.
-pub fn emit_pool_paused(env: &Env, admin: Address) {
-    PoolPausedEvent { admin }.publish(env);
+pub fn emit_pool_paused(env: &Env, admin: Address, pool_id: PoolId) {
+    PoolPausedEvent { admin, pool_id }.publish(env);
 }
 
 /// Emitted when the pool is unpaused by the admin.
-pub fn emit_pool_unpaused(env: &Env, admin: Address) {
-    PoolUnpausedEvent { admin }.publish(env);
+pub fn emit_pool_unpaused(env: &Env, admin: Address, pool_id: PoolId) {
+    PoolUnpausedEvent { admin, pool_id }.publish(env);
 }
 
 /// Emitted when the verifying key is updated by the admin.
-/// This is a critical operation — must be carefully audited.
-pub fn emit_vk_updated(env: &Env, admin: Address) {
-    VkUpdatedEvent { admin }.publish(env);
+pub fn emit_vk_updated(env: &Env, admin: Address, pool_id: PoolId) {
+    VkUpdatedEvent { admin, pool_id }.publish(env);
 }

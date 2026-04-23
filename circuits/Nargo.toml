@@ -1,6 +1,7 @@
 [workspace]
 members = [
     "commitment",
+    "lib",
     "merkle",
     "withdraw",
 ]

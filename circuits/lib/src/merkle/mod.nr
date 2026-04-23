@@ -35,13 +35,13 @@ pub fn compute_root(
 ) -> Field {
     // Decompose index into bits to determine left/right at each level
     // Bit 0 = deepest level (leaf level), bit 19 = root level
-    let index_bits: [u1; 20] = index.to_le_bits();
+    let index_bits: [bool; 20] = index.to_le_bits();
 
     let mut current = leaf;
 
     for i in 0..20 {
         // At level i: if bit i is 0, current is left child; if 1, it's right child
-        let is_right = index_bits[i] != 0;
+        let is_right = index_bits[i];
 
         let left  = if is_right { hash_path[i] } else { current };
         let right = if is_right { current } else { hash_path[i] };

@@ -26,3 +26,6 @@ pub fn validate_commitment(computed: Field, expected: Field) {
 pub fn validate_nullifier_hash(computed: Field, expected: Field) {
     assert(computed == expected, "nullifier_hash mismatch: invalid nullifier or wrong root");
 }
+
+// Test helper utilities (shared across all circuit test suites)
+pub mod test_helpers;

@@ -10,30 +10,20 @@ use crate::types::errors::Error;
 use crate::types::events::emit_deposit;
 use crate::utils::validation;
 
-/// Execute a deposit into the shielded pool.
-///
-/// # Arguments
-/// - `from`       : depositor's Stellar address (must authorize)
-/// - `commitment` : 32-byte field element = Hash(nullifier, secret)
-///
-/// # Returns
-/// `(leaf_index, merkle_root)` - store leaf_index with your note
-///
-/// # Errors
-/// - `Error::NotInitialized` if contract not initialized
-/// - `Error::PoolPaused` if pool is paused
-/// - `Error::ZeroCommitment` if commitment is all zeros
-/// - `Error::TreeFull` if pool is full (1,048,576 deposits)
+use crate::types::state::{PoolId};
+
+/// Execute a deposit into a specific shielded pool.
 pub fn execute(
     env: Env,
+    pool_id: PoolId,
     from: Address,
     commitment: BytesN<32>,
 ) -> Result<(u32, BytesN<32>), Error> {
     // Require authorization from the depositor
     from.require_auth();
 
-    // Load and validate configuration
-    let pool_config = config::load(&env)?;
+    // Load and validate pool configuration
+    let pool_config = config::load_pool_config(&env, &pool_id)?;
     validation::require_not_paused(&pool_config)?;
 
     // Validate commitment
@@ -48,8 +38,8 @@ pub fn execute(
         &amount,
     );
 
-    // Insert commitment into Merkle tree
-    let (leaf_index, new_root) = merkle::insert(&env, commitment.clone())?;
+    // Insert commitment into Merkle tree for this pool
+    let (leaf_index, new_root) = merkle::insert(&env, &pool_id, commitment.clone())?;
 
     // Emit deposit event (no depositor address for privacy)
     emit_deposit(&env, commitment, leaf_index, new_root.clone());

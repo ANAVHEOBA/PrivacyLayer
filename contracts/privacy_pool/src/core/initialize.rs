@@ -9,31 +9,38 @@ use crate::storage::config;
 use crate::types::errors::Error;
 use crate::types::state::{Denomination, PoolConfig, VerifyingKey};
 
-/// Initialize the privacy pool with configuration.
-///
-/// # Arguments
-/// - `admin`       : address that can pause/update the pool
-/// - `token`       : token contract (use Stellar native XLM or USDC SAC)
-/// - `denomination`: fixed deposit/withdrawal amount
-/// - `vk`          : Groth16 verifying key for the withdrawal circuit
-///
-/// # Errors
-/// - `Error::AlreadyInitialized` if called more than once
-pub fn execute(
+use crate::types::state::{Config, Denomination, PoolConfig, PoolId, VerifyingKey};
+
+/// Initialize the global privacy pool contract.
+pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
+    if config::is_initialized(&env) {
+        return Err(Error::AlreadyInitialized);
+    }
+
+    let global_config = Config { admin };
+    config::save_global_config(&env, &global_config);
+
+    Ok(())
+}
+
+/// Create a new shielded pool for a specific token and denomination.
+pub fn create_pool(
     env: Env,
-    admin: Address,
+    pool_id: PoolId,
     token: Address,
     denomination: Denomination,
     vk: VerifyingKey,
 ) -> Result<(), Error> {
-    // Check if already initialized
-    if config::exists(&env) {
+    // Only global admin can create pools
+    let global_config = config::load_global_config(&env)?;
+    global_config.admin.require_auth();
+
+    // Check if pool already exists
+    if config::load_pool_config(&env, &pool_id).is_ok() {
         return Err(Error::AlreadyInitialized);
     }
 
-    // Create pool configuration
     let pool_config = PoolConfig {
-        admin,
         token,
         denomination,
         tree_depth: merkle::TREE_DEPTH,
@@ -41,9 +48,8 @@ pub fn execute(
         paused: false,
     };
 
-    // Save configuration and verifying key
-    config::save(&env, &pool_config);
-    config::save_verifying_key(&env, &vk);
+    config::save_pool_config(&env, &pool_id, &pool_config);
+    config::save_verifying_key(&env, &pool_id, &vk);
 
     Ok(())
 }

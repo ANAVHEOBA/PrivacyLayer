@@ -7,41 +7,52 @@
 use soroban_sdk::Env;
 
 use crate::types::errors::Error;
-use crate::types::state::{DataKey, PoolConfig, VerifyingKey};
+use crate::types::state::{Config, DataKey, PoolConfig, PoolId, VerifyingKey};
 
-/// Check if the pool has been initialized.
-pub fn exists(env: &Env) -> bool {
+/// Check if the contract has been initialized.
+pub fn is_initialized(env: &Env) -> bool {
     env.storage().persistent().has(&DataKey::Config)
 }
 
-/// Load the pool configuration.
-///
-/// # Errors
-/// Returns `Error::NotInitialized` if config doesn't exist.
-pub fn load(env: &Env) -> Result<PoolConfig, Error> {
+/// Load the global contract configuration.
+pub fn load_global_config(env: &Env) -> Result<Config, Error> {
     env.storage()
         .persistent()
         .get(&DataKey::Config)
         .ok_or(Error::NotInitialized)
 }
 
-/// Save the pool configuration.
-pub fn save(env: &Env, config: &PoolConfig) {
+/// Save the global contract configuration.
+pub fn save_global_config(env: &Env, config: &Config) {
     env.storage().persistent().set(&DataKey::Config, config);
 }
 
-/// Load the verifying key.
-///
-/// # Errors
-/// Returns `Error::NoVerifyingKey` if VK doesn't exist.
-pub fn load_verifying_key(env: &Env) -> Result<VerifyingKey, Error> {
+/// Load the pool configuration for a specific pool.
+pub fn load_pool_config(env: &Env, pool_id: &PoolId) -> Result<PoolConfig, Error> {
     env.storage()
         .persistent()
-        .get(&DataKey::VerifyingKey)
+        .get(&DataKey::PoolConfig(pool_id.clone()))
+        .ok_or(Error::PoolNotFound)
+}
+
+/// Save the pool configuration for a specific pool.
+pub fn save_pool_config(env: &Env, pool_id: &PoolId, config: &PoolConfig) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::PoolConfig(pool_id.clone()), config);
+}
+
+/// Load the verifying key for a specific pool.
+pub fn load_verifying_key(env: &Env, pool_id: &PoolId) -> Result<VerifyingKey, Error> {
+    env.storage()
+        .persistent()
+        .get(&DataKey::VerifyingKey(pool_id.clone()))
         .ok_or(Error::NoVerifyingKey)
 }
 
-/// Save the verifying key.
-pub fn save_verifying_key(env: &Env, vk: &VerifyingKey) {
-    env.storage().persistent().set(&DataKey::VerifyingKey, vk);
+/// Save the verifying key for a specific pool.
+pub fn save_verifying_key(env: &Env, pool_id: &PoolId, vk: &VerifyingKey) {
+    env.storage()
+        .persistent()
+        .set(&DataKey::VerifyingKey(pool_id.clone()), vk);
 }

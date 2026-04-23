@@ -23,6 +23,8 @@ pub enum Error {
     PoolPaused = 20,
     /// Merkle tree is full (2^20 notes inserted)
     TreeFull = 21,
+    /// Pool with the given ID not found
+    PoolNotFound = 22,
 
     // ── Deposit ────────────────────────────────────────
     /// Wrong deposit amount — must match the pool denomination
