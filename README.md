@@ -166,9 +166,34 @@ cargo test        # Run unit and integration tests
 
 ✅ Circuits: Commitment, withdrawal, and merkle circuits implemented  
 ✅ Contracts: Full privacy pool contract with deposit/withdraw/admin functions  
+✅ Analytics: Privacy-preserving aggregate analytics + public dashboard scaffold  
 🚧 SDK: TypeScript client SDK (planned)  
 🚧 Frontend: Next.js dApp (planned)  
 🚧 Scripts: Deployment automation (planned)
+
+## Privacy-Preserving Analytics
+
+The contract includes aggregate analytics primitives designed for privacy:
+
+- No cookies
+- No user tracking
+- No IP logging
+- Aggregate counters only
+- Fixed-size hourly trend buckets (no per-user event history)
+
+### Available Metrics
+
+- Page views (`record_page_view`)
+- Deposit count (aggregate, via `deposit_count` and `analytics_snapshot`)
+- Withdrawal count (aggregate, via `withdraw_count`)
+- Error count/rate (`record_error`, `analytics_snapshot.error_rate_bps`)
+- Performance aggregates (`record_performance` + average durations)
+
+### Public Dashboard
+
+- Static dashboard: `docs/public-stats-dashboard.html`
+- Data source: `docs/analytics-snapshot.json` (shape compatible with `analytics_snapshot`)
+- Dashboard is intentionally aggregate-only and excludes identifiable fields
 
 ---
 

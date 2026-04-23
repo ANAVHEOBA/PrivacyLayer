@@ -5,7 +5,7 @@
 use soroban_sdk::{Address, Env};
 
 use crate::crypto::merkle;
-use crate::storage::config;
+use crate::storage::{analytics, config};
 use crate::types::errors::Error;
 use crate::types::state::{Denomination, PoolConfig, VerifyingKey};
 
@@ -44,6 +44,7 @@ pub fn execute(
     // Save configuration and verifying key
     config::save(&env, &pool_config);
     config::save_verifying_key(&env, &vk);
+    analytics::initialize(&env);
 
     Ok(())
 }

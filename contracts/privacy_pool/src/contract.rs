@@ -9,7 +9,10 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
-use crate::types::state::{Denomination, PoolConfig, Proof, PublicInputs, VerifyingKey};
+use crate::types::state::{
+    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
+    VerifyingKey,
+};
 
 #[contract]
 pub struct PrivacyPool;
@@ -74,6 +77,11 @@ impl PrivacyPool {
         view::deposit_count(env)
     }
 
+    /// Returns the total number of successful withdrawals.
+    pub fn withdraw_count(env: Env) -> u64 {
+        view::withdraw_count(env)
+    }
+
     /// Check if a root is in the historical root buffer.
     pub fn is_known_root(env: Env, root: BytesN<32>) -> bool {
         view::is_known_root(env, root)
@@ -87,6 +95,30 @@ impl PrivacyPool {
     /// Returns the pool configuration.
     pub fn get_config_view(env: Env) -> Result<PoolConfig, Error> {
         view::get_config(env)
+    }
+
+    /// Record an aggregate page view.
+    pub fn record_page_view(env: Env) -> Result<(), Error> {
+        view::record_page_view(env)
+    }
+
+    /// Record an aggregate error event.
+    pub fn record_error(env: Env) -> Result<(), Error> {
+        view::record_error(env)
+    }
+
+    /// Record aggregate performance metric in milliseconds.
+    pub fn record_performance(
+        env: Env,
+        kind: PerformanceMetricKind,
+        duration_ms: u32,
+    ) -> Result<(), Error> {
+        view::record_performance(env, kind, duration_ms)
+    }
+
+    /// Returns a privacy-preserving analytics snapshot for dashboards.
+    pub fn analytics_snapshot(env: Env) -> Result<AnalyticsSnapshot, Error> {
+        view::analytics_snapshot(env)
     }
 
     // ──────────────────────────────────────────────────────────

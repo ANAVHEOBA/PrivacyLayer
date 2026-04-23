@@ -22,7 +22,7 @@ use soroban_sdk::{
 
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
-    types::state::{Denomination, VerifyingKey},
+    types::state::{Denomination, PerformanceMetricKind, VerifyingKey},
     PrivacyPool, PrivacyPoolClient,
 };
 
@@ -337,6 +337,38 @@ fn test_get_root_after_deposits() {
     // get_root shouldn't panic after at least one deposit
     let root = t.client.get_root();
     assert_ne!(root, BytesN::from_array(&t.env, &[0u8; 32]));
+}
+
+#[test]
+fn test_analytics_snapshot_tracks_aggregate_usage() {
+    let t = TestEnv::setup();
+    t.init();
+
+    t.client.record_page_view();
+    t.client.deposit(&t.alice, &commitment(&t.env, 1));
+    t.client.record_error();
+
+    let analytics = t.client.analytics_snapshot();
+    assert_eq!(analytics.page_views, 1);
+    assert_eq!(analytics.deposit_count, 1);
+    assert_eq!(analytics.withdrawal_count, 0);
+    assert_eq!(analytics.error_count, 1);
+    assert!(analytics.error_rate_bps > 0);
+}
+
+#[test]
+fn test_record_performance_aggregates_without_identifiers() {
+    let t = TestEnv::setup();
+    t.init();
+
+    t.client.record_performance(&PerformanceMetricKind::PageLoad, &120);
+    t.client.record_performance(&PerformanceMetricKind::PageLoad, &80);
+    t.client.record_performance(&PerformanceMetricKind::Deposit, &300);
+
+    let analytics = t.client.analytics_snapshot();
+    assert_eq!(analytics.avg_page_load_ms, 100);
+    assert_eq!(analytics.avg_deposit_ms, 300);
+    assert_eq!(analytics.avg_withdraw_ms, 0);
 }
 
 // ──────────────────────────────────────────────────────────────

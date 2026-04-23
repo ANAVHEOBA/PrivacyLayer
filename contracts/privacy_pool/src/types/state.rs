@@ -7,7 +7,7 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, BytesN, Vec};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
@@ -30,6 +30,10 @@ pub enum DataKey {
     Nullifier(BytesN<32>),
     /// Verification key for the Groth16 proof system
     VerifyingKey,
+    /// Aggregate analytics counters (no user-identifiable data)
+    AnalyticsState,
+    /// Fixed-size hourly analytics buckets for trend charts
+    AnalyticsBucket(u32),
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -155,4 +159,66 @@ pub struct Proof {
     pub b: BytesN<128>,
     /// G1 point: C (64 bytes, uncompressed)
     pub c: BytesN<64>,
+}
+
+// ──────────────────────────────────────────────────────────────
+// Analytics Types
+// ──────────────────────────────────────────────────────────────
+
+/// Performance metric category.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PerformanceMetricKind {
+    PageLoad,
+    Deposit,
+    Withdraw,
+}
+
+/// Aggregate performance totals used to compute averages.
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PerformanceTotals {
+    pub page_load_total_ms: u64,
+    pub page_load_samples: u64,
+    pub deposit_total_ms: u64,
+    pub deposit_samples: u64,
+    pub withdraw_total_ms: u64,
+    pub withdraw_samples: u64,
+}
+
+/// Global aggregate analytics state (privacy-preserving).
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AnalyticsState {
+    pub page_views: u64,
+    pub successful_deposits: u64,
+    pub successful_withdrawals: u64,
+    pub error_count: u64,
+    pub performance: PerformanceTotals,
+}
+
+/// One hourly aggregate bucket for historical trends.
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AnalyticsBucket {
+    pub hour_epoch: u64,
+    pub page_views: u32,
+    pub deposits: u32,
+    pub withdrawals: u32,
+    pub errors: u32,
+}
+
+/// Public analytics view returned by the contract.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnalyticsSnapshot {
+    pub page_views: u64,
+    pub deposit_count: u32,
+    pub withdrawal_count: u64,
+    pub error_count: u64,
+    pub error_rate_bps: u32,
+    pub avg_page_load_ms: u32,
+    pub avg_deposit_ms: u32,
+    pub avg_withdraw_ms: u32,
+    pub hourly_trend: Vec<AnalyticsBucket>,
 }

@@ -23,7 +23,7 @@ use soroban_sdk::{
 
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
-    types::state::{Denomination, Proof, PublicInputs, VerifyingKey},
+    types::state::{Denomination, PerformanceMetricKind, Proof, PublicInputs, VerifyingKey},
     PrivacyPool, PrivacyPoolClient,
 };
 
@@ -307,6 +307,15 @@ fn test_e2e_view_functions_track_state() {
 
     // Unspent nullifier
     assert!(!client.is_spent(&make_nh(&env, 99)));
+
+    // Analytics views (aggregate only)
+    client.record_page_view();
+    client.record_performance(&PerformanceMetricKind::Deposit, &250);
+    let analytics = client.analytics_snapshot();
+    assert_eq!(analytics.deposit_count, 3);
+    assert_eq!(analytics.withdrawal_count, 0);
+    assert_eq!(client.withdraw_count(), 0);
+    assert_eq!(analytics.avg_deposit_ms, 250);
 }
 
 // ──────────────────────────────────────────────────────────────

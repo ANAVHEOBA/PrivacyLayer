@@ -5,7 +5,7 @@
 use soroban_sdk::{token, Address, Env};
 
 use crate::crypto::verifier;
-use crate::storage::{config, nullifier};
+use crate::storage::{analytics, config, nullifier};
 use crate::types::errors::Error;
 use crate::types::events::emit_withdraw;
 use crate::types::state::{Proof, PublicInputs};
@@ -80,6 +80,7 @@ pub fn execute(
         fee,
         denomination_amount,
     );
+    analytics::record_withdraw_success(&env);
 
     Ok(true)
 }
