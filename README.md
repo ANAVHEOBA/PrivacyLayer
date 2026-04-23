@@ -193,7 +193,9 @@ Check the [Issues tab](https://github.com/ANAVHEOBA/PrivacyLayer/issues) for spe
 
 This project uses zero-knowledge cryptography. While the mathematical primitives (BN254, Poseidon) are battle-tested, the circuit logic and contract integration require a formal security audit before mainnet deployment.
 
-See [`docs/threat-model.md`](docs/threat-model.md) for known risks.
+See [`docs/THREAT_MODEL.md`](docs/THREAT_MODEL.md) for known risks.
+See [`docs/DISASTER_RECOVERY_PLAN.md`](docs/DISASTER_RECOVERY_PLAN.md) for the
+incident-response and recovery process.
 
 ---
 
