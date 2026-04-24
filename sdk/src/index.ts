@@ -1,3 +1,4 @@
+export * from './artifact_manifest';
 export * from './backends';
 export * from './benchmark';
 export * from './encoding';
