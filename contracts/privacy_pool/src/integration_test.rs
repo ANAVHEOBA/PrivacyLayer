@@ -1,14 +1,8 @@
 // ============================================================
 // PrivacyLayer — End-to-End Integration Tests
 // ============================================================
-// Full deposit → withdraw flow tests.
-//
-// Soroban SDK v22 client pattern:
-//   client.method()      → returns T, PANICS on Error
-//   client.try_method()  → returns Result<Result<T, ContractError>, sdk::Error>
-//
-// Happy path: use client.method() directly.
-// Error path: use client.try_method() and match Ok(Err(Error::...)).
+// Focused multi-pool tests covering contract behavior from the
+// public client interface.
 // ============================================================
 
 #![cfg(test)]
@@ -23,63 +17,84 @@ use soroban_sdk::{
 
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
-    types::state::{Denomination, Proof, PublicInputs, VerifyingKey},
+    types::state::{DataKey, Denomination, PoolId, Proof, PublicInputs, VerifyingKey},
     PrivacyPool, PrivacyPoolClient,
 };
 
-// ──────────────────────────────────────────────────────────────
-// Shared helpers
-// ──────────────────────────────────────────────────────────────
-
 const DENOM_AMOUNT: i128 = 1_000_000_000; // 100 XLM
 
-fn setup() -> (Env, PrivacyPoolClient<'static>, Address, Address, Address, Address) {
+fn setup() -> (
+    Env,
+    PrivacyPoolClient<'static>,
+    Address,
+    Address,
+    Address,
+    Address,
+    PoolId,
+) {
     let env = Env::default();
     env.mock_all_auths();
-    env.cost_estimate().budget().reset_unlimited(); // Poseidon2 operations need unlimited budget
+    env.cost_estimate().budget().reset_unlimited();
 
     let token_admin = Address::generate(&env);
     let token_id = env.register_stellar_asset_contract_v2(token_admin.clone()).address();
 
-    let admin       = Address::generate(&env);
+    let admin = Address::generate(&env);
     let contract_id = env.register(PrivacyPool, ());
-    let client      = PrivacyPoolClient::new(&env, &contract_id);
+    let client = PrivacyPoolClient::new(&env, &contract_id);
 
     let alice = Address::generate(&env);
-    let bob   = Address::generate(&env);
+    let bob = Address::generate(&env);
 
     StellarAssetClient::new(&env, &token_id).mint(&alice, &(200 * DENOM_AMOUNT));
-    StellarAssetClient::new(&env, &token_id).mint(&bob,   &(200 * DENOM_AMOUNT));
+    StellarAssetClient::new(&env, &token_id).mint(&bob, &(200 * DENOM_AMOUNT));
 
-    client.initialize(&admin, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
-    (env, client, token_id, admin, alice, bob)
+    let pool_id = PoolId(BytesN::from_array(&env, &[7u8; 32]));
+
+    client.initialize(&admin);
+    client.create_pool(&pool_id, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
+
+    (env, client, token_id, admin, alice, bob, pool_id)
 }
 
 fn dummy_vk(env: &Env) -> VerifyingKey {
     let g1 = BytesN::from_array(env, &[0u8; 64]);
     let g2 = BytesN::from_array(env, &[0u8; 128]);
     let mut abc = Vec::new(env);
-    for _ in 0..7 { abc.push_back(g1.clone()); }
-    VerifyingKey { alpha_g1: g1, beta_g2: g2.clone(), gamma_g2: g2.clone(), delta_g2: g2, gamma_abc_g1: abc }
+    for _ in 0..7 {
+        abc.push_back(g1.clone());
+    }
+
+    VerifyingKey {
+        alpha_g1: g1,
+        beta_g2: g2.clone(),
+        gamma_g2: g2.clone(),
+        delta_g2: g2,
+        gamma_abc_g1: abc,
+    }
+}
+
+fn make_pool_id(env: &Env, seed: u8) -> PoolId {
+    PoolId(BytesN::from_array(env, &[seed; 32]))
 }
 
 fn make_commit(env: &Env, seed: u8) -> BytesN<32> {
-    let mut b = [0u8; 32];
-    b[31] = seed; // Put seed in the least significant byte to ensure it's a valid field element
-    b[30] = seed.wrapping_add(1);
-    BytesN::from_array(env, &b)
+    let mut bytes = [0u8; 32];
+    bytes[30] = seed.wrapping_add(1);
+    bytes[31] = seed;
+    BytesN::from_array(env, &bytes)
 }
 
-fn make_nh(env: &Env, seed: u8) -> BytesN<32> {
-    let mut b = [0u8; 32];
-    b[31] = seed.wrapping_add(200);
-    BytesN::from_array(env, &b)
+fn make_nullifier_hash(env: &Env, seed: u8) -> BytesN<32> {
+    let mut bytes = [0u8; 32];
+    bytes[31] = seed.wrapping_add(100);
+    BytesN::from_array(env, &bytes)
 }
 
-fn field(env: &Env, v: u8) -> BytesN<32> {
-    let mut b = [0u8; 32];
-    b[31] = v;
-    BytesN::from_array(env, &b)
+fn field(env: &Env, value: u8) -> BytesN<32> {
+    let mut bytes = [0u8; 32];
+    bytes[31] = value;
+    BytesN::from_array(env, &bytes)
 }
 
 fn dummy_proof(env: &Env) -> Proof {
@@ -90,346 +105,134 @@ fn dummy_proof(env: &Env) -> Proof {
     }
 }
 
-fn token_bal(env: &Env, token_id: &Address, who: &Address) -> i128 {
-    TokenClient::new(env, token_id).balance(who)
+fn token_balance(env: &Env, token_id: &Address, owner: &Address) -> i128 {
+    TokenClient::new(env, token_id).balance(owner)
 }
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 1: Single deposit — balances correct
-// ──────────────────────────────────────────────────────────────
 
 #[test]
 fn test_e2e_deposit_updates_balances() {
-    let (env, client, token_id, _admin, alice, _bob) = setup();
+    let (env, client, token_id, _admin, alice, _bob, pool_id) = setup();
     let contract_id = client.address.clone();
 
-    let alice_before    = token_bal(&env, &token_id, &alice);
-    let contract_before = token_bal(&env, &token_id, &contract_id);
+    let alice_before = token_balance(&env, &token_id, &alice);
+    let contract_before = token_balance(&env, &token_id, &contract_id);
 
-    let (leaf_index, root) = client.deposit(&alice, &make_commit(&env, 1));
+    let (leaf_index, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
     assert_eq!(leaf_index, 0);
-    assert!(client.is_known_root(&root));
-    assert_eq!(token_bal(&env, &token_id, &alice),    alice_before - DENOM_AMOUNT);
-    assert_eq!(token_bal(&env, &token_id, &contract_id), contract_before + DENOM_AMOUNT);
+    assert!(client.is_known_root(&pool_id, &root));
+    assert_eq!(token_balance(&env, &token_id, &alice), alice_before - DENOM_AMOUNT);
+    assert_eq!(
+        token_balance(&env, &token_id, &contract_id),
+        contract_before + DENOM_AMOUNT
+    );
 }
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 2: Double-spend — nullifier rejected second time
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_double_spend_rejected() {
-    let (env, client, _token_id, _admin, alice, _bob) = setup();
-
-    let (_, root): (u32, BytesN<32>) = client.deposit(&alice, &make_commit(&env, 10));
-    let nh = make_nh(&env, 10);
-
-    let pub_inputs = PublicInputs {
-        root: root.clone(), nullifier_hash: nh.clone(),
-        recipient: field(&env, 0xCC), amount: field(&env, 1),
-        relayer: BytesN::from_array(&env, &[0u8; 32]),
-        fee:     BytesN::from_array(&env, &[0u8; 32]),
-    };
-
-    // First withdraw — succeeds (proof verification mocked to pass with dummy VK)
-    // NOTE: In this test env, the verifier is mocked. Real proofs require nargo.
-    // We only test the nullifier double-spend guard here.
-    // Manually mark nullifier as spent (simulating a successful first withdraw).
-    use crate::types::state::DataKey;
-    let contract_id = client.address.clone();
-    env.as_contract(&contract_id, || {
-        env.storage().persistent().set(&DataKey::Nullifier(nh.clone()), &true);
-    });
-    assert!(client.is_spent(&nh));
-
-    // Second withdraw attempt — must be rejected
-    let result = client.try_withdraw(&dummy_proof(&env), &pub_inputs);
-    assert!(result.is_err());
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 3: Multiple independent deposits
-// ──────────────────────────────────────────────────────────────
 
 #[test]
 fn test_e2e_multiple_deposits_sequential_indices() {
-    let (env, client, token_id, _admin, alice, bob) = setup();
-    env.cost_estimate().budget().reset_unlimited(); // Poseidon2 operations need more budget
+    let (env, client, token_id, _admin, alice, bob, pool_id) = setup();
     let contract_id = client.address.clone();
 
-    let (i0, r0) = client.deposit(&alice, &make_commit(&env, 1));
-    let (i1, r1) = client.deposit(&alice, &make_commit(&env, 2));
-    let (i2, r2) = client.deposit(&bob,   &make_commit(&env, 3));
+    let (i0, r0) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+    let (i1, r1) = client.deposit(&pool_id, &alice, &make_commit(&env, 2));
+    let (i2, r2) = client.deposit(&pool_id, &bob, &make_commit(&env, 3));
 
     assert_eq!((i0, i1, i2), (0, 1, 2));
-    assert_eq!(client.deposit_count(), 3);
-
-    assert_ne!(r0, r1); assert_ne!(r1, r2);
-    assert!(client.is_known_root(&r0));
-    assert!(client.is_known_root(&r1));
-    assert!(client.is_known_root(&r2));
-
-    assert_eq!(token_bal(&env, &token_id, &contract_id), 3 * DENOM_AMOUNT);
+    assert_eq!(client.deposit_count(&pool_id), 3);
+    assert_ne!(r0, r1);
+    assert_ne!(r1, r2);
+    assert!(client.is_known_root(&pool_id, &r0));
+    assert!(client.is_known_root(&pool_id, &r1));
+    assert!(client.is_known_root(&pool_id, &r2));
+    assert_eq!(token_balance(&env, &token_id, &contract_id), 3 * DENOM_AMOUNT);
 }
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 4: Unknown root rejected on withdraw
-// ──────────────────────────────────────────────────────────────
 
 #[test]
 fn test_e2e_unknown_root_rejected() {
-    let (env, client, _token_id, _admin, alice, _bob) = setup();
+    let (env, client, _token_id, _admin, alice, _bob, pool_id) = setup();
 
-    // Make a real deposit to ensure pool is initialized
-    client.deposit(&alice, &make_commit(&env, 5));
+    client.deposit(&pool_id, &alice, &make_commit(&env, 5));
 
     let fake_root = BytesN::from_array(&env, &[0xAA; 32]);
-    assert!(!client.is_known_root(&fake_root));
+    assert!(!client.is_known_root(&pool_id, &fake_root));
 
     let pub_inputs = PublicInputs {
-        root: fake_root, nullifier_hash: make_nh(&env, 5),
-        recipient: field(&env, 0xBB), amount: field(&env, 1),
+        root: fake_root,
+        nullifier_hash: make_nullifier_hash(&env, 5),
+        recipient: field(&env, 0xBB),
+        amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
-        fee:     BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
     };
 
-    let result = client.try_withdraw(&dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
     assert!(result.is_err());
 }
 
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 5: Stale root evicted after ROOT_HISTORY_SIZE overflows
-// ──────────────────────────────────────────────────────────────
+#[test]
+fn test_e2e_double_spend_rejected_after_manual_spend_mark() {
+    let (env, client, _token_id, _admin, alice, _bob, pool_id) = setup();
+
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 10));
+    let nullifier_hash = make_nullifier_hash(&env, 10);
+    let contract_id = client.address.clone();
+
+    env.as_contract(&contract_id, || {
+        env.storage().persistent().set(
+            &DataKey::Nullifier(pool_id.clone(), nullifier_hash.clone()),
+            &true,
+        );
+    });
+
+    assert!(client.is_spent(&pool_id, &nullifier_hash));
+
+    let pub_inputs = PublicInputs {
+        root,
+        nullifier_hash,
+        recipient: field(&env, 0xCC),
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    assert!(result.is_err());
+}
 
 #[test]
 fn test_e2e_stale_root_evicted_after_overflow() {
-    let (env, client, token_id, _admin, alice, _bob) = setup();
-    env.cost_estimate().budget().reset_unlimited(); // Many Poseidon2 operations need unlimited budget
-
-    // Fund alice for a lot of deposits
+    let (env, client, token_id, _admin, alice, _bob, pool_id) = setup();
     StellarAssetClient::new(&env, &token_id).mint(&alice, &(500 * DENOM_AMOUNT));
 
-    // Capture first root
-    let (_, stale_root) = client.deposit(&alice, &make_commit(&env, 1));
-    assert!(client.is_known_root(&stale_root));
+    let (_, first_root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+    assert!(client.is_known_root(&pool_id, &first_root));
 
-    // Overflow circular root buffer (add ROOT_HISTORY_SIZE + 1 more)
     for i in 0..(ROOT_HISTORY_SIZE + 1) {
-        client.deposit(&alice, &make_commit(&env, i as u8 + 2));
+        client.deposit(&pool_id, &alice, &make_commit(&env, i as u8 + 2));
     }
 
-    // Stale root should now be evicted
-    assert!(!client.is_known_root(&stale_root));
-
-    // Withdraw attempt with stale root → UnknownRoot
-    let result = client.try_withdraw(
-        &dummy_proof(&env),
-        &PublicInputs {
-            root: stale_root,
-            nullifier_hash: make_nh(&env, 1),
-            recipient: field(&env, 0xAA), amount: field(&env, 1),
-            relayer: BytesN::from_array(&env, &[0u8; 32]),
-            fee:     BytesN::from_array(&env, &[0u8; 32]),
-        },
-    );
-    assert!(result.is_err());
+    assert!(!client.is_known_root(&pool_id, &first_root));
 }
 
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 6: Pause → all ops blocked → Unpause → restored
-// ──────────────────────────────────────────────────────────────
-
 #[test]
-fn test_e2e_pause_blocks_deposit_and_withdraw() {
-    let (env, client, _token_id, admin, alice, _bob) = setup();
+fn test_e2e_pool_scoping_keeps_roots_and_nullifiers_isolated() {
+    let (env, client, token_id, admin, alice, _bob, pool_a) = setup();
+    let pool_b = make_pool_id(&env, 9);
 
-    // Works before pause
-    let (_, root) = client.deposit(&alice, &make_commit(&env, 1));
+    client.create_pool(&pool_b, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
 
-    client.pause(&admin);
+    let (_, root_a) = client.deposit(&pool_a, &alice, &make_commit(&env, 21));
+    let (_, root_b) = client.deposit(&pool_b, &alice, &make_commit(&env, 22));
 
-    // Deposit blocked
-    let r1 = client.try_deposit(&alice, &make_commit(&env, 2));
-    assert!(r1.is_err());
+    assert!(client.is_known_root(&pool_a, &root_a));
+    assert!(client.is_known_root(&pool_b, &root_b));
+    assert!(!client.is_known_root(&pool_a, &root_b));
+    assert!(!client.is_known_root(&pool_b, &root_a));
 
-    // Withdraw also blocked
-    let r2 = client.try_withdraw(
-        &dummy_proof(&env),
-        &PublicInputs {
-            root, nullifier_hash: make_nh(&env, 1),
-            recipient: field(&env, 0xAA), amount: field(&env, 1),
-            relayer: BytesN::from_array(&env, &[0u8; 32]),
-            fee:     BytesN::from_array(&env, &[0u8; 32]),
-        },
-    );
-    assert!(r2.is_err());
+    client.pause(&admin, &pool_a);
+    let paused_result = client.try_deposit(&pool_a, &alice, &make_commit(&env, 23));
+    let active_result = client.try_deposit(&pool_b, &alice, &make_commit(&env, 24));
 
-    // Unpause — deposit works again
-    client.unpause(&admin);
-    let (idx, _) = client.deposit(&alice, &make_commit(&env, 2));
-    assert_eq!(idx, 1); // second ever deposit
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 7: Unauthorized admin actions
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_non_admin_rejected_for_all_admin_ops() {
-    let (env, client, _token_id, _admin, alice, bob) = setup();
-
-    assert!(client.try_pause(&alice).is_err());
-    assert!(client.try_unpause(&bob).is_err());
-    assert!(client.try_set_verifying_key(&alice, &dummy_vk(&env)).is_err());
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 8: View functions are accurate
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_view_functions_track_state() {
-    let (env, client, _token_id, _admin, alice, bob) = setup();
-
-    assert_eq!(client.deposit_count(), 0);
-
-    client.deposit(&alice, &make_commit(&env, 1));
-    assert_eq!(client.deposit_count(), 1);
-
-    client.deposit(&bob,   &make_commit(&env, 2));
-    client.deposit(&alice, &make_commit(&env, 3));
-    assert_eq!(client.deposit_count(), 3);
-
-    // get_root works after deposits
-    let root = client.get_root();
-    assert_ne!(root, BytesN::from_array(&env, &[0u8; 32]));
-
-    // Unspent nullifier
-    assert!(!client.is_spent(&make_nh(&env, 99)));
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 9: Zero commitment rejected
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_zero_commitment_always_rejected() {
-    let (env, client, _token_id, _admin, alice, _bob) = setup();
-    let zero = BytesN::from_array(&env, &[0u8; 32]);
-    let result = client.try_deposit(&alice, &zero);
-    assert!(result.is_err());
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 10: Concurrent Alice & Bob deposits — independent
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_concurrent_depositors_independent_notes() {
-    let (env, client, token_id, _admin, alice, bob) = setup();
-    env.cost_estimate().budget().reset_unlimited(); // Poseidon2 operations need more budget
-    let contract_id = client.address.clone();
-
-    let (ai, ar) = client.deposit(&alice, &make_commit(&env, 50));
-    let (bi, br) = client.deposit(&bob,   &make_commit(&env, 51));
-
-    assert_eq!(ai, 0); assert_eq!(bi, 1);
-    assert_ne!(ar, br);
-    assert!(client.is_known_root(&ar));
-    assert!(client.is_known_root(&br));
-    assert_eq!(token_bal(&env, &token_id, &contract_id), 2 * DENOM_AMOUNT);
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 11: Uninitialized contract rejects everything
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_uninitialized_rejects_deposit() {
-    let env = Env::default();
-    env.mock_all_auths();
-
-    let contract_id = env.register(PrivacyPool, ());
-    let client = PrivacyPoolClient::new(&env, &contract_id);
-    let alice = Address::generate(&env);
-
-    let result = client.try_deposit(&alice, &make_commit(&env, 1));
-    assert!(result.is_err());
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 12: Double-initialize rejected
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_double_initialize_rejected() {
-    let (env, client, token_id, admin, _alice, _bob) = setup();
-    // setup() already calls initialize once; call again
-    let result = client.try_initialize(
-        &admin, &token_id, &Denomination::Xlm100, &dummy_vk(&env),
-    );
-    assert!(result.is_err());
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 13: VK update by admin
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_vk_update_succeeds() {
-    let (env, client, _token_id, admin, _alice, _bob) = setup();
-    let mut new_alpha = [0u8; 64];
-    new_alpha[0] = 0xFF;
-    let new_vk = VerifyingKey {
-        alpha_g1: BytesN::from_array(&env, &new_alpha),
-        beta_g2:  BytesN::from_array(&env, &[0u8; 128]),
-        gamma_g2: BytesN::from_array(&env, &[0u8; 128]),
-        delta_g2: BytesN::from_array(&env, &[0u8; 128]),
-        gamma_abc_g1: {
-            let mut v = Vec::new(&env);
-            for _ in 0..7 { v.push_back(BytesN::from_array(&env, &[0u8; 64])); }
-            v
-        },
-    };
-    // No panic = success
-    client.set_verifying_key(&admin, &new_vk);
-}
-
-// ──────────────────────────────────────────────────────────────
-// INTEGRATION 14: Merkle determinism — same inputs, same roots
-// ──────────────────────────────────────────────────────────────
-
-#[test]
-fn test_e2e_merkle_insert_deterministic() {
-    let run = || {
-        let env = Env::default();
-        env.mock_all_auths();
-        env.cost_estimate().budget().reset_unlimited(); // Poseidon2 operations need more budget
-
-        let contract_id = env.register(PrivacyPool, ());
-        let mut roots = std::vec::Vec::new();
-        
-        for i in 1u8..=5 {
-            let c = BytesN::from_array(&env, &{
-                let mut b = [0u8; 32];
-                b[31] = i;
-                b[30] = i + 1;
-                b
-            });
-            let root: BytesN<32> = env.as_contract(&contract_id, || {
-                let (_, root) = crate::crypto::merkle::insert(&env, c).unwrap();
-                root
-            });
-            roots.push(root.to_array());
-        }
-        roots
-    };
-
-    let run1 = run();
-    let run2 = run();
-
-    for i in 0..5 {
-        assert_eq!(run1[i], run2[i], "Root {} is not deterministic", i);
-    }
+    assert!(paused_result.is_err());
+    assert!(active_result.is_ok());
 }

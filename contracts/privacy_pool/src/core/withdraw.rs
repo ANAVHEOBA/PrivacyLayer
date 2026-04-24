@@ -8,25 +8,6 @@ use crate::crypto::verifier;
 use crate::storage::{config, nullifier};
 use crate::types::errors::Error;
 use crate::types::events::emit_withdraw;
-use crate::types::state::{Proof, PublicInputs};
-use crate::utils::{address_decoder, validation};
-
-/// Execute a withdrawal from the shielded pool using a ZK proof.
-///
-/// # Arguments
-/// - `proof`      : Groth16 proof (A, B, C points on BN254)
-/// - `pub_inputs` : Public inputs bound to the proof
-///
-/// # Returns
-/// `true` on success
-///
-/// # Errors
-/// - `Error::NotInitialized`       if contract not initialized
-/// - `Error::PoolPaused`           if pool is paused
-/// - `Error::UnknownRoot`          if root is not in history
-/// - `Error::NullifierAlreadySpent` if nullifier was already used
-/// - `Error::FeeExceedsAmount`     if fee > denomination amount
-/// - `Error::InvalidProof`         if Groth16 verification fails
 use crate::types::state::{PoolId, Proof, PublicInputs};
 use crate::utils::{address_decoder, validation};
 
@@ -79,6 +60,7 @@ pub fn execute(
     // Step 8: Emit event
     emit_withdraw(
         &env,
+        pool_id,
         pub_inputs.nullifier_hash,
         recipient.clone(),
         relayer_opt.clone(),

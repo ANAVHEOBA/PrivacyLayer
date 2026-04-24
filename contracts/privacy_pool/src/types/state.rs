@@ -15,7 +15,7 @@ use soroban_sdk::{contracttype, Address, BytesN};
 
 /// Unique identifier for a pool (typically hash of token address and denomination).
 #[contracttype]
-#[derive(Clone, Debug, PartialEq)]
+#[derive(Clone, Debug, Eq, PartialEq)]
 pub struct PoolId(pub BytesN<32>);
 
 /// Primary storage key enum for the contract.

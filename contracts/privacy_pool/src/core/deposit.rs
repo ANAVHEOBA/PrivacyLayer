@@ -42,7 +42,7 @@ pub fn execute(
     let (leaf_index, new_root) = merkle::insert(&env, &pool_id, commitment.clone())?;
 
     // Emit deposit event (no depositor address for privacy)
-    emit_deposit(&env, commitment, leaf_index, new_root.clone());
+    emit_deposit(&env, pool_id, commitment, leaf_index, new_root.clone());
 
     Ok((leaf_index, new_root))
 }

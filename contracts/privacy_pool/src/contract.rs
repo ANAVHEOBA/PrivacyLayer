@@ -9,7 +9,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
-use crate::types::state::{Denomination, PoolConfig, Proof, PublicInputs, VerifyingKey};
+use crate::types::state::{Denomination, PoolConfig, PoolId, Proof, PublicInputs, VerifyingKey};
 
 #[contract]
 pub struct PrivacyPool;

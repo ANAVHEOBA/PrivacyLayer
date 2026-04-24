@@ -7,8 +7,6 @@ use soroban_sdk::{Address, Env};
 use crate::crypto::merkle;
 use crate::storage::config;
 use crate::types::errors::Error;
-use crate::types::state::{Denomination, PoolConfig, VerifyingKey};
-
 use crate::types::state::{Config, Denomination, PoolConfig, PoolId, VerifyingKey};
 
 /// Initialize the global privacy pool contract.

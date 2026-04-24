@@ -7,9 +7,6 @@ use soroban_sdk::{Address, Env};
 use crate::storage::config;
 use crate::types::errors::Error;
 use crate::types::events::{emit_pool_paused, emit_pool_unpaused, emit_vk_updated};
-use crate::types::state::VerifyingKey;
-use crate::utils::validation;
-
 use crate::types::state::{PoolId, VerifyingKey};
 use crate::utils::validation;
 

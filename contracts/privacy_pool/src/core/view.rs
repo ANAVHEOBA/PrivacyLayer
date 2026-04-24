@@ -7,8 +7,6 @@ use soroban_sdk::{BytesN, Env};
 use crate::crypto::merkle;
 use crate::storage::{config, nullifier};
 use crate::types::errors::Error;
-use crate::types::state::PoolConfig;
-
 use crate::types::state::{Config, PoolConfig, PoolId};
 
 /// Returns the current Merkle root (most recent) for a specific pool.

@@ -167,7 +167,7 @@ fn test_deposit_increments_leaf_indices() {
     assert_eq!(i0, 0);
     assert_eq!(i1, 1);
     assert_eq!(i2, 2);
-    assert_eq!(t.client.deposit_count(&t.pool_1).unwrap(), 3);
+    assert_eq!(t.client.deposit_count(&t.pool_1), 3);
 }
 
 #[test]
@@ -290,7 +290,7 @@ fn test_unpause_restores_deposits() {
 
     // Deposit works again
     let (idx, _) = t.client.deposit(&t.pool_1, &t.alice, &commitment(&t.env, 1));
-    assert_eq!(idx, 1); // was 0 in setup but we did one in pause test? wait, setup/init resets env
+    assert_eq!(idx, 0);
 }
 
 #[test]
@@ -334,7 +334,7 @@ fn test_admin_can_set_vk() {
 fn test_deposit_count_starts_at_zero() {
     let t = TestEnv::setup();
     t.init();
-    assert_eq!(t.client.deposit_count(&t.pool_1).unwrap(), 0);
+    assert_eq!(t.client.deposit_count(&t.pool_1), 0);
 }
 
 #[test]
@@ -343,7 +343,7 @@ fn test_get_root_after_deposits() {
     t.init();
     t.client.deposit(&t.pool_1, &t.alice, &commitment(&t.env, 1));
     // get_root shouldn't panic after at least one deposit
-    let root = t.client.get_root(&t.pool_1).unwrap();
+    let root = t.client.get_root(&t.pool_1);
     assert_ne!(root, BytesN::from_array(&t.env, &[0u8; 32]));
 }
 
