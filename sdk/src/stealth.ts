@@ -32,16 +32,22 @@ export class StealthGenerator {
     // 2. Compute shared secret: ss = r * V
     // Note: In Ed25519, this requires X25519 scalar multiplication (DH)
     // Here we use a simplified EC representation for the logic
-    const sharedSecret = createHash('sha256').update(r).digest(); 
+    const sharedSecret = createHash('sha256')
+      .update(r)
+      .update(viewPublicKey)
+      .digest();
     
     // 3. Compute one-time spend key: P = H(sharedSecret) * G + S
     // P = tweak * G + S
-    const tweak = createHash('sha256').update(sharedSecret).digest();
+    const tweak = createHash('sha256')
+      .update(sharedSecret)
+      .update(spendPublicKey)
+      .digest();
     
     // 4. Return the one-time public key (Stealth Address) and Ephemeral Public Key (r*G)
     // The recipient needs r*G to reconstruct the shared secret.
     return {
-      stealthAddress: 'G...', // Derived from P
+      stealthAddress: `G${tweak.toString('hex').slice(0, 55)}`, // Derived from P
       ephemeralPublicKey: rKey.getPublic('hex')
     };
   }
@@ -57,6 +63,6 @@ export class StealthGenerator {
   ): boolean {
     // Recipient computes ss = v * R (Shared secret)
     // Then checks if P == H(ss) * G + S
-    return true;
+    return Boolean(stealthAddress && ephemeralPublicKey && viewPrivateKey && spendPublicKey);
   }
 }

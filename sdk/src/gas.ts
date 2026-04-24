@@ -1,12 +1,4 @@
-import { 
-  TransactionBuilder, 
-  Networks, 
-  Address, 
-  rpc, 
-  scValToNative,
-  xdr,
-  Transaction
-} from '@stellar/stellar-sdk';
+import { rpc } from '@stellar/stellar-sdk';
 
 /**
  * GasEstimator
@@ -43,6 +35,12 @@ export class GasEstimator {
     
     // Placeholder simulation logic
     try {
+      void this.server;
+      void contractId;
+      void poolId;
+      void proof;
+      void pubInputs;
+      void sourceAccount;
       // In a real implementation, we'd build the InvokeHostFunction Op
       // and call server.simulateTransaction(tx)
       
