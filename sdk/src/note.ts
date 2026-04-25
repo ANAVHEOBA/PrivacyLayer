@@ -1,4 +1,20 @@
-import { createHash, randomBytes } from 'crypto';
+import { secureRandomBytes } from './random';
+
+function sha256(bytes: Buffer): Buffer {
+  try {
+    // Runtime lookup keeps production note generation browser-loadable instead
+    // of eagerly importing Node's crypto module at SDK module evaluation time.
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const nodeCrypto = require('crypto') as { createHash?: (algorithm: string) => { update(data: Buffer): { digest(): Buffer } } };
+    if (typeof nodeCrypto.createHash === 'function') {
+      return nodeCrypto.createHash('sha256').update(bytes).digest();
+    }
+  } catch {
+    // Fall through to the clear runtime error below.
+  }
+
+  throw new Error('Synchronous SHA-256 requires Node crypto in this SDK build');
+}
 
 // ---------------------------------------------------------------------------
 // Backup format constants
@@ -65,7 +81,7 @@ export class Note {
    * Create a new random note for a specific pool.
    */
   static generate(poolId: string, amount: bigint): Note {
-    return new Note(randomBytes(31), randomBytes(31), poolId, amount);
+    return new Note(secureRandomBytes(31), secureRandomBytes(31), poolId, amount);
   }
 
   /**
@@ -82,7 +98,7 @@ export class Note {
       this.secret,
       Buffer.from(this.poolId, 'hex'),
     ]);
-    return createHash('sha256').update(input).digest();
+    return sha256(input);
   }
 
   // ---------------------------------------------------------------------------
@@ -121,7 +137,7 @@ export class Note {
     payload.writeBigUInt64BE(this.amount, offset);
     offset += 8;
 
-    const checksum = createHash('sha256').update(payload.subarray(0, offset)).digest();
+    const checksum = sha256(payload.subarray(0, offset));
     checksum.copy(payload, offset, 0, 4);
 
     return BACKUP_PREFIX + payload.toString('hex');
@@ -170,7 +186,7 @@ export class Note {
 
     // Verify checksum over bytes [0..102]
     const storedChecksum = payload.subarray(103, 107);
-    const computed = createHash('sha256').update(payload.subarray(0, 103)).digest();
+    const computed = sha256(payload.subarray(0, 103));
     if (!computed.subarray(0, 4).equals(storedChecksum)) {
       throw new NoteBackupError(
         'Note backup checksum mismatch: data may be corrupt or truncated',
