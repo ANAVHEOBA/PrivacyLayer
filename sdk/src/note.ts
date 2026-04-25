@@ -1,70 +1,46 @@
-import { stableHash32 } from './stable';
+import { createHash, randomBytes } from 'crypto';
 
-type CryptoLike = {
-  getRandomValues<T extends ArrayBufferView | null>(array: T): T;
-};
+// ---------------------------------------------------------------------------
+// Backup format constants
+// ---------------------------------------------------------------------------
 
-export interface RandomnessSource {
-  randomBytes(length: number): Uint8Array;
-}
+const BACKUP_VERSION = 0x01;
+const BACKUP_PREFIX = 'privacylayer-note:';
 
-export interface RuntimeRandomnessSourceOptions {
-  runtime?: { crypto?: CryptoLike };
-  enableNodeFallback?: boolean;
-}
+// Payload layout (107 bytes):
+//   version    1 byte
+//   nullifier 31 bytes
+//   secret    31 bytes
+//   poolId    32 bytes
+//   amount     8 bytes  (BigUInt64BE)
+//   checksum   4 bytes  (first 4 bytes of SHA-256 over all preceding bytes)
+const BACKUP_PAYLOAD_LENGTH = 107;
 
-function resolveRuntimeCrypto(options: RuntimeRandomnessSourceOptions = {}): CryptoLike {
-  const runtime = options.runtime ?? (globalThis as RuntimeRandomnessSourceOptions['runtime']);
-  if (runtime?.crypto && typeof runtime.crypto.getRandomValues === 'function') {
-    return runtime.crypto;
-  }
-
-  if (options.enableNodeFallback !== false) {
-    try {
-      // eslint-disable-next-line @typescript-eslint/no-var-requires
-      const nodeCrypto = require('crypto') as { webcrypto?: CryptoLike };
-      if (nodeCrypto.webcrypto && typeof nodeCrypto.webcrypto.getRandomValues === 'function') {
-        return nodeCrypto.webcrypto;
-      }
-    } catch {
-      // Runtime does not support require('crypto')
-    }
-  }
-
-  throw new Error(
-    'Secure randomness unavailable: no crypto.getRandomValues implementation found in this runtime.'
-  );
-}
+// ---------------------------------------------------------------------------
+// Error types
+// ---------------------------------------------------------------------------
 
 /**
- * RuntimeRandomnessSource uses secure randomness in browser and Node runtimes.
+ * Structured error returned when a note backup cannot be imported.
  */
-export class RuntimeRandomnessSource implements RandomnessSource {
-  private options: RuntimeRandomnessSourceOptions;
-
-  constructor(options: RuntimeRandomnessSourceOptions = {}) {
-    this.options = options;
-  }
-
-  randomBytes(length: number): Uint8Array {
-    if (!Number.isInteger(length) || length <= 0) {
-      throw new Error(`Random byte length must be a positive integer, received: ${length}`);
-    }
-    const out = new Uint8Array(length);
-    resolveRuntimeCrypto(this.options).getRandomValues(out);
-    return out;
+export class NoteBackupError extends Error {
+  constructor(
+    message: string,
+    public readonly code:
+      | 'INVALID_PREFIX'
+      | 'INVALID_VERSION'
+      | 'INVALID_LENGTH'
+      | 'CORRUPT_DATA'
+      | 'CHECKSUM_MISMATCH'
+  ) {
+    super(message);
+    this.name = 'NoteBackupError';
   }
 }
 
-let defaultRandomnessSource: RandomnessSource = new RuntimeRandomnessSource();
-
-export function setDefaultRandomnessSource(source: RandomnessSource): void {
-  defaultRandomnessSource = source;
-}
-
-export function resetDefaultRandomnessSource(): void {
-  defaultRandomnessSource = new RuntimeRandomnessSource();
-}
+// ---------------------------------------------------------------------------
+// Note
+// ---------------------------------------------------------------------------
 
 /**
  * PrivacyLayer Note
@@ -88,34 +64,67 @@ export class Note {
   /**
    * Create a new random note for a specific pool.
    */
-  static generate(poolId: string, amount: bigint, randomnessSource: RandomnessSource = defaultRandomnessSource): Note {
-    return new Note(
-      Buffer.from(randomnessSource.randomBytes(31)),
-      Buffer.from(randomnessSource.randomBytes(31)),
-      poolId,
-      amount
-    );
-  }
-
-  /**
-   * Deterministic derivation for fixtures/testing only.
-   * Keep this separate from production randomness.
-   */
-  static deriveDeterministic(seed: Uint8Array | Buffer | string, poolId: string, amount: bigint): Note {
-    const seedBytes = typeof seed === 'string' ? Buffer.from(seed, 'utf8') : Buffer.from(seed);
-    const nullifier = stableHash32('note-nullifier', seedBytes, poolId, amount).subarray(0, 31);
-    const secret = stableHash32('note-secret', seedBytes, poolId, amount).subarray(0, 31);
-    return new Note(Buffer.from(nullifier), Buffer.from(secret), poolId, amount);
+  static generate(poolId: string, amount: bigint): Note {
+    return new Note(randomBytes(31), randomBytes(31), poolId, amount);
   }
 
   /**
    * In a real implementation, this would use a WASM-based Poseidon hash
    * compatible with the Noir circuit and Soroban host function.
+   *
+   * Preimage: [nullifier, secret, poolId]
    */
   getCommitment(): Buffer {
-    // Placeholder commitment derivation for SDK plumbing tests.
-    // Production should replace this with Poseidon(nullifier, secret).
-    return stableHash32('commitment', this.nullifier, this.secret);
+    // Structural stand-in for Poseidon(nullifier, secret, poolId)
+    // In production, use @noir-lang/barretenberg for the real BN254 Poseidon.
+    const input = Buffer.concat([
+      this.nullifier,
+      this.secret,
+      Buffer.from(this.poolId, 'hex'),
+    ]);
+    return createHash('sha256').update(input).digest();
+  }
+
+  // ---------------------------------------------------------------------------
+  // Backup API (stable, versioned, integrity-checked)
+  // ---------------------------------------------------------------------------
+
+  /**
+   * Export this note as a portable backup string.
+   *
+   * Format: `privacylayer-note:<hex>`
+   * Payload (107 bytes):
+   *   [0]      version byte (0x01)
+   *   [1..31]  nullifier (31 bytes)
+   *   [32..62] secret    (31 bytes)
+   *   [63..94] poolId    (32 bytes, decoded from hex)
+   *   [95..102] amount   (8 bytes, BigUInt64BE)
+   *   [103..106] SHA-256 checksum over bytes [0..102] (first 4 bytes)
+   */
+  exportBackup(): string {
+    const payload = Buffer.alloc(BACKUP_PAYLOAD_LENGTH);
+    let offset = 0;
+
+    payload[offset++] = BACKUP_VERSION;
+    note_nullifier: {
+      this.nullifier.copy(payload, offset);
+      offset += 31;
+    }
+    note_secret: {
+      this.secret.copy(payload, offset);
+      offset += 31;
+    }
+    note_poolid: {
+      Buffer.from(this.poolId, 'hex').copy(payload, offset);
+      offset += 32;
+    }
+    payload.writeBigUInt64BE(this.amount, offset);
+    offset += 8;
+
+    const checksum = createHash('sha256').update(payload.subarray(0, offset)).digest();
+    checksum.copy(payload, offset, 0, 4);
+
+    return BACKUP_PREFIX + payload.toString('hex');
   }
 
   /**

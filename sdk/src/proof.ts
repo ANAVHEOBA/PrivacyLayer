@@ -1,5 +1,36 @@
 import { Note } from './note';
-import { normalizeHex, stableHash32 } from './stable';
+import {
+  computeNullifierHash,
+  fieldToHex,
+  merkleNodeToField,
+  noteScalarToField,
+  poolIdToField,
+  stellarAddressToField,
+} from './encoding';
+import { validateMerkleProof } from './merkle';
+import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness, assertValidStellarAccountId } from './witness';
+
+export type ProvingErrorCode =
+  | 'ARTIFACT_ERROR'
+  | 'WITNESS_ERROR'
+  | 'BACKEND_ERROR'
+  | 'FORMATTING_ERROR';
+
+/**
+ * ProvingError
+ *
+ * A stable error model for proof generation failures.
+ */
+export class ProvingError extends Error {
+  constructor(
+    message: string,
+    public readonly code: ProvingErrorCode,
+    public readonly cause?: any
+  ) {
+    super(message);
+    this.name = 'ProvingError';
+  }
+}
 
 export interface MerkleProof {
   root: Buffer;
@@ -12,52 +43,6 @@ export interface MerkleProof {
 export interface Groth16Proof {
   proof: Uint8Array;
   publicInputs: string[];
-}
-
-export interface WithdrawalWitness {
-  root: string;
-  nullifier_hash: string;
-  recipient: string;
-  amount: string;
-  relayer: string;
-  fee: string;
-  pool_id: string;
-  nullifier: string;
-  secret: string;
-  leaf_index: string;
-  path_elements: string[];
-  path_indices: string[];
-}
-
-export interface ProofCache {
-  get(key: string): Promise<Uint8Array | Buffer | undefined> | Uint8Array | Buffer | undefined;
-  set(key: string, proof: Uint8Array | Buffer): Promise<void> | void;
-  delete?(key: string): Promise<void> | void;
-}
-
-/**
- * Lightweight in-memory cache implementation for environments
- * that do not provide their own storage adapter.
- */
-export class InMemoryProofCache implements ProofCache {
-  private readonly entries = new Map<string, Buffer>();
-
-  get(key: string): Buffer | undefined {
-    const entry = this.entries.get(key);
-    return entry ? Buffer.from(entry) : undefined;
-  }
-
-  set(key: string, proof: Uint8Array | Buffer): void {
-    this.entries.set(key, Buffer.from(proof));
-  }
-
-  delete(key: string): void {
-    this.entries.delete(key);
-  }
-}
-
-export function computeNullifierHashHex(nullifierHex: string, rootHex: string): string {
-  return stableHash32('nullifier-hash', normalizeHex(nullifierHex), normalizeHex(rootHex)).toString('hex');
 }
 
 /**
@@ -175,23 +160,39 @@ export class ProofGenerator {
     recipient: string,
     relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     fee: bigint = 0n
-  ): Promise<WithdrawalWitness> {
-    const rootHex = merkleProof.root.toString('hex');
-    const nullifierHex = note.nullifier.toString('hex');
+  ): Promise<PreparedWitness> {
+    try {
+      validateMerkleProof(merkleProof);
+      assertValidStellarAccountId(recipient, 'recipient');
+      if (fee > 0n) {
+        assertValidStellarAccountId(relayer, 'relayer');
+      }
+    } catch (e: any) {
+      throw new ProvingError(`Formatting error during witness prep: ${e.message}`, 'FORMATTING_ERROR', e);
+    }
 
-    return {
-      root: rootHex,
-      nullifier_hash: computeNullifierHashHex(nullifierHex, rootHex),
-      recipient: recipient,
-      amount: note.amount.toString(),
-      relayer: relayer,
-      fee: fee.toString(),
-      pool_id: note.poolId,
-      nullifier: nullifierHex,
-      secret: note.secret.toString('hex'),
+    const nullifierField = noteScalarToField(note.nullifier);
+    const secretField = noteScalarToField(note.secret);
+    const poolIdField = poolIdToField(note.poolId);
+    const rootField = merkleNodeToField(merkleProof.root);
+    const nullifierHash = computeNullifierHash(nullifierField, rootField);
+    const recipientField = stellarAddressToField(recipient);
+    const relayerField = fee === 0n ? fieldToHex(0n) : stellarAddressToField(relayer);
+
+    const witness: PreparedWitness = {
+      // Private witnesses
+      nullifier: nullifierField,
+      secret: secretField,
       leaf_index: merkleProof.leafIndex.toString(),
-      path_elements: merkleProof.pathElements.map((e) => e.toString('hex')),
-      path_indices: merkleProof.pathIndices.map((i) => i.toString())
+      hash_path: merkleProof.pathElements.map(merkleNodeToField),
+      // Public inputs
+      pool_id: poolIdField,
+      root: rootField,
+      nullifier_hash: nullifierHash,
+      recipient: recipientField,
+      amount: note.amount.toString(),
+      relayer: relayerField,
+      fee: fee.toString(),
     };
 
     try {

@@ -8,5 +8,9 @@ export * from './proof';
 export * from './gas';
 export * from './stealth';
 export * from './withdraw';
-export * from './deposit';
-export * from './merkle';
+export {
+  assertValidGroth16ProofBytes,
+  assertValidPreparedWithdrawalWitness,
+  assertValidStellarAccountId,
+  GROTH16_PROOF_BYTE_LENGTH,
+} from './witness';
