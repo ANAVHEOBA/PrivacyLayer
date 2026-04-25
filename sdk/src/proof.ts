@@ -8,6 +8,13 @@ import {
 } from './encoding';
 import { validateMerkleProof } from './merkle';
 import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness, assertValidStellarAccountId } from './witness';
+import { WitnessValidationError } from './errors';
+import {
+  ProofError,
+  errNoProvingBackend,
+  wrapProofError,
+  ProofErrorCode,
+} from './proofErrors';
 
 export interface MerkleProof {
   root: Buffer;
@@ -97,15 +104,40 @@ export class ProofGenerator {
 
   /**
    * Generates a proof using the configured backend.
+   *
+   * @throws {ProofError} With stable error code on failure.
+   * @see ProofErrorCode for all possible error codes.
    */
   async generate(witness: any): Promise<Uint8Array> {
     if (!this.backend) {
-      throw new Error(
-        'Proving backend not configured. Please provide a backend to the ProofGenerator.'
-      );
+      throw errNoProvingBackend();
     }
+
+    // assertValidPreparedWithdrawalWitness throws WitnessValidationError (backwards compatible)
     assertValidPreparedWithdrawalWitness(witness);
-    return this.backend.generateProof(witness);
+
+    try {
+      return await this.backend.generateProof(witness);
+    } catch (e) {
+      // Wrap backend errors with stable classification
+      const message = e instanceof Error ? e.message : 'Unknown backend error';
+      const lower = message.toLowerCase();
+
+      if (lower.includes('constraint') || lower.includes('unsatis')) {
+        throw wrapProofError(e, ProofErrorCode.CONSTRAINT_VIOLATION);
+      }
+      if (lower.includes('timeout') || lower.includes('abort')) {
+        throw wrapProofError(e, ProofErrorCode.PROOF_GENERATION_TIMEOUT);
+      }
+      if (lower.includes('memory') || lower.includes('oom') || lower.includes('out of memory')) {
+        throw wrapProofError(e, ProofErrorCode.PROOF_GENERATION_OOM);
+      }
+      if (lower.includes('wasm') || lower.includes('webassembly')) {
+        throw wrapProofError(e, ProofErrorCode.WASM_RUNTIME_ERROR);
+      }
+
+      throw wrapProofError(e, ProofErrorCode.PROVING_BACKEND_FAILURE);
+    }
   }
 
   /**
@@ -119,6 +151,8 @@ export class ProofGenerator {
    *
    * The returned shape exactly matches the circuit parameter list in
    * circuits/withdraw/src/main.nr.
+   *
+   * @throws {ProofError} With WITNESS_VALIDATION_FAILED or MERKLE_PROOF_INVALID on failure.
    */
   static async prepareWitness(
     note: Note,
@@ -127,6 +161,7 @@ export class ProofGenerator {
     relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     fee: bigint = 0n
   ): Promise<PreparedWitness> {
+    // Validation asserts throw WitnessValidationError directly (backwards compatible)
     validateMerkleProof(merkleProof);
     assertValidStellarAccountId(recipient, 'recipient');
     if (fee > 0n) {
@@ -160,9 +195,12 @@ export class ProofGenerator {
   /**
    * Formats a raw proof from Noir/Barretenberg into the format
    * expected by the Soroban contract.
+   *
+   * @throws {WitnessValidationError} With PROOF_FORMAT code if validation fails.
    */
   static formatProof(rawProof: Uint8Array): Buffer {
     // Soroban contract expects Proof struct: { a: BytesN<64>, b: BytesN<128>, c: BytesN<64> }
+    // Note: assertValidGroth16ProofBytes throws WitnessValidationError
     assertValidGroth16ProofBytes(rawProof, 'rawProof');
     return Buffer.from(rawProof);
   }

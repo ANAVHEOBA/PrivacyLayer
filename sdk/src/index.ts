@@ -6,6 +6,7 @@ export * from './hash';
 export * from './merkle';
 export * from './note';
 export * from './proof';
+export * from './proofErrors';
 export * from './gas';
 export * from './random';
 export * from './stealth';
