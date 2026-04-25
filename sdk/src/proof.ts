@@ -7,6 +7,7 @@ import {
   stellarAddressToField,
 } from './encoding';
 import { validateMerkleProof } from './merkle';
+import { ZERO_RELAYER_STELLAR_ADDRESS } from './constants';
 import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness, assertValidStellarAccountId } from './witness';
 
 export interface MerkleProof {
@@ -124,7 +125,7 @@ export class ProofGenerator {
     note: Note,
     merkleProof: MerkleProof,
     recipient: string,
-    relayer: string = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    relayer: string = ZERO_RELAYER_STELLAR_ADDRESS,
     fee: bigint = 0n
   ): Promise<PreparedWitness> {
     validateMerkleProof(merkleProof);
