@@ -1,7 +1,5 @@
 import { Note } from './note';
-import { MerkleProof, ProofCache, ProofGenerator, ProvingBackend, VerifyingBackend, WithdrawalWitness } from './proof';
-import { BatchSyncResult, CommitmentLike, LocalMerkleTree, MerkleCheckpoint, syncCommitmentBatch } from './merkle';
-import { stableHash32, stableStringify } from './stable';
+import { MerkleProof, ProofGenerator, ProvingBackend } from './proof';
 
 /**
  * WithdrawalRequest
@@ -16,75 +14,6 @@ export interface WithdrawalRequest {
   fee?: bigint;
 }
 
-export interface WithdrawalProofGenerationOptions {
-  cache?: ProofCache;
-  cacheKey?: string;
-}
-
-interface WithdrawalCacheMaterial {
-  note: {
-    nullifier: string;
-    secret: string;
-    pool: string;
-    denomination: string;
-  };
-  root: string;
-  pool: string;
-  publicInputs: {
-    root: string;
-    nullifier_hash: string;
-    recipient: string;
-    amount: string;
-    relayer: string;
-    fee: string;
-  };
-}
-
-function buildCacheMaterial(request: WithdrawalRequest, witness: WithdrawalWitness): WithdrawalCacheMaterial {
-  return {
-    note: {
-      nullifier: witness.nullifier,
-      secret: witness.secret,
-      pool: request.note.poolId,
-      denomination: witness.amount
-    },
-    root: witness.root,
-    pool: request.note.poolId,
-    publicInputs: {
-      root: witness.root,
-      nullifier_hash: witness.nullifier_hash,
-      recipient: witness.recipient,
-      amount: witness.amount,
-      relayer: witness.relayer,
-      fee: witness.fee
-    }
-  };
-}
-
-export function buildWithdrawalProofCacheKey(
-  request: WithdrawalRequest,
-  witness: WithdrawalWitness
-): string {
-  const material = buildCacheMaterial(request, witness);
-  const canonical = stableStringify(material);
-  return `withdraw-proof:${stableHash32('withdraw-proof-cache-v1', canonical).toString('hex')}`;
-}
-
-/**
- * Transport-agnostic helper for syncing new deposit commitments into a local tree.
- */
-export function syncWithdrawalTree(
-  tree: LocalMerkleTree,
-  commitments: CommitmentLike[],
-  checkpointOptions: { includeLeaves?: boolean } = {}
-): BatchSyncResult {
-  return syncCommitmentBatch(tree, commitments, checkpointOptions);
-}
-
-export function restoreWithdrawalTree(checkpoint: MerkleCheckpoint): LocalMerkleTree {
-  return LocalMerkleTree.fromCheckpoint(checkpoint);
-}
-
 /**
  * generateWithdrawalProof
  * 
@@ -97,8 +26,7 @@ export function restoreWithdrawalTree(checkpoint: MerkleCheckpoint): LocalMerkle
  */
 export async function generateWithdrawalProof(
   request: WithdrawalRequest,
-  backend: ProvingBackend,
-  options: WithdrawalProofGenerationOptions = {}
+  backend: ProvingBackend
 ): Promise<Buffer> {
   const { note, merkleProof, recipient, relayer, fee } = request;
 
@@ -111,24 +39,12 @@ export async function generateWithdrawalProof(
     fee
   );
 
-  const key = options.cacheKey ?? buildWithdrawalProofCacheKey(request, witness);
-  if (options.cache) {
-    const cached = await options.cache.get(key);
-    if (cached) {
-      return Buffer.from(cached);
-    }
-  }
-
   // 2. Generate the raw proof using the injected backend
   const proofGenerator = new ProofGenerator(backend);
   const rawProof = await proofGenerator.generate(witness);
 
   // 3. Format the proof for the Soroban contract
-  const proof = ProofGenerator.formatProof(rawProof);
-  if (options.cache) {
-    await options.cache.set(key, proof);
-  }
-  return proof;
+  return ProofGenerator.formatProof(rawProof);
 }
 
 /**
@@ -137,7 +53,7 @@ export async function generateWithdrawalProof(
  * Extracts the public inputs from a witness object in the order
  * expected by the circuit and the verifier.
  */
-export function extractPublicInputs(witness: WithdrawalWitness): string[] {
+export function extractPublicInputs(witness: any): string[] {
   // Ordered according to circuits/withdraw/src/main.nr:
   // 1. pool_id
   // 2. root
@@ -171,7 +87,7 @@ export async function verifyWithdrawalProof(
   proof: Uint8Array,
   publicInputs: string[],
   artifacts: any,
-  backend: VerifyingBackend
+  backend: import('./proof').VerifyingBackend
 ): Promise<boolean> {
   return backend.verifyProof(proof, publicInputs, artifacts);
 }
