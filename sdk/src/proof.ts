@@ -1,7 +1,14 @@
 import { Note } from './note';
-import { normalizeHex, stableHash32 } from './stable';
+import {
+  merkleNodeToField,
+  noteScalarToField,
+  poolIdToField,
+  computeNullifierHash,
+  stellarAddressToField,
+} from './encoding';
+import { WitnessValidationError } from './errors';
 import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness } from './witness';
-import { STELLAR_ZERO_ACCOUNT } from './zk_constants';
+import { MERKLE_TREE_DEPTH, STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX } from './zk_constants';
 
 export type ProvingErrorCode =
   | 'ARTIFACT_ERROR'
@@ -38,6 +45,10 @@ export interface Groth16Proof {
   publicInputs: string[];
 }
 
+/**
+ * @deprecated Use PreparedWitness. This type uses path_elements/path_indices which
+ * do not align with the Noir circuit's hash_path parameter (ZK-007).
+ */
 export interface WithdrawalWitness {
   root: string;
   nullifier_hash: string;
@@ -80,9 +91,6 @@ export class InMemoryProofCache implements ProofCache {
   }
 }
 
-export function computeNullifierHashHex(nullifierHex: string, rootHex: string): string {
-  return stableHash32('nullifier-hash', normalizeHex(nullifierHex), normalizeHex(rootHex)).toString('hex');
-}
 
 /**
  * ProvingBackend
@@ -184,14 +192,12 @@ export class ProofGenerator {
   /**
    * Prepares the witness inputs for the Noir withdrawal circuit.
    *
-   * All field values are encoded with canonical helpers from encoding.ts:
-   * - Note scalars (nullifier, secret) are 31-byte buffers → field hex
-   * - Merkle nodes are 32-byte buffers → field hex (reduced mod r)
-   * - Stellar addresses are SHA-256 hashed → field hex (stand-in for contract decoder)
-   * - nullifier_hash = H(nullifier_field, root_field) matching the circuit definition
+   * All field values are canonical 64-char hex strings produced by the
+   * encoding helpers in encoding.ts.  The returned shape exactly mirrors
+   * the circuit parameter list in circuits/withdraw/src/main.nr:
    *
-   * The returned shape exactly matches the circuit parameter list in
-   * circuits/withdraw/src/main.nr.
+   *   Private:  nullifier, secret, leaf_index, hash_path
+   *   Public:   pool_id, root, nullifier_hash, recipient, amount, relayer, fee
    */
   static async prepareWitness(
     note: Note,
@@ -199,23 +205,39 @@ export class ProofGenerator {
     recipient: string,
     relayer: string = STELLAR_ZERO_ACCOUNT,
     fee: bigint = 0n
-  ): Promise<WithdrawalWitness> {
-    const rootHex = merkleProof.root.toString('hex');
-    const nullifierHex = note.nullifier.toString('hex');
+  ): Promise<PreparedWitness> {
+    if (
+      merkleProof.pathIndices !== undefined &&
+      merkleProof.pathIndices.length > 0 &&
+      merkleProof.pathIndices.length !== MERKLE_TREE_DEPTH
+    ) {
+      throw new WitnessValidationError(
+        `pathIndices length must equal tree depth ${MERKLE_TREE_DEPTH}, got ${merkleProof.pathIndices.length}`,
+        'MERKLE_PATH',
+        'structure'
+      );
+    }
+
+    const rootField       = merkleNodeToField(merkleProof.root);
+    const nullifierField  = noteScalarToField(note.nullifier);
+    const secretField     = noteScalarToField(note.secret);
+    const poolIdField     = poolIdToField(note.poolId);
+    const nullifierHash   = computeNullifierHash(nullifierField, rootField);
+    const recipientField  = stellarAddressToField(recipient);
+    const relayerField    = fee === 0n ? ZERO_FIELD_HEX : stellarAddressToField(relayer);
 
     return {
-      root: rootHex,
-      nullifier_hash: computeNullifierHashHex(nullifierHex, rootHex),
-      recipient: recipient,
-      amount: note.amount.toString(),
-      relayer: relayer,
-      fee: fee.toString(),
-      pool_id: note.poolId,
-      nullifier: nullifierHex,
-      secret: note.secret.toString('hex'),
-      leaf_index: merkleProof.leafIndex.toString(),
-      path_elements: merkleProof.pathElements.map((e) => e.toString('hex')),
-      path_indices: merkleProof.pathIndices?.map((i) => i.toString()) ?? []
+      nullifier:     nullifierField,
+      secret:        secretField,
+      leaf_index:    merkleProof.leafIndex.toString(),
+      hash_path:     merkleProof.pathElements.map((e) => merkleNodeToField(e)),
+      pool_id:       poolIdField,
+      root:          rootField,
+      nullifier_hash: nullifierHash,
+      recipient:     recipientField,
+      amount:        note.amount.toString(),
+      relayer:       relayerField,
+      fee:           fee.toString(),
     };
   }
 

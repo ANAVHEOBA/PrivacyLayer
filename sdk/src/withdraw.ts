@@ -1,5 +1,5 @@
 import { Note } from './note';
-import { MerkleProof, ProofCache, ProofGenerator, ProvingBackend, VerifyingBackend, WithdrawalWitness } from './proof';
+import { MerkleProof, PreparedWitness, ProofCache, ProofGenerator, ProvingBackend, VerifyingBackend } from './proof';
 import { BatchSyncResult, CommitmentLike, LocalMerkleTree, MerkleCheckpoint, syncCommitmentBatch } from './merkle';
 import { stableHash32, stableStringify } from './stable';
 
@@ -40,7 +40,7 @@ interface WithdrawalCacheMaterial {
   };
 }
 
-function buildCacheMaterial(request: WithdrawalRequest, witness: WithdrawalWitness): WithdrawalCacheMaterial {
+function buildCacheMaterial(request: WithdrawalRequest, witness: PreparedWitness): WithdrawalCacheMaterial {
   return {
     note: {
       nullifier: witness.nullifier,
@@ -63,7 +63,7 @@ function buildCacheMaterial(request: WithdrawalRequest, witness: WithdrawalWitne
 
 export function buildWithdrawalProofCacheKey(
   request: WithdrawalRequest,
-  witness: WithdrawalWitness
+  witness: PreparedWitness
 ): string {
   const material = buildCacheMaterial(request, witness);
   const canonical = stableStringify(material);
@@ -133,27 +133,19 @@ export async function generateWithdrawalProof(
 
 /**
  * extractPublicInputs
- * 
- * Extracts the public inputs from a witness object in the order
- * expected by the circuit and the verifier.
+ *
+ * Extracts the 7 public inputs from a prepared witness in the canonical order
+ * defined by WITHDRAWAL_PUBLIC_INPUT_SCHEMA (pool_id … fee).
  */
-export function extractPublicInputs(witness: WithdrawalWitness): string[] {
-  // Ordered according to circuits/withdraw/src/main.nr:
-  // 1. pool_id
-  // 2. root
-  // 3. nullifier_hash
-  // 4. recipient
-  // 5. amount
-  // 6. relayer
-  // 7. fee
+export function extractPublicInputs(witness: PreparedWitness): string[] {
   return [
-    witness.pool_id,
-    witness.root,
-    witness.nullifier_hash,
-    witness.recipient,
-    witness.amount,
-    witness.relayer,
-    witness.fee
+    witness.pool_id,         // 0
+    witness.root,            // 1
+    witness.nullifier_hash,  // 2
+    witness.recipient,       // 3
+    witness.amount,          // 4
+    witness.relayer,         // 5
+    witness.fee,             // 6
   ];
 }
 

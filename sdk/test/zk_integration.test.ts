@@ -1,12 +1,12 @@
 import { createDeposit } from '../src/deposit';
 import { LocalMerkleTree } from '../src/merkle';
 import { Note } from '../src/note';
-import { ProofGenerator, ProvingBackend, VerifyingBackend, WithdrawalWitness } from '../src/proof';
+import { PreparedWitness, ProofGenerator, ProvingBackend, VerifyingBackend } from '../src/proof';
 import { extractPublicInputs, generateWithdrawalProof, verifyWithdrawalProof } from '../src/withdraw';
 import { stableHash32, stableStringify } from '../src/stable';
 
 class IntegrationProvingBackend implements ProvingBackend {
-  async generateProof(witness: WithdrawalWitness): Promise<Uint8Array> {
+  async generateProof(witness: PreparedWitness): Promise<Uint8Array> {
     const amount = BigInt(witness.amount);
     const fee = BigInt(witness.fee);
 
@@ -14,7 +14,7 @@ class IntegrationProvingBackend implements ProvingBackend {
       throw new Error('invalid witness: fee exceeds amount');
     }
 
-    if (!Array.isArray(witness.path_elements) || witness.path_elements.length === 0) {
+    if (!Array.isArray(witness.hash_path) || witness.hash_path.length === 0) {
       throw new Error('invalid witness: missing merkle path');
     }
 
@@ -33,8 +33,9 @@ class IntegrationVerifyingBackend implements VerifyingBackend {
       return false;
     }
 
-    const amount = BigInt(publicInputs[3]);
-    const fee = BigInt(publicInputs[5]);
+    // publicInputs order: pool_id(0) root(1) nullifier_hash(2) recipient(3) amount(4) relayer(5) fee(6)
+    const amount = BigInt(publicInputs[4]);
+    const fee = BigInt(publicInputs[6]);
     return fee <= amount;
   }
 }
@@ -122,6 +123,6 @@ describe('SDK ZK integration flow', () => {
         },
         new IntegrationProvingBackend()
       )
-    ).rejects.toThrow('invalid witness: fee exceeds amount');
+    ).rejects.toThrow('fee cannot exceed amount');
   });
 });

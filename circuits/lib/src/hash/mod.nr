@@ -12,10 +12,10 @@ pub mod nullifier;
 pub mod pair;
 pub mod zeroes;
 
-/// Compute commitment from nullifier and secret.
-/// commitment = Hash(nullifier, secret)
-pub fn compute_commitment(nullifier: Field, secret: Field) -> Field {
-    commitment::compute_commitment(nullifier, secret)
+/// Compute commitment from nullifier, secret and pool_id.
+/// commitment = Hash(nullifier, secret, pool_id)
+pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field) -> Field {
+    commitment::compute_commitment(nullifier, secret, pool_id)
 }
 
 /// Compute nullifier hash bound to a specific root.
@@ -31,8 +31,17 @@ pub fn hash_pair(left: Field, right: Field) -> Field {
     pair::hash_pair(left, right)
 }
 
-/// Compute zero-value leaf hash.
-/// Used to fill empty positions in the tree.
+/// Canonical zero leaf: H(0, 0).
 pub fn zero_leaf() -> Field {
     zeroes::zero_leaf()
+}
+
+/// Canonical zero node at the given Merkle level.
+pub fn zero_node_at_level(level: u32) -> Field {
+    zeroes::zero_node_at_level(level)
+}
+
+/// Canonical zero-sibling path for a sparse single-leaf tree.
+pub fn zero_sibling_path() -> [Field; 20] {
+    zeroes::zero_sibling_path()
 }

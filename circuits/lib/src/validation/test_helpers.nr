@@ -43,8 +43,8 @@ pub global KAT_POOL_ID: Field = 1;
 
 /// Build a complete, valid withdrawal proof fixture for leaf at index 0.
 ///
-/// Returns (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash)
-/// for use in withdrawal circuit tests.
+/// Uses canonical zero siblings so the empty-tree root is reproducible.
+/// Returns (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash).
 pub fn build_valid_fixture() -> (Field, Field, Field, Field, [Field; 20], Field, Field) {
     let nullifier: Field = KAT_NULLIFIER;
     let secret: Field    = KAT_SECRET;
@@ -52,7 +52,7 @@ pub fn build_valid_fixture() -> (Field, Field, Field, Field, [Field; 20], Field,
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let leaf_index: Field = KAT_LEAF_INDEX;
 
-    let hash_path: [Field; 20] = [0; 20];
+    let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
@@ -69,9 +69,9 @@ pub fn setup_valid_withdrawal() -> (Field, Field, Field, Field, [Field; 20], Fie
     (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, relayer, fee)
 }
 
-/// Build a withdrawal fixture for a leaf at an arbitrary index.
+/// Build a withdrawal fixture for a leaf at an arbitrary index in a sparse tree.
 ///
-/// Useful for testing index decomposition edge cases.
+/// Uses canonical zero siblings so any leaf position yields a reproducible root.
 pub fn build_fixture_at_index(
     nullifier: Field,
     secret: Field,
@@ -79,10 +79,33 @@ pub fn build_fixture_at_index(
     leaf_index: Field,
 ) -> ([Field; 20], Field, Field) {
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
-    let hash_path: [Field; 20] = [0; 20];
+    let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
     (hash_path, root, nullifier_hash)
+}
+
+/// Build a Merkle proof for a single leaf in an otherwise empty tree.
+///
+/// All siblings are the canonical zero nodes, making the path valid for any
+/// leaf position without duplicating zero-ladder math across test sites.
+pub fn build_sparse_path(leaf: Field, leaf_index: Field) -> ([Field; 20], Field) {
+    let siblings = hash::zero_sibling_path();
+    let root = merkle::compute_root(leaf, leaf_index, siblings);
+    (siblings, root)
+}
+
+/// Build a Merkle proof with caller-supplied sibling values.
+///
+/// Computes the correct root for the given (leaf, index, siblings) tuple so
+/// tests can construct realistic non-zero sibling paths without inline root math.
+pub fn build_custom_path(
+    leaf: Field,
+    leaf_index: Field,
+    siblings: [Field; 20],
+) -> ([Field; 20], Field) {
+    let root = merkle::compute_root(leaf, leaf_index, siblings);
+    (siblings, root)
 }
 
 /// Build a two-leaf tree and return paths/root for both leaves.
@@ -186,11 +209,56 @@ fn test_build_fixture_at_high_index() {
 
     let (hash_path, root, nullifier_hash) = build_fixture_at_index(nullifier, secret, pool_id, leaf_index);
 
-    // Verify consistency
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let recomputed_root = merkle::compute_root(commitment, leaf_index, hash_path);
     let recomputed_nh   = hash::compute_nullifier_hash(nullifier, root);
 
     assert(recomputed_root == root);
     assert(recomputed_nh   == nullifier_hash);
+}
+
+/// TC-H-05: build_sparse_path inclusion round-trip.
+#[test]
+fn test_build_sparse_path_inclusion() {
+    let leaf: Field      = 0xDEAD;
+    let leaf_index: Field = 42;
+    let (siblings, root) = build_sparse_path(leaf, leaf_index);
+    merkle::verify_inclusion(leaf, leaf_index, siblings, root);
+}
+
+/// TC-H-06: build_sparse_path differs by leaf position.
+#[test]
+fn test_build_sparse_path_position_sensitivity() {
+    let leaf: Field = 0xBEEF;
+    let (_, root_0) = build_sparse_path(leaf, 0);
+    let (_, root_7) = build_sparse_path(leaf, 7);
+    assert(root_0 != root_7, "sparse paths at different positions must yield different roots");
+}
+
+/// TC-H-07: build_custom_path inclusion round-trip with non-trivial siblings.
+#[test]
+fn test_build_custom_path_inclusion() {
+    let leaf: Field      = 0xCAFE;
+    let leaf_index: Field = 3;
+    let siblings: [Field; 20] = [
+        111, 222, 333, 444, 555, 666, 777, 888, 999, 1000,
+        1001, 1002, 1003, 1004, 1005, 1006, 1007, 1008, 1009, 1010,
+    ];
+    let (_, root) = build_custom_path(leaf, leaf_index, siblings);
+    merkle::verify_inclusion(leaf, leaf_index, siblings, root);
+}
+
+/// TC-H-08: build_custom_path root changes when a sibling changes.
+#[test]
+fn test_build_custom_path_sibling_sensitivity() {
+    let leaf: Field      = 0xF00D;
+    let leaf_index: Field = 5;
+    let mut siblings_a: [Field; 20] = [0; 20];
+    siblings_a[2] = 0xAAAA;
+    let mut siblings_b: [Field; 20] = [0; 20];
+    siblings_b[2] = 0xBBBB;
+
+    let (_, root_a) = build_custom_path(leaf, leaf_index, siblings_a);
+    let (_, root_b) = build_custom_path(leaf, leaf_index, siblings_b);
+    assert(root_a != root_b, "different siblings must produce different roots");
 }

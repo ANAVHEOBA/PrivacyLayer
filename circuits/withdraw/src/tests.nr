@@ -4,7 +4,7 @@ use lib::merkle;
 use lib::constants;
 
 fn build_path_at(leaf: Field, leaf_index: Field) -> ([Field; constants::MERKLE_TREE_DEPTH], Field) {
-    let hash_path: [Field; constants::MERKLE_TREE_DEPTH] = [0; constants::MERKLE_TREE_DEPTH];
+    let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(leaf, leaf_index, hash_path);
     (hash_path, root)
 }
@@ -297,11 +297,11 @@ fn test_two_notes_same_root_both_valid() {
     let n2: Field = 0xCC; let s2: Field = 0xDD;
     let c2 = hash::compute_commitment(n2, s2, pool_id);
 
-    let mut path1: [Field; constants::MERKLE_TREE_DEPTH] = [0; constants::MERKLE_TREE_DEPTH];
+    let mut path1 = hash::zero_sibling_path();
     path1[0] = c2;
     let root = merkle::compute_root(c1, 0, path1);
 
-    let mut path2: [Field; constants::MERKLE_TREE_DEPTH] = [0; constants::MERKLE_TREE_DEPTH];
+    let mut path2 = hash::zero_sibling_path();
     path2[0] = c1;
     let root2 = merkle::compute_root(c2, 1, path2);
 

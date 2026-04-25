@@ -5,9 +5,11 @@ import { MerkleProof, ProofGenerator } from '../src/proof';
 import {
   noteScalarToField,
   merkleNodeToField,
+  poolIdToField,
   computeNullifierHash,
   packWithdrawalPublicInputs,
   stellarAddressToField,
+  WITHDRAWAL_PUBLIC_INPUT_SCHEMA,
 } from '../src/encoding';
 
 // ---------------------------------------------------------------------------
@@ -76,23 +78,25 @@ describe('Golden Vector Corpus', () => {
       expect(nh).toHaveLength(64);
     });
 
-    it('packed public inputs match golden values', () => {
-      const root = v.public_inputs.root;
-      const nh = v.public_inputs.nullifier_hash;
+    it('packed public inputs include pool_id first and match canonical schema order', () => {
+      const poolId    = poolIdToField(v.note.pool_id);
+      const root      = v.public_inputs.root;
+      const nh        = v.public_inputs.nullifier_hash;
       const recipient = v.public_inputs.recipient;
-      const amount = BigInt(v.public_inputs.amount);
-      const relayer = v.public_inputs.relayer;
-      const fee = BigInt(v.public_inputs.fee);
+      const amount    = BigInt(v.public_inputs.amount);
+      const relayer   = v.public_inputs.relayer;
+      const fee       = BigInt(v.public_inputs.fee);
 
-      const packed = packWithdrawalPublicInputs(root, nh, recipient, amount, relayer, fee);
+      const packed = packWithdrawalPublicInputs(poolId, root, nh, recipient, amount, relayer, fee);
 
-      expect(packed).toHaveLength(6);
-      expect(packed[0]).toBe(root);
-      expect(packed[1]).toBe(nh);
-      expect(packed[2]).toBe(recipient);
-      expect(packed[3]).toBe(amount.toString());
-      expect(packed[4]).toBe(relayer);
-      expect(packed[5]).toBe(fee.toString());
+      expect(packed).toHaveLength(7);
+      expect(packed[0]).toBe(poolId);       // pool_id — first per schema
+      expect(packed[1]).toBe(root);
+      expect(packed[2]).toBe(nh);
+      expect(packed[3]).toBe(recipient);
+      expect(packed[4]).toBe(amount.toString());
+      expect(packed[5]).toBe(relayer);
+      expect(packed[6]).toBe(fee.toString()); // fee — last per schema
     });
 
     it('ProofGenerator.prepareWitness produces public inputs consistent with golden values', async () => {
@@ -230,5 +234,52 @@ describe('Cross-stack fixture stability', () => {
     const addr = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
     expect(stellarAddressToField(addr)).toBe(stellarAddressToField(addr));
     expect(stellarAddressToField(addr)).toHaveLength(64);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// Withdrawal public-input schema order guard (ZK-032)
+// These tests are golden: they must fail if anyone reorders the schema.
+// ---------------------------------------------------------------------------
+
+describe('Withdrawal public-input schema ordering (ZK-032)', () => {
+  it('schema has exactly 7 entries', () => {
+    expect(WITHDRAWAL_PUBLIC_INPUT_SCHEMA).toHaveLength(7);
+  });
+
+  it('schema order is stable — pool_id first, fee last', () => {
+    const expected = ['pool_id', 'root', 'nullifier_hash', 'recipient', 'amount', 'relayer', 'fee'];
+    expect(Array.from(WITHDRAWAL_PUBLIC_INPUT_SCHEMA)).toEqual(expected);
+  });
+
+  it('packWithdrawalPublicInputs maps arguments to schema positions', () => {
+    const poolId = 'a'.repeat(64);
+    const root   = 'b'.repeat(64);
+    const nh     = 'c'.repeat(64);
+    const recip  = 'd'.repeat(64);
+    const relayer = 'e'.repeat(64);
+    const packed = packWithdrawalPublicInputs(poolId, root, nh, recip, 999n, relayer, 7n);
+
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('pool_id')]).toBe(poolId);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('root')]).toBe(root);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('nullifier_hash')]).toBe(nh);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('recipient')]).toBe(recip);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('amount')]).toBe('999');
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('relayer')]).toBe(relayer);
+    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('fee')]).toBe('7');
+  });
+
+  it('prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA', async () => {
+    const v = fixture.vectors[0];
+    const note = buildNote(v);
+    const merkleProof = buildMerkleProof(v);
+    const witness = await ProofGenerator.prepareWitness(
+      note, merkleProof,
+      'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
+    );
+
+    for (const key of WITHDRAWAL_PUBLIC_INPUT_SCHEMA) {
+      expect(witness).toHaveProperty(key);
+    }
   });
 });
