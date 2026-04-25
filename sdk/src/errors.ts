@@ -18,5 +18,8 @@ export class WitnessValidationError extends Error {
     super(message);
     this.name = 'WitnessValidationError';
     this.reason = reason ?? 'structure';
+
+    // Maintain prototype chain
+    Object.setPrototypeOf(this, WitnessValidationError.prototype);
   }
 }
