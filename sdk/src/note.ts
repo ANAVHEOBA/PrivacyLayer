@@ -1,4 +1,5 @@
-import { createHash, randomBytes } from 'crypto';
+import { createHash } from './hash';
+import { randomBytes } from './random';
 
 // ---------------------------------------------------------------------------
 // Backup format constants

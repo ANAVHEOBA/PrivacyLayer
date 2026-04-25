@@ -1,5 +1,6 @@
 import * as elliptic from 'elliptic';
-import { randomBytes, createHash } from 'crypto';
+import { randomBytes } from './random';
+import { createHash } from './hash';
 
 const ed25519 = new elliptic.eddsa('ed25519');
 
