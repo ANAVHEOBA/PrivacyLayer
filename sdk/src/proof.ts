@@ -8,7 +8,7 @@ import {
 } from './encoding';
 import { WitnessValidationError } from './errors';
 import { assertValidGroth16ProofBytes, assertValidPreparedWithdrawalWitness } from './witness';
-import { MERKLE_TREE_DEPTH, STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX } from './zk_constants';
+import { MERKLE_TREE_DEPTH, ZERO_FIELD_HEX } from './zk_constants';
 
 export type ProvingErrorCode =
   | 'ARTIFACT_ERROR'
@@ -203,7 +203,7 @@ export class ProofGenerator {
     note: Note,
     merkleProof: MerkleProof,
     recipient: string,
-    relayer: string = STELLAR_ZERO_ACCOUNT,
+    relayer?: string,
     fee: bigint = 0n
   ): Promise<PreparedWitness> {
     if (
@@ -224,7 +224,7 @@ export class ProofGenerator {
     const poolIdField     = poolIdToField(note.poolId);
     const nullifierHash   = computeNullifierHash(nullifierField, rootField);
     const recipientField  = stellarAddressToField(recipient);
-    const relayerField    = fee === 0n ? ZERO_FIELD_HEX : stellarAddressToField(relayer);
+    const relayerField    = relayer ? stellarAddressToField(relayer) : ZERO_FIELD_HEX;
 
     return {
       nullifier:     nullifierField,

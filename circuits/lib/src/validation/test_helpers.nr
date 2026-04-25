@@ -262,3 +262,147 @@ fn test_build_custom_path_sibling_sensitivity() {
     let (_, root_b) = build_custom_path(leaf, leaf_index, siblings_b);
     assert(root_a != root_b, "different siblings must produce different roots");
 }
+
+// ============================================================
+// Builder Pattern for Withdrawal Witness Setup
+// ============================================================
+
+pub struct WithdrawalBuilder {
+    pub nullifier: Field,
+    pub secret: Field,
+    pub pool_id: Field,
+    pub leaf_index: Field,
+    pub recipient: Field,
+    pub amount: Field,
+    pub relayer: Field,
+    pub fee: Field,
+    
+    pub override_hash_path: bool,
+    pub hash_path: [Field; 20],
+    
+    pub override_root: bool,
+    pub root: Field,
+    
+    pub override_nullifier_hash: bool,
+    pub nullifier_hash: Field,
+}
+
+impl WithdrawalBuilder {
+    pub fn new() -> Self {
+        Self {
+            nullifier: KAT_NULLIFIER,
+            secret: KAT_SECRET,
+            pool_id: KAT_POOL_ID,
+            leaf_index: KAT_LEAF_INDEX,
+            recipient: KAT_RECIPIENT,
+            amount: KAT_AMOUNT,
+            relayer: 0,
+            fee: 0,
+            
+            override_hash_path: false,
+            hash_path: [0; 20],
+            
+            override_root: false,
+            root: 0,
+            
+            override_nullifier_hash: false,
+            nullifier_hash: 0,
+        }
+    }
+
+    pub fn with_nullifier(mut self, nullifier: Field) -> Self {
+        self.nullifier = nullifier;
+        self
+    }
+
+    pub fn with_secret(mut self, secret: Field) -> Self {
+        self.secret = secret;
+        self
+    }
+
+    pub fn with_pool_id(mut self, pool_id: Field) -> Self {
+        self.pool_id = pool_id;
+        self
+    }
+
+    pub fn with_leaf_index(mut self, leaf_index: Field) -> Self {
+        self.leaf_index = leaf_index;
+        self
+    }
+
+    pub fn with_recipient(mut self, recipient: Field) -> Self {
+        self.recipient = recipient;
+        self
+    }
+
+    pub fn with_amount(mut self, amount: Field) -> Self {
+        self.amount = amount;
+        self
+    }
+
+    pub fn with_fee(mut self, fee: Field) -> Self {
+        self.fee = fee;
+        self
+    }
+
+    pub fn with_relayer(mut self, relayer: Field) -> Self {
+        self.relayer = relayer;
+        self
+    }
+
+    pub fn with_root(mut self, root: Field) -> Self {
+        self.override_root = true;
+        self.root = root;
+        self
+    }
+
+    pub fn with_hash_path(mut self, hash_path: [Field; 20]) -> Self {
+        self.override_hash_path = true;
+        self.hash_path = hash_path;
+        self
+    }
+
+    pub fn with_nullifier_hash(mut self, nullifier_hash: Field) -> Self {
+        self.override_nullifier_hash = true;
+        self.nullifier_hash = nullifier_hash;
+        self
+    }
+
+    /// Builds the full witness tuple, computing the commitment, path, root, and nullifier_hash
+    /// dynamically unless overridden.
+    pub fn build(self) -> (Field, Field, Field, [Field; 20], Field, Field, Field, Field, Field, Field, Field) {
+        let commitment = hash::compute_commitment(self.nullifier, self.secret, self.pool_id);
+        
+        let hash_path = if self.override_hash_path {
+            self.hash_path
+        } else {
+            hash::zero_sibling_path()
+        };
+
+        let root = if self.override_root {
+            self.root
+        } else {
+            merkle::compute_root(commitment, self.leaf_index, hash_path)
+        };
+
+        let nullifier_hash = if self.override_nullifier_hash {
+            self.nullifier_hash
+        } else {
+            hash::compute_nullifier_hash(self.nullifier, root)
+        };
+
+        (
+            self.nullifier,
+            self.secret,
+            self.leaf_index,
+            hash_path,
+            self.pool_id,
+            root,
+            nullifier_hash,
+            self.recipient,
+            self.amount,
+            self.relayer,
+            self.fee
+        )
+    }
+}

@@ -6,8 +6,6 @@ export const FIELD_BYTE_LENGTH = 32;
 
 export const GROTH16_PROOF_BYTE_LENGTH = 256;
 
-export const STELLAR_ZERO_ACCOUNT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-
 export const ZERO_FIELD_HEX = '0'.repeat(64);
 
 // BN254 scalar field prime

@@ -31,7 +31,7 @@ describe('Adversarial invariants (privacy + spend safety)', () => {
       pathIndices: Array(20).fill(0),
       leafIndex: a.merkle.leaf_index,
     };
-    const good = await ProofGenerator.prepareWitness(note, mp, G, G, 0n);
+    const good = await ProofGenerator.prepareWitness(note, mp, G, undefined, 0n);
     const otherNf = noteScalarToField(Buffer.from(b.note.nullifier_hex, 'hex'));
     const wrongReplay = computeNullifierHash(otherNf, good.root);
 

@@ -1,5 +1,7 @@
 import { createHash } from 'crypto';
 import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH } from './zk_constants';
+import { StrKey } from '@stellar/stellar-base';
+import { WitnessValidationError } from './errors';
 
 /**
  * Convert a bigint field element to a canonical 64-character hex string (32 bytes).
@@ -79,6 +81,9 @@ export function merkleNodeToField(buf: Buffer): string {
  * mirrors the on-chain address_decoder used in the Soroban contract.
  */
 export function stellarAddressToField(address: string): string {
+  if (!StrKey.isValidEd25519PublicKey(address)) {
+    throw new WitnessValidationError(`Invalid Stellar public key: ${address}`, 'ADDRESS', 'structure');
+  }
   const digest = createHash('sha256').update(Buffer.from(address, 'utf8')).digest();
   return fieldToHex(BigInt('0x' + digest.toString('hex')) % FIELD_MODULUS);
 }
