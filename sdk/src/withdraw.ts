@@ -1,5 +1,11 @@
 import { Note } from './note';
-import { MerkleProof, ProofGenerator, ProvingBackend } from './proof';
+import { MerkleProof, ProofGenerator, ProvingBackend, Groth16Proof } from './proof';
+import {
+  ProofCache,
+  InMemoryProofCache,
+  cacheKeyFromWitness,
+  defaultProofCache,
+} from './proofCache';
 
 /**
  * WithdrawalRequest
@@ -22,11 +28,14 @@ export interface WithdrawalRequest {
  * 
  * @param request The withdrawal parameters.
  * @param backend The proving backend to use (e.g., Node or Browser Barretenberg).
+ * @param cache Optional proof cache for avoiding redundant proving work.
+ *              Pass `defaultProofCache` to use the shared global cache.
  * @returns The formatted proof as a Buffer.
  */
 export async function generateWithdrawalProof(
   request: WithdrawalRequest,
-  backend: ProvingBackend
+  backend: ProvingBackend,
+  cache?: ProofCache
 ): Promise<Buffer> {
   const { note, merkleProof, recipient, relayer, fee } = request;
 
@@ -39,11 +48,31 @@ export async function generateWithdrawalProof(
     fee
   );
 
-  // 2. Generate the raw proof using the injected backend
+  // 2. Check cache for existing proof
+  if (cache) {
+    const cacheKey = cacheKeyFromWitness(witness);
+    const cached = cache.get(cacheKey);
+    if (cached) {
+      // Cache hit: return the pre-formatted proof bytes
+      return Buffer.from(cached.proof);
+    }
+  }
+
+  // 3. Generate the raw proof using the injected backend
   const proofGenerator = new ProofGenerator(backend);
   const rawProof = await proofGenerator.generate(witness);
 
-  // 3. Format the proof for the Soroban contract
+  // 4. Cache the result if caching is enabled
+  if (cache) {
+    const cacheKey = cacheKeyFromWitness(witness);
+    const publicInputs = extractPublicInputs(witness);
+    cache.set(cacheKey, {
+      proof: rawProof,
+      publicInputs,
+    });
+  }
+
+  // 5. Format the proof for the Soroban contract
   return ProofGenerator.formatProof(rawProof);
 }
 

@@ -15,6 +15,12 @@ import {
   wrapProofError,
   ProofErrorCode,
 } from './proofErrors';
+import {
+  ProofCache,
+  InMemoryProofCache,
+  cacheKeyFromWitness,
+  defaultProofCache,
+} from './proofCache';
 
 export interface MerkleProof {
   root: Buffer;
@@ -90,9 +96,11 @@ export interface PreparedWitness {
  */
 export class ProofGenerator {
   private backend?: ProvingBackend;
+  private cache?: ProofCache;
 
-  constructor(backend?: ProvingBackend) {
+  constructor(backend?: ProvingBackend, cache?: ProofCache) {
     this.backend = backend;
+    this.cache = cache;
   }
 
   /**
