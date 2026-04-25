@@ -9,6 +9,7 @@
 //   - validation : Input validation and assertion helpers
 // ============================================================
 
+pub mod constants;
 pub mod hash;
 pub mod merkle;
 pub mod validation;

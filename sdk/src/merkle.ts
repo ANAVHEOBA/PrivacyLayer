@@ -1,18 +1,19 @@
 import type { MerkleProof } from './proof';
 import { WitnessValidationError } from './errors';
+import { ZK_FIELD_BYTES, ZK_MAX_LEAF_INDEX, ZK_TREE_DEPTH } from './constants';
 
 /** Matches `hash_path: [Field; 20]` in `circuits/withdraw/src/main.nr`. */
-export const MERKLE_TREE_DEPTH = 20;
-export const MERKLE_MAX_LEAF_INDEX = (1 << MERKLE_TREE_DEPTH) - 1;
+export const MERKLE_TREE_DEPTH = ZK_TREE_DEPTH;
+export const MERKLE_MAX_LEAF_INDEX = ZK_MAX_LEAF_INDEX;
 
 /**
  * Validate the Merkle proof object before it is encoded for the prover.
  * Catches truncated / overlong paths and invalid index range early.
  */
 export function validateMerkleProof(merkleProof: MerkleProof, depth: number = MERKLE_TREE_DEPTH): void {
-  if (merkleProof.root.length !== 32) {
+  if (merkleProof.root.length !== ZK_FIELD_BYTES) {
     throw new WitnessValidationError(
-      `Merkle root must be 32 bytes, got ${merkleProof.root.length}`,
+      `Merkle root must be ${ZK_FIELD_BYTES} bytes, got ${merkleProof.root.length}`,
       'MERKLE_PATH',
       'structure'
     );
@@ -26,9 +27,9 @@ export function validateMerkleProof(merkleProof: MerkleProof, depth: number = ME
   }
   for (let i = 0; i < merkleProof.pathElements.length; i++) {
     const el = merkleProof.pathElements[i];
-    if (el.length !== 32) {
+    if (el.length !== ZK_FIELD_BYTES) {
       throw new WitnessValidationError(
-        `Merkle path element at index ${i} must be 32 bytes, got ${el.length}`,
+        `Merkle path element at index ${i} must be ${ZK_FIELD_BYTES} bytes, got ${el.length}`,
         'MERKLE_PATH',
         'structure'
       );
