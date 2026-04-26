@@ -40,28 +40,16 @@ function assertFieldHexString(value: string, publicName: string): void {
   }
 }
 
-function assertAmountFeeDecimal(
-  amountStr: string,
-  feeStr: string,
+function assertAmountFeeFields(
+  amountHex: string,
+  feeHex: string,
   amountLabel: string,
   feeLabel: string,
 ): { amount: bigint; fee: bigint } {
-  if (typeof amountStr !== "string" || !/^\d+$/.test(amountStr)) {
-    throw new WitnessValidationError(
-      `${amountLabel} must be a non-negative decimal string`,
-      "FIELD_ENCODING",
-      "structure",
-    );
-  }
-  if (typeof feeStr !== "string" || !/^\d+$/.test(feeStr)) {
-    throw new WitnessValidationError(
-      `${feeLabel} must be a non-negative decimal string`,
-      "FIELD_ENCODING",
-      "structure",
-    );
-  }
-  const amount = BigInt(amountStr);
-  const fee = BigInt(feeStr);
+  assertFieldHexString(amountHex, amountLabel);
+  assertFieldHexString(feeHex, feeLabel);
+  const amount = hexToField(amountHex, amountLabel);
+  const fee = hexToField(feeHex, feeLabel);
   if (fee > amount) {
     throw new WitnessValidationError(
       "fee cannot exceed amount",
@@ -123,26 +111,9 @@ export function assertValidPreparedWithdrawalWitness(
   assertFieldHexString(witness.nullifier_hash, "nullifier_hash");
   assertFieldHexString(witness.recipient, "recipient");
   assertFieldHexString(witness.relayer, "relayer");
-
-  if (
-    typeof witness.leaf_index !== "string" ||
-    !/^\d+$/.test(witness.leaf_index)
-  ) {
-    throw new WitnessValidationError(
-      "leaf_index must be a non-negative integer string",
-      "LEAF_INDEX",
-      "structure",
-    );
-  }
-  const leafIdx = Number(witness.leaf_index);
-  if (!Number.isInteger(leafIdx) || leafIdx < 0) {
-    throw new WitnessValidationError(
-      "leaf_index must be a non-negative integer",
-      "LEAF_INDEX",
-      "structure",
-    );
-  }
-  if (leafIdx > maxLeafIndex) {
+  assertFieldHexString(witness.leaf_index, "leaf_index");
+  const leafIdx = hexToField(witness.leaf_index, "leaf_index");
+  if (leafIdx > BigInt(maxLeafIndex)) {
     throw new WitnessValidationError(
       `leafIndex out of range for tree depth (max ${maxLeafIndex})`,
       "LEAF_INDEX",
@@ -164,7 +135,7 @@ export function assertValidPreparedWithdrawalWitness(
     assertFieldHexString(witness.hash_path[i]!, `hash_path[${i}]`);
   }
 
-  const { fee } = assertAmountFeeDecimal(
+  const { fee } = assertAmountFeeFields(
     witness.amount,
     witness.fee,
     "amount",

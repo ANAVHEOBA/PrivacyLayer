@@ -192,6 +192,38 @@ specification for equivalent Noir circuit tests.
 
 ---
 
+## Shared Commitment Vectors (`artifacts/zk/commitment_vectors.json`)
+
+The commitment package and the SDK now consume one generated commitment corpus.
+`scripts/generate_commitment_vectors.mjs` emits:
+
+- `artifacts/zk/commitment_vectors.json` for Node/Jest tests
+- `circuits/commitment/src/fixtures.nr` for Noir tests
+
+### Coverage
+
+| ID     | Scenario                             | Status  |
+| ------ | ------------------------------------ | ------- |
+| CV-001 | Basic small-field note               | VALID   |
+| CV-002 | All-zero note material               | VALID   |
+| CV-003 | Near-max 31-byte nullifier boundary  | VALID   |
+| CV-004 | Near-modulus pool identifier         | VALID   |
+| CI-001 | Nullifier too short                  | INVALID |
+| CI-002 | Secret too wide                      | INVALID |
+| CI-003 | Pool identifier not 32 bytes         | INVALID |
+| CI-004 | Pool identifier outside BN254 field  | INVALID |
+
+### Cross-stack invariants verified
+
+1. `Note.getCommitment()` matches the Noir commitment circuit for the same
+   `(nullifier, secret, pool_id)` tuple.
+2. The fixture generator uses one canonical encoding path:
+   note scalars are 31-byte values left-padded into BN254 field hex, while
+   pool identifiers must already be canonical 32-byte field encodings.
+3. Malformed note material is rejected before hashing on the SDK side.
+
+---
+
 ## Golden Vector Corpus (`sdk/test/golden/vectors.json`)
 
 The machine-readable golden corpus spans the full end-to-end ZK spend path and is
@@ -219,24 +251,22 @@ Each vector captures:
 1. **Depth metadata** — `production_tree_depth` (fixed protocol depth, currently 20)
    and `offline_tree_depth` (tooling/test depth used when vectors were emitted)
 2. **Note preimage** — `nullifier_hex`, `secret_hex`, `pool_id`, `amount`
-3. **Field encodings** — canonical 64-char hex for nullifier and secret after
-   `bufferToField` reduction modulo the BN254 scalar field prime
+3. **Field encodings** — canonical 64-char hex for nullifier and secret, with
+   note scalars left-padded from 31 bytes into BN254 field elements
 4. **Merkle witness** — `leaf_index`, `path_elements` (20 × 32 bytes), `root`
 5. **Nullifier hash** — `H(nullifier_field, root_field)` using the same algorithm
    as the circuit (`compute_nullifier_hash` in `circuits/lib/src/hash/nullifier.nr`)
-5. **Packed public inputs** — ordered as the circuit entrypoint expects:
+6. **Packed public inputs** — ordered as the circuit entrypoint expects:
    `pool_id | root | nullifier_hash | recipient | amount | relayer | fee`
 
 The corpus intentionally does **not** embed portable note backup strings, legacy
 serialized note strings, full prepared witness payloads, or cache-helper blobs.
 Tests reconstruct those from the minimal fixture fields when needed so the vector
 file remains useful without normalizing extra note metadata into exported artifacts.
-6. **Packed public inputs** — ordered as the circuit entrypoint expects:
-   `root | nullifier_hash | recipient | amount | relayer | fee`
 
-> **Hash note**: The SDK currently uses SHA-256 as a structural stand-in for BN254
-> Pedersen. When `@noir-lang/barretenberg` (or equivalent) is wired in, regenerate
-> the corpus by running the SDK generation script and updating the golden file.
+> **Hash note**: Commitment fixtures now use Poseidon2 for the note commitment
+> path, while some broader SDK placeholder paths still use structural stand-ins.
+> Any hash-algorithm migration requires regenerating the affected corpora.
 > Any change to public-input encoding **requires** an explicit fixture update —
 > the test suite will catch stale vectors.
 

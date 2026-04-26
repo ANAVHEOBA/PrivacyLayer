@@ -1,11 +1,12 @@
 use std::hash::pedersen_hash;
+use super::commitment::compute_commitment;
 
 /// Domain separator for nullifier hashing.
 /// Derived from the ASCII bytes of "nullifier_domain_v1" left-padded to 32 bytes,
 /// reduced to a BN254 field element.  Prepending this constant ensures the
 /// nullifier hash domain is disjoint from the commitment hash domain even when
 /// both receive structurally similar inputs.
-global NULLIFIER_DOMAIN_SEP: Field = 0x0000000000000000000000000000006e756c6c69666965725f646f6d61696e5f7631;
+global NULLIFIER_DOMAIN_SEP: Field = 0x000000000000000000000000006e756c6c69666965725f646f6d61696e5f7631;
 
 /// Compute nullifier hash with domain separation, bound to a specific root.
 /// nullifier_hash = Hash(NULLIFIER_DOMAIN_SEP, nullifier, root)
@@ -25,7 +26,6 @@ fn test_domain_sep_is_nonzero() {
 
 #[test]
 fn test_nullifier_hash_differs_from_commitment_hash_same_inputs() {
-    use super::commitment::compute_commitment;
     // Use the same field values for both hashes; the domain separator must
     // ensure the outputs differ so the two domains are fully independent.
     let a: Field = 0xdeadbeef;

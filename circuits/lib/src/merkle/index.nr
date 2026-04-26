@@ -13,21 +13,21 @@
 ///
 /// # Panics
 /// Asserts if index >= 2^TREE_DEPTH (i.e., it cannot be represented in 20 bits).
-pub fn decompose_and_validate(index: Field) -> [u1; 20] {
+pub fn decompose_and_validate(index: Field) -> [bool; 20] {
     // Decompose into the full BN254 scalar width first, then assert that
     // all bits above TREE_DEPTH are zero to enforce index < 2^20.
     // Using full-width decomposition prevents early constraint failures that
     // bypass our explicit, deterministic range error message.
-    let full_bits: [u1; 254] = index.to_le_bits();
+    let full_bits: [bool; 254] = index.to_le_bits();
 
     for i in 20..254 {
         assert(
-            full_bits[i] == 0,
+            !full_bits[i],
             "leaf index out of range: must be < 2^20",
         );
     }
 
-    let mut bits: [u1; 20] = [0; 20];
+    let mut bits: [bool; 20] = [false; 20];
     for i in 0..20 {
         bits[i] = full_bits[i];
     }
@@ -71,7 +71,7 @@ mod tests {
     fn test_valid_zero_index() {
         let bits = decompose_and_validate(0);
         for i in 0..20 {
-            assert(bits[i] == 0);
+            assert(!bits[i]);
         }
     }
 
@@ -80,16 +80,16 @@ mod tests {
         // 2^20 - 1 = 1,048,575 (all bits set)
         let bits = decompose_and_validate(1_048_575);
         for i in 0..20 {
-            assert(bits[i] == 1);
+            assert(bits[i]);
         }
     }
 
     #[test]
     fn test_valid_index_one() {
         let bits = decompose_and_validate(1);
-        assert(bits[0] == 1);
+        assert(bits[0]);
         for i in 1..20 {
-            assert(bits[i] == 0);
+            assert(!bits[i]);
         }
     }
 
@@ -98,11 +98,11 @@ mod tests {
         // 2^10 = 1024
         let bits = decompose_and_validate(1024);
         for i in 0..10 {
-            assert(bits[i] == 0);
+            assert(!bits[i]);
         }
-        assert(bits[10] == 1);
+        assert(bits[10]);
         for i in 11..20 {
-            assert(bits[i] == 0);
+            assert(!bits[i]);
         }
     }
 
@@ -111,18 +111,18 @@ mod tests {
         // 2^19 = 524,288 (only bit 19 set)
         let bits = decompose_and_validate(524_288);
         for i in 0..19 {
-            assert(bits[i] == 0);
+            assert(!bits[i]);
         }
-        assert(bits[19] == 1);
+        assert(bits[19]);
     }
 
     #[test]
     fn test_boundary_just_below_max() {
         // 2^20 - 2 = 1,048,574
         let bits = decompose_and_validate(1_048_574);
-        assert(bits[0] == 0);
+        assert(!bits[0]);
         for i in 1..20 {
-            assert(bits[i] == 1);
+            assert(bits[i]);
         }
     }
 
@@ -130,12 +130,12 @@ mod tests {
     fn test_valid_arbitrary_index() {
         // 42 = 0b101010
         let bits = decompose_and_validate(42);
-        assert(bits[0] == 0);
-        assert(bits[1] == 1);
-        assert(bits[2] == 0);
-        assert(bits[3] == 1);
-        assert(bits[4] == 0);
-        assert(bits[5] == 1);
+        assert(!bits[0]);
+        assert(bits[1]);
+        assert(!bits[2]);
+        assert(bits[3]);
+        assert(!bits[4]);
+        assert(bits[5]);
     }
 
     // ========== Invalid index tests ==========

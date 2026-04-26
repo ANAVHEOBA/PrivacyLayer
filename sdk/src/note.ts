@@ -6,6 +6,7 @@ import {
   NOTE_BACKUP_VERSION,
   NOTE_SCALAR_BYTE_LENGTH,
 } from './zk_constants';
+import { computeNoteCommitmentBytes } from './poseidon';
 
 const HEX_PAYLOAD = /^[0-9a-fA-F]+$/;
 const POOL_ID_HEX = /^[0-9a-fA-F]{64}$/;
@@ -143,13 +144,11 @@ export class Note {
   }
 
   /**
-   * In a real implementation, this would use a WASM-based Poseidon hash
-   * compatible with the Noir circuit and Soroban host function.
+   * Commitment = Poseidon2(nullifier_field, secret_field, pool_id_field).
+   * The nullifier/secret are first interpreted as 31-byte canonical field values.
    */
   getCommitment(): Buffer {
-    // Placeholder commitment derivation for SDK plumbing tests.
-    // Production should replace this with Poseidon(nullifier, secret).
-    return stableHash32('commitment', this.nullifier, this.secret);
+    return computeNoteCommitmentBytes(this.nullifier, this.secret, this.poolId);
   }
 
   // ---------------------------------------------------------------------------

@@ -1,6 +1,7 @@
 import { Note } from "./note";
 import {
   WithdrawalPublicInputs,
+  fieldToHex,
   merkleNodeToField,
   noteScalarToField,
   poolIdToField,
@@ -18,6 +19,7 @@ import {
   PRODUCTION_MERKLE_TREE_DEPTH,
   assertMerkleDepth,
   merkleMaxLeafIndex,
+  validateMerkleProof,
 } from "./merkle";
 
 export type ProvingErrorCode =
@@ -273,13 +275,7 @@ export class ProofGenerator {
       "merkleDepth",
     );
 
-    if (merkleProof.pathElements.length !== expectedDepth) {
-      throw new WitnessValidationError(
-        `pathElements length must equal tree depth ${expectedDepth}, got ${merkleProof.pathElements.length}`,
-        "MERKLE_PATH",
-        "structure",
-      );
-    }
+    validateMerkleProof(merkleProof, expectedDepth);
 
     if (
       merkleProof.pathIndices !== undefined &&
@@ -318,15 +314,15 @@ export class ProofGenerator {
     return {
       nullifier: nullifierField,
       secret: secretField,
-      leaf_index: merkleProof.leafIndex.toString(),
+      leaf_index: fieldToHex(BigInt(merkleProof.leafIndex)),
       hash_path: merkleProof.pathElements.map((e) => merkleNodeToField(e)),
       pool_id: poolIdField,
       root: rootField,
       nullifier_hash: nullifierHash,
       recipient: recipientField,
-      amount: note.amount.toString(),
+      amount: fieldToHex(note.amount),
       relayer: relayerField,
-      fee: fee.toString(),
+      fee: fieldToHex(fee),
     };
   }
 

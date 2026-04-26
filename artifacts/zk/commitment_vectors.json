@@ -1,0 +1,109 @@
+{
+  "version": 1,
+  "hash_algorithm": "Poseidon2 (BN254, inputs: nullifier_field, secret_field, pool_id_field)",
+  "description": "Shared commitment vectors generated from one source for Noir circuit tests and SDK note hashing tests.",
+  "valid": [
+    {
+      "id": "CV-001",
+      "description": "Basic small-field note",
+      "note": {
+        "nullifier_hex": "00000000000000000000000000000000000000000000000000000000000001",
+        "secret_hex": "00000000000000000000000000000000000000000000000000000000000002",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000003"
+      },
+      "fields": {
+        "nullifier": "0000000000000000000000000000000000000000000000000000000000000001",
+        "secret": "0000000000000000000000000000000000000000000000000000000000000002",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000003",
+        "commitment": "23864adb160dddf590f1d3303683ebcb914f828e2635f6e85a32f0a1aecd3dd8"
+      }
+    },
+    {
+      "id": "CV-002",
+      "description": "All-zero note material",
+      "note": {
+        "nullifier_hex": "00000000000000000000000000000000000000000000000000000000000000",
+        "secret_hex": "00000000000000000000000000000000000000000000000000000000000000",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000000"
+      },
+      "fields": {
+        "nullifier": "0000000000000000000000000000000000000000000000000000000000000000",
+        "secret": "0000000000000000000000000000000000000000000000000000000000000000",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000000",
+        "commitment": "2a5de47ed300af27b706aaa14762fc468f5cfc16cd8116eb6b09b0f2643ca2b9"
+      }
+    },
+    {
+      "id": "CV-003",
+      "description": "Near-max 31-byte nullifier",
+      "note": {
+        "nullifier_hex": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "secret_hex": "00000000000000000000000000000000000000000000000000000000000001",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000011"
+      },
+      "fields": {
+        "nullifier": "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
+        "secret": "0000000000000000000000000000000000000000000000000000000000000001",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000011",
+        "commitment": "181bb907f55364aeaee98bcf75a49b7e3687dcb35c6a4acf97193e5e8b0b069a"
+      }
+    },
+    {
+      "id": "CV-004",
+      "description": "Near-modulus pool identifier boundary",
+      "note": {
+        "nullifier_hex": "12121212121212121212121212121212121212121212121212121212121212",
+        "secret_hex": "34343434343434343434343434343434343434343434343434343434343434",
+        "pool_id": "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000"
+      },
+      "fields": {
+        "nullifier": "0012121212121212121212121212121212121212121212121212121212121212",
+        "secret": "0034343434343434343434343434343434343434343434343434343434343434",
+        "pool_id": "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000",
+        "commitment": "1b98a231d3ee7addf0e30268c53ae81be5a615a9c3a1d30e5e617e9a37dcd275"
+      }
+    }
+  ],
+  "invalid": [
+    {
+      "id": "CI-001",
+      "description": "nullifier is 30 bytes instead of 31",
+      "note": {
+        "nullifier_hex": "111111111111111111111111111111111111111111111111111111111111",
+        "secret_hex": "22222222222222222222222222222222222222222222222222222222222222",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expected_error": "Nullifier and secret must be 31 bytes to fit BN254 field"
+    },
+    {
+      "id": "CI-002",
+      "description": "secret is 32 bytes instead of 31",
+      "note": {
+        "nullifier_hex": "11111111111111111111111111111111111111111111111111111111111111",
+        "secret_hex": "2222222222222222222222222222222222222222222222222222222222222222",
+        "pool_id": "0000000000000000000000000000000000000000000000000000000000000001"
+      },
+      "expected_error": "Nullifier and secret must be 31 bytes to fit BN254 field"
+    },
+    {
+      "id": "CI-003",
+      "description": "pool_id is not 32 bytes",
+      "note": {
+        "nullifier_hex": "11111111111111111111111111111111111111111111111111111111111111",
+        "secret_hex": "22222222222222222222222222222222222222222222222222222222222222",
+        "pool_id": "33333333333333333333333333333333333333333333333333333333333333"
+      },
+      "expected_error": "Pool ID must be exactly 32 bytes encoded as 64 hex characters"
+    },
+    {
+      "id": "CI-004",
+      "description": "pool_id is 32 bytes but not a canonical BN254 field element",
+      "note": {
+        "nullifier_hex": "11111111111111111111111111111111111111111111111111111111111111",
+        "secret_hex": "22222222222222222222222222222222222222222222222222222222222222",
+        "pool_id": "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000001"
+      },
+      "expected_error": "Pool ID must be < BN254 field modulus"
+    }
+  ]
+}

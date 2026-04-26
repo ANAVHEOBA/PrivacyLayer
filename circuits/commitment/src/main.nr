@@ -15,6 +15,7 @@
 
 use lib::hash;
 use lib::validation;
+mod fixtures;
 
 /// Commitment circuit - proves knowledge of a note's preimage.
 ///
@@ -109,6 +110,36 @@ fn test_commitment_is_deterministic() {
     // If commitments are equal, the circuit accepts both
     assert(c1 == c2, "commitment must be deterministic");
     main(nullifier, secret, pool_id, c1);
+}
+
+/// Shared cross-stack fixtures generated from the same source as
+/// artifacts/zk/commitment_vectors.json. These pin exact Noir <-> SDK outputs.
+#[test]
+fn test_shared_fixture_cv_001() {
+    let (nullifier, secret, pool_id, commitment) = fixtures::fixture_cv_001();
+    assert(hash::compute_commitment(nullifier, secret, pool_id) == commitment);
+    main(nullifier, secret, pool_id, commitment);
+}
+
+#[test]
+fn test_shared_fixture_cv_002() {
+    let (nullifier, secret, pool_id, commitment) = fixtures::fixture_cv_002();
+    assert(hash::compute_commitment(nullifier, secret, pool_id) == commitment);
+    main(nullifier, secret, pool_id, commitment);
+}
+
+#[test]
+fn test_shared_fixture_cv_003() {
+    let (nullifier, secret, pool_id, commitment) = fixtures::fixture_cv_003();
+    assert(hash::compute_commitment(nullifier, secret, pool_id) == commitment);
+    main(nullifier, secret, pool_id, commitment);
+}
+
+#[test]
+fn test_shared_fixture_cv_004() {
+    let (nullifier, secret, pool_id, commitment) = fixtures::fixture_cv_004();
+    assert(hash::compute_commitment(nullifier, secret, pool_id) == commitment);
+    main(nullifier, secret, pool_id, commitment);
 }
 
 // --------------------------------------------
