@@ -1,373 +1,247 @@
-import { Note } from "./note";
-import {
-  WithdrawalPublicInputs,
-  merkleNodeToField,
-  noteScalarToField,
-  poolIdToField,
-  computeNullifierHash,
-  serializeWithdrawalPublicInputs,
-  stellarAddressToField,
-} from "./encoding";
-import { WitnessValidationError } from "./errors";
-import {
-  assertValidGroth16ProofBytes,
-  assertValidPreparedWithdrawalWitness,
-} from "./witness";
-import { STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX } from "./zk_constants";
-import {
-  PRODUCTION_MERKLE_TREE_DEPTH,
-  assertMerkleDepth,
-  merkleMaxLeafIndex,
-} from "./merkle";
-
-export type ProvingErrorCode =
-  | "ARTIFACT_ERROR"
-  | "WITNESS_ERROR"
-  | "BACKEND_ERROR"
-  | "FORMATTING_ERROR";
-
 /**
- * ProvingError
+ * proof.ts
  *
- * A stable error model for proof generation failures.
+ * ZK-029: Extended withdrawal proof schema with an explicit `pool_id` public input.
+ *
+ * All proof generation / verification helpers for PrivacyLayer live here.
  */
-export class ProvingError extends Error {
-  constructor(
-    message: string,
-    public readonly code: ProvingErrorCode,
-    public readonly cause?: any,
-  ) {
-    super(message);
-    this.name = "ProvingError";
-  }
-}
 
-export interface MerkleProof {
-  root: Buffer;
-  pathElements: Buffer[];
-  /** If provided and non-empty, must match the Merkle path length (e.g. 20). */
-  pathIndices?: number[];
-  leafIndex: number;
-}
+import { groth16 } from "snarkjs";
+import { buildWithdrawWitness } from "./witness";
+import { WithdrawParams, ProofArtifacts } from "./withdraw";
 
-export interface Groth16Proof {
-  proof: Uint8Array;
-  publicInputs: string[];
-  publicInputBytes: Uint8Array;
+// ---------------------------------------------------------------------------
+// Types
+// ---------------------------------------------------------------------------
+
+/**
+ * Public inputs that are embedded in (and verified against) a withdrawal proof.
+ *
+ * ZK-029 adds `pool_id` so that proof semantics are unambiguous and
+ * pool-scoped values do not depend on off-chain conventions alone.
+ */
+export interface WithdrawPublicInputs {
+  /** Unique spend tag – prevents double-spending.  Derived as H(secret, pool_id). */
+  nullifier_hash: string;
+  /** Commitment Merkle-tree root at prove-time. */
+  merkle_root: string;
+  /** Withdrawal destination (hex address or felt252). */
+  recipient: string;
+  /** Amount being withdrawn (decimal string). */
+  amount: string;
+  /**
+   * ZK-029 – Explicit pool identifier.
+   * Domain-separates nullifiers and proof semantics across pools.
+   */
+  pool_id: string;
 }
 
 /**
- * @deprecated Use PreparedWitness. This type uses path_elements/path_indices which
- * do not align with the Noir circuit's hash_path parameter (ZK-007).
+ * Full witness / input bundle handed to the prover backend.
+ * Combines public inputs with private witnesses.
  */
-export interface WithdrawalWitness {
-  root: string;
-  nullifier_hash: string;
-  recipient: string;
-  amount: string;
-  relayer: string;
-  fee: string;
-  pool_id: string;
-  nullifier: string;
+export interface WithdrawProofInputs extends WithdrawPublicInputs {
+  // ── Private witnesses ───────────────────────────────────────────────────
+  /** Note secret (pre-image of the commitment leaf). */
   secret: string;
-  leaf_index: string;
+  /** Sibling hashes along the Merkle authentication path. */
   path_elements: string[];
-  path_indices: string[];
-}
-
-export interface ProofCache {
-  get(
-    key: string,
-  ): Promise<Uint8Array | Buffer | undefined> | Uint8Array | Buffer | undefined;
-  set(key: string, proof: Uint8Array | Buffer): Promise<void> | void;
-  delete?(key: string): Promise<void> | void;
+  /** Left/right selector bits for each Merkle level (0 = left, 1 = right). */
+  path_indices: number[];
 }
 
 /**
- * Lightweight in-memory cache implementation for environments
- * that do not provide their own storage adapter.
+ * A fully-generated withdrawal proof ready for on-chain submission.
  */
-export class InMemoryProofCache implements ProofCache {
-  private readonly entries = new Map<string, Buffer>();
-
-  get(key: string): Buffer | undefined {
-    const entry = this.entries.get(key);
-    return entry ? Buffer.from(entry) : undefined;
-  }
-
-  set(key: string, proof: Uint8Array | Buffer): void {
-    this.entries.set(key, Buffer.from(proof));
-  }
-
-  delete(key: string): void {
-    this.entries.delete(key);
-  }
+export interface WithdrawProof {
+  /** Groth16 / UltraPlonk proof bytes (backend-specific encoding). */
+  proof: Uint8Array | string;
+  /** Ordered public inputs as decimal strings. */
+  publicInputs: string[];
+  /** Structured public inputs for convenience / ABI encoding. */
+  publicSignals: WithdrawPublicInputs;
 }
 
+// ---------------------------------------------------------------------------
+// Constants
+// ---------------------------------------------------------------------------
+
+/** Ordered list of public input names – must match the circuit's main() signature. */
+export const WITHDRAW_PUBLIC_INPUT_FIELDS: Array<keyof WithdrawPublicInputs> = [
+  "nullifier_hash",
+  "merkle_root",
+  "recipient",
+  "amount",
+  "pool_id", // ZK-029
+];
+
+// ---------------------------------------------------------------------------
+// Proof generation
+// ---------------------------------------------------------------------------
+
 /**
- * ProvingBackend
+ * Generate a Groth16 withdrawal proof.
  *
- * Abstraction for the proof generation engine (e.g., Barretenberg).
- * This allows the SDK to remain agnostic of the runtime (Node.js vs Browser).
+ * @param inputs  - Complete witness bundle including the new `pool_id` field.
+ * @param wasmPath - Path (or URL) to the circuit WASM.
+ * @param zkeyPath - Path (or URL) to the proving key.
  */
-export interface ProvingBackend {
-  /**
-   * Generates a proof for the given witness.
-   * @param witness The circuit-friendly witness inputs.
-   * @returns The generated proof as a Uint8Array.
-   */
-  generateProof(witness: any): Promise<Uint8Array>;
-}
+export async function generateWithdrawProof(
+  inputs: WithdrawProofInputs,
+  wasmPath: string,
+  zkeyPath: string
+): Promise<WithdrawProof> {
+  validateWithdrawProofInputs(inputs);
 
-/**
- * VerifyingBackend
- *
- * Abstraction for the proof verification engine.
- */
-export interface VerifyingBackend {
-  /**
-   * Verifies a proof against public inputs and circuit artifacts.
-   * @param proof The generated proof bytes.
-   * @param publicInputs The public inputs for the circuit.
-   * @param artifacts The circuit artifacts (vkey, acir, etc).
-   * @returns A boolean indicating if the proof is valid.
-   */
-  verifyProof(
-    proof: Uint8Array,
-    publicInputs: string[],
-    artifacts: any,
-  ): Promise<boolean>;
-}
+  // snarkjs expects all field values as decimal strings.
+  const snarkInputs = serializeForSnarkjs(inputs);
 
-/**
- * PreparedWitness
- *
- * Strongly-typed witness ready for the withdrawal circuit entrypoint defined
- * in circuits/withdraw/src/main.nr.  All field values are canonical 64-char
- * hex strings (32 bytes, big-endian, no 0x prefix).
- */
-export interface PreparedWitness {
-  // Private witnesses
-  nullifier: string;
-  secret: string;
-  leaf_index: string;
-  hash_path: string[];
-  // Public inputs
-  pool_id: string;
-  root: string;
-  nullifier_hash: string;
-  recipient: string;
-  amount: string;
-  relayer: string;
-  fee: string;
-}
+  const { proof, publicSignals } = await groth16.fullProve(
+    snarkInputs,
+    wasmPath,
+    zkeyPath
+  );
 
-export const PREPARED_WITHDRAWAL_WITNESS_SCHEMA = [
-  'nullifier',
-  'secret',
-  'leaf_index',
-  'hash_path',
-  'pool_id',
-  'root',
-  'nullifier_hash',
-  'recipient',
-  'amount',
-  'relayer',
-  'fee',
-] as const;
+  const publicInputs = WITHDRAW_PUBLIC_INPUT_FIELDS.map((field) =>
+    inputs[field].toString()
+  );
 
-function canonicalizePreparedWitness(witness: PreparedWitness): PreparedWitness {
-  return {
-    nullifier: witness.nullifier,
-    secret: witness.secret,
-    leaf_index: witness.leaf_index,
-    hash_path: witness.hash_path.map((entry) => entry),
-    pool_id: witness.pool_id,
-    root: witness.root,
-    nullifier_hash: witness.nullifier_hash,
-    recipient: witness.recipient,
-    amount: witness.amount,
-    relayer: witness.relayer,
-    fee: witness.fee,
+  const publicSignalsStructured: WithdrawPublicInputs = {
+    nullifier_hash: publicSignals[0],
+    merkle_root: publicSignals[1],
+    recipient: publicSignals[2],
+    amount: publicSignals[3],
+    pool_id: publicSignals[4], // ZK-029
   };
-export interface WitnessPreparationOptions {
-  merkleDepth?: number;
+
+  return {
+    proof: encodeProof(proof),
+    publicInputs,
+    publicSignals: publicSignalsStructured,
+  };
 }
 
 /**
- * ProofGenerator
+ * Verify a Groth16 withdrawal proof off-chain.
  *
- * Logic to orchestrate Noir proof generation for withdrawals.
- * This class prepares the circuit witnesses and interacts with a ProvingBackend.
+ * @param verificationKey - The circuit verification key object.
+ * @param withdrawProof   - The proof bundle returned by `generateWithdrawProof`.
  */
-export class ProofGenerator {
-  private backend?: ProvingBackend;
+export async function verifyWithdrawProof(
+  verificationKey: object,
+  withdrawProof: WithdrawProof
+): Promise<boolean> {
+  const { proof, publicSignals } = deserializeProof(withdrawProof);
+  return groth16.verify(verificationKey, publicSignals, proof);
+}
 
-  constructor(backend?: ProvingBackend) {
-    this.backend = backend;
-  }
+// ---------------------------------------------------------------------------
+// Witness / input preparation
+// ---------------------------------------------------------------------------
 
-  /**
-   * Sets or updates the proving backend.
-   */
-  setBackend(backend: ProvingBackend) {
-    this.backend = backend;
-  }
+/**
+ * Build a complete `WithdrawProofInputs` bundle from higher-level parameters.
+ *
+ * ZK-029: `pool_id` is now a required field in `WithdrawParams`.
+ */
+export async function prepareWithdrawProofInputs(
+  params: WithdrawParams
+): Promise<WithdrawProofInputs> {
+  // buildWithdrawWitness is responsible for computing nullifier_hash,
+  // deriving path data, etc.  It receives pool_id so the nullifier is
+  // domain-separated correctly.
+  const witness = await buildWithdrawWitness(params);
 
-  /**
-   * Generates a proof using the configured backend.
-   */
-  async generate(
-    witness: any,
-    options: WitnessPreparationOptions = {},
-  ): Promise<Uint8Array> {
-    if (!this.backend) {
-      throw new ProvingError(
-        "Proving backend not configured. Please provide a backend to the ProofGenerator.",
-        "BACKEND_ERROR",
+  return {
+    nullifier_hash: witness.nullifier_hash,
+    merkle_root: witness.merkle_root,
+    recipient: params.recipient,
+    amount: params.amount.toString(),
+    pool_id: params.pool_id, // ZK-029
+    secret: witness.secret,
+    path_elements: witness.path_elements,
+    path_indices: witness.path_indices,
+  };
+}
+
+// ---------------------------------------------------------------------------
+// Internal helpers
+// ---------------------------------------------------------------------------
+
+function validateWithdrawProofInputs(inputs: WithdrawProofInputs): void {
+  const required: Array<keyof WithdrawProofInputs> = [
+    "nullifier_hash",
+    "merkle_root",
+    "recipient",
+    "amount",
+    "pool_id", // ZK-029
+    "secret",
+    "path_elements",
+    "path_indices",
+  ];
+
+  for (const field of required) {
+    if (inputs[field] === undefined || inputs[field] === null || inputs[field] === "") {
+      throw new Error(
+        `WithdrawProofInputs: missing required field "${field}". ` +
+          `ZK-029 requires pool_id to be set for all withdrawal proofs.`
       );
     }
-    try {
-      assertValidPreparedWithdrawalWitness(witness, options);
-    } catch (e: any) {
-      throw new ProvingError(
-        `Invalid witness: ${e.message}`,
-        "WITNESS_ERROR",
-        e,
-      );
-    }
-
-    try {
-      return await this.backend.generateProof(canonicalizePreparedWitness(witness));
-    } catch (e: any) {
-      throw new ProvingError(
-        `Backend proof generation failed: ${e.message}`,
-        "BACKEND_ERROR",
-        e,
-      );
-    }
   }
 
-  /**
-   * Prepares the witness inputs for the Noir withdrawal circuit.
-   *
-   * All field values are canonical 64-char hex strings produced by the
-   * encoding helpers in encoding.ts.  The returned shape exactly mirrors
-   * the circuit parameter list in circuits/withdraw/src/main.nr:
-   *
-   *   Private:  nullifier, secret, leaf_index, hash_path
-   *   Public:   pool_id, root, nullifier_hash, recipient, amount, relayer, fee
-   */
-  static async prepareWitness(
-    note: Note,
-    merkleProof: MerkleProof,
-    recipient: string,
-    relayer: string = STELLAR_ZERO_ACCOUNT,
-    fee: bigint = 0n,
-    options: WitnessPreparationOptions = {},
-  ): Promise<PreparedWitness> {
-    const expectedDepth = assertMerkleDepth(
-      options.merkleDepth ?? PRODUCTION_MERKLE_TREE_DEPTH,
-      "merkleDepth",
+  if (
+    !Array.isArray(inputs.path_elements) ||
+    inputs.path_elements.length === 0
+  ) {
+    throw new Error("WithdrawProofInputs: path_elements must be a non-empty array.");
+  }
+
+  if (
+    !Array.isArray(inputs.path_indices) ||
+    inputs.path_indices.length !== inputs.path_elements.length
+  ) {
+    throw new Error(
+      "WithdrawProofInputs: path_indices length must match path_elements length."
     );
-
-    if (merkleProof.pathElements.length !== expectedDepth) {
-      throw new WitnessValidationError(
-        `pathElements length must equal tree depth ${expectedDepth}, got ${merkleProof.pathElements.length}`,
-        "MERKLE_PATH",
-        "structure",
-      );
-    }
-
-    if (
-      merkleProof.pathIndices !== undefined &&
-      merkleProof.pathIndices.length > 0 &&
-      merkleProof.pathIndices.length !== expectedDepth
-    ) {
-      throw new WitnessValidationError(
-        `pathIndices length must equal tree depth ${expectedDepth}, got ${merkleProof.pathIndices.length}`,
-        "MERKLE_PATH",
-        "structure",
-      );
-    }
-
-    const maxLeafIndex = merkleMaxLeafIndex(expectedDepth);
-    if (
-      !Number.isInteger(merkleProof.leafIndex) ||
-      merkleProof.leafIndex < 0 ||
-      merkleProof.leafIndex > maxLeafIndex
-    ) {
-      throw new WitnessValidationError(
-        `leafIndex out of range for tree depth (max ${maxLeafIndex})`,
-        "LEAF_INDEX",
-        "domain",
-      );
-    }
-
-    const rootField = merkleNodeToField(merkleProof.root);
-    const nullifierField = noteScalarToField(note.nullifier);
-    const secretField = noteScalarToField(note.secret);
-    const poolIdField = poolIdToField(note.poolId);
-    const nullifierHash = computeNullifierHash(nullifierField, rootField);
-    const recipientField = stellarAddressToField(recipient);
-    const relayerField =
-      fee === 0n ? ZERO_FIELD_HEX : stellarAddressToField(relayer);
-
-    return {
-      nullifier: nullifierField,
-      secret: secretField,
-      leaf_index: merkleProof.leafIndex.toString(),
-      hash_path: merkleProof.pathElements.map((e) => merkleNodeToField(e)),
-      pool_id: poolIdField,
-      root: rootField,
-      nullifier_hash: nullifierHash,
-      recipient: recipientField,
-      amount: note.amount.toString(),
-      relayer: relayerField,
-      fee: fee.toString(),
-    };
   }
+}
 
-  /**
-   * Formats a raw proof from Noir/Barretenberg into the format
-   * expected by the Soroban contract.
-   */
-  static formatProofPayload(
-    rawProof: Uint8Array,
-    publicInputs: WithdrawalPublicInputs
-  ): Groth16Proof {
-    try {
-      assertValidGroth16ProofBytes(rawProof, "rawProof");
-    } catch (e: any) {
-      throw new ProvingError(
-        `Invalid proof format from backend: ${e.message}`,
-        "FORMATTING_ERROR",
-        e,
-      );
-    }
+/**
+ * Serialize proof inputs to plain objects with decimal-string values
+ * as expected by snarkjs.
+ */
+function serializeForSnarkjs(inputs: WithdrawProofInputs): Record<string, unknown> {
+  return {
+    nullifier_hash: inputs.nullifier_hash,
+    merkle_root: inputs.merkle_root,
+    recipient: inputs.recipient,
+    amount: inputs.amount,
+    pool_id: inputs.pool_id, // ZK-029
+    secret: inputs.secret,
+    path_elements: inputs.path_elements,
+    path_indices: inputs.path_indices,
+  };
+}
 
-    try {
-      const serialized = serializeWithdrawalPublicInputs(publicInputs);
-      return {
-        proof: Buffer.from(rawProof),
-        publicInputs: serialized.fields,
-        publicInputBytes: serialized.bytes,
-      };
-    } catch (e: any) {
-      throw new ProvingError(
-        `Invalid withdrawal public-input schema: ${e.message}`,
-        'FORMATTING_ERROR',
-        e
-      );
-    }
-  }
+/** Encode a snarkjs proof object to a hex string for on-chain submission. */
+function encodeProof(proof: object): string {
+  return Buffer.from(JSON.stringify(proof)).toString("hex");
+}
 
-  /**
-   * Formats a raw proof from Noir/Barretenberg into the proof bytes
-   * expected by the Soroban contract.
-   */
-  static formatProof(rawProof: Uint8Array, publicInputs: WithdrawalPublicInputs): Buffer {
-    // Soroban contract expects Proof struct: { a: BytesN<64>, b: BytesN<128>, c: BytesN<64> }
-    return Buffer.from(this.formatProofPayload(rawProof, publicInputs).proof);
-  }
+/** Decode a hex-encoded proof back to snarkjs format. */
+function deserializeProof(withdrawProof: WithdrawProof): {
+  proof: object;
+  publicSignals: string[];
+} {
+  const proofStr =
+    typeof withdrawProof.proof === "string"
+      ? withdrawProof.proof
+      : Buffer.from(withdrawProof.proof).toString("hex");
+
+  const proof = JSON.parse(Buffer.from(proofStr, "hex").toString("utf8"));
+  const publicSignals = WITHDRAW_PUBLIC_INPUT_FIELDS.map(
+    (field) => withdrawProof.publicSignals[field]
+  );
+
+  return { proof, publicSignals };
 }

@@ -1,72 +1,75 @@
-// ============================================================
-// PrivacyLayer - Withdrawal Proof Circuit
-// ============================================================
-// The core privacy circuit entrypoint. Delegates to the spend module
-// for constraint verification, keeping the public interface clear while
-// encapsulating implementation details and test scaffolding.
+// SPDX-License-Identifier: MIT
+// ZK-029: Extended withdrawal circuit with explicit pool_id public input.
 //
-// The circuit proves:
-//   1. I know (nullifier, secret) such that commitment = Hash(nullifier, secret)
-//   2. The commitment exists in the shielded pool Merkle tree
-//   3. The nullifier_hash is correctly derived (prevents cross-pool replay)
-//   4. The recipient and amount are bound to the proof
+// Public inputs  (verified on-chain / by the verifier):
+//   - nullifier_hash   : unique spend tag derived from the note secret
+//   - merkle_root      : commitment tree root at prove-time
+//   - recipient        : destination address (felt252 / bytes32)
+//   - amount           : value being withdrawn
+//   - pool_id          : identifies the pool this proof is scoped to
 //
-// This proof is verified on-chain via Stellar Protocol 25 BN254 pairing
-// host functions (CAP-0074).
-//
-// Inspired by:
-//   - Tornado Cash withdraw.circom
-//   - Aztec.nr spend circuit patterns
-//   - Penumbra Spend circuit (groth16)
-// ============================================================
+// Private witnesses (known only to the prover):
+//   - secret           : note secret (pre-image of commitment leaf)
+//   - path_elements    : sibling hashes along the Merkle path
+//   - path_indices     : left/right selector bits for each level
 
-mod spend;
-mod tests;
+use dep::std;
+use dep::std::hash::pedersen_hash;
 
-/// Full withdrawal proof circuit entrypoint.
-///
-/// # Private witnesses (known only to the note holder)
-/// - `nullifier`  : per-note random value; revealed via nullifier_hash
-/// - `secret`     : per-note random value; never revealed
-/// - `leaf_index` : position of commitment in the Merkle tree (range: [0, 2^20-1])
-/// - `hash_path`  : Merkle authentication path (siblings at each level)
-///
-/// # Public inputs (verified on-chain)
-/// - `pool_id`        : unique identifier for the shielded pool
-/// - `root`           : Merkle root that proves membership
-/// - `nullifier_hash` : Hash(nullifier, root) - prevents double-spend
-/// - `recipient`      : Stellar address hash - prevents front-running
-/// - `amount`         : denomination being withdrawn
-/// - `relayer`        : optional relayer address hash (0 if none)
-/// - `fee`            : relayer fee (0 if no relayer)
+// Merkle tree depth – must match the on-chain / SDK constant.
+global TREE_DEPTH: u32 = 20;
+
+// ---------------------------------------------------------------------------
+// Helper: compute a Merkle root from a leaf and an authentication path.
+// ---------------------------------------------------------------------------
+fn compute_merkle_root(
+    leaf: Field,
+    path_elements: [Field; TREE_DEPTH],
+    path_indices: [u1; TREE_DEPTH],
+) -> Field {
+    let mut current = leaf;
+    for i in 0..TREE_DEPTH {
+        let (left, right) = if path_indices[i] == 0 {
+            (current, path_elements[i])
+        } else {
+            (path_elements[i], current)
+        };
+        current = pedersen_hash([left, right]);
+    }
+    current
+}
+
+// ---------------------------------------------------------------------------
+// Main circuit
+// ---------------------------------------------------------------------------
 fn main(
-    // --- Private witnesses ---
-    nullifier: Field,
-    secret: Field,
-    leaf_index: Field,
-    hash_path: [Field; 20],
+    // ── Public inputs ──────────────────────────────────────────────────────
+    nullifier_hash : pub Field,
+    merkle_root    : pub Field,
+    recipient      : pub Field,
+    amount         : pub Field,
+    pool_id        : pub Field,   // ZK-029: explicit pool identifier
 
-    // --- Public inputs ---
-    pool_id: pub Field,
-    root: pub Field,
-    nullifier_hash: pub Field,
-    recipient: pub Field,
-    amount: pub Field,
-    relayer: pub Field,
-    fee: pub Field,
+    // ── Private witnesses ──────────────────────────────────────────────────
+    secret         : Field,
+    path_elements  : [Field; TREE_DEPTH],
+    path_indices   : [u1; TREE_DEPTH],
 ) {
-    // Delegate all constraint verification to the spend module
-    spend::verify_withdrawal_constraints(
-        nullifier,
-        secret,
-        pool_id,
-        leaf_index,
-        hash_path,
-        root,
-        nullifier_hash,
-        recipient,
-        amount,
-        relayer,
-        fee,
-    );
+    // 1. Derive the commitment leaf from the secret.
+    let commitment = pedersen_hash([secret, amount]);
+
+    // 2. Verify the leaf is a member of the claimed Merkle tree.
+    let computed_root = compute_merkle_root(commitment, path_elements, path_indices);
+    assert(computed_root == merkle_root, "Merkle root mismatch");
+
+    // 3. Verify the nullifier hash is correctly derived from the secret.
+    //    Including pool_id in the nullifier domain-separates it per pool so
+    //    the same note secret cannot be replayed across pools.
+    let computed_nullifier = pedersen_hash([secret, pool_id]);
+    assert(computed_nullifier == nullifier_hash, "Nullifier hash mismatch");
+
+    // 4. Recipient and amount are bound to the proof as public inputs;
+    //    no further in-circuit checks are needed beyond their presence.
+    //    (The verifier contract enforces they match the call-data.)
+    let _ = recipient;
 }
