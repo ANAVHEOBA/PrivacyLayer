@@ -7,11 +7,12 @@ import {
   NOTE_SCALAR_BYTE_LENGTH,
 } from './zk_constants';
 
-const HEX_PAYLOAD = /^[0-9a-fA-F]+$/;
+const HEX_PAYLOAD = /^[0-9a-f]+$/;
 const POOL_ID_HEX = /^[0-9a-fA-F]{64}$/;
 const LEGACY_NOTE_PREFIX = 'privacylayer-note-';
 const LEGACY_NOTE_PAYLOAD_LENGTH = NOTE_SCALAR_BYTE_LENGTH + NOTE_SCALAR_BYTE_LENGTH + 32 + 16;
 const MAX_NOTE_AMOUNT = (1n << 64n) - 1n;
+const BN254_FIELD_MODULUS = BigInt('21888242871839275222246405745257275088548364400416034343698204186575808495617');
 
 type CryptoLike = {
   getRandomValues<T extends ArrayBufferView | null>(array: T): T;
@@ -91,6 +92,22 @@ export class NoteBackupError extends Error {
   constructor(message: string, public readonly code: string) {
     super(message);
     this.name = 'NoteBackupError';
+  }
+}
+
+function assertCanonicalScalar(field: Buffer, name: string): void {
+  if (field.length !== NOTE_SCALAR_BYTE_LENGTH) {
+    throw new NoteBackupError(`${name} must be ${NOTE_SCALAR_BYTE_LENGTH} bytes`, 'INVALID_FIELD');
+  }
+  const value = BigInt(`0x${field.toString('hex')}`);
+  if (value >= BN254_FIELD_MODULUS) {
+    throw new NoteBackupError(`${name} is outside the BN254 scalar field`, 'INVALID_FIELD');
+  }
+}
+
+function assertCanonicalPoolId(poolId: string): void {
+  if (!POOL_ID_HEX.test(poolId) || /^0+$/.test(poolId)) {
+    throw new NoteBackupError('Pool ID must be a non-zero 32-byte hex identifier', 'INVALID_POOL_ID');
   }
 }
 
@@ -231,15 +248,9 @@ export class Note {
       );
     }
 
-    const version = payload[0];
-    if (version !== NOTE_BACKUP_VERSION) {
-      throw new NoteBackupError(
-        `Unsupported note backup version: ${version} (expected ${NOTE_BACKUP_VERSION})`,
-        'INVALID_VERSION'
-      );
-    }
-
-    // Verify checksum over bytes [0..102]
+    // Verify checksum before interpreting any witness material. This keeps
+    // hand-edited/corrupted bytes distinct from structurally valid but
+    // unsupported canonical payloads.
     const storedChecksum = payload.subarray(103, 107);
     const computed = createHash('sha256').update(payload.subarray(0, 103)).digest();
     if (!computed.subarray(0, 4).equals(storedChecksum)) {
@@ -249,10 +260,22 @@ export class Note {
       );
     }
 
+    const version = payload[0];
+    if (version !== NOTE_BACKUP_VERSION) {
+      throw new NoteBackupError(
+        `Unsupported note backup version: ${version} (expected ${NOTE_BACKUP_VERSION})`,
+        'INVALID_VERSION'
+      );
+    }
+
     const nullifier = Buffer.from(payload.subarray(1, 32));
     const secret = Buffer.from(payload.subarray(32, 63));
     const poolId = payload.subarray(63, 95).toString('hex');
     const amount = payload.readBigUInt64BE(95);
+
+    assertCanonicalScalar(nullifier, 'Nullifier');
+    assertCanonicalScalar(secret, 'Secret');
+    assertCanonicalPoolId(poolId);
 
     return new Note(nullifier, secret, poolId, amount);
   }
@@ -288,10 +311,18 @@ export class Note {
     }
     const data = Buffer.from(hex, 'hex');
 
-    const nullifier = data.subarray(0, 31);
-    const secret = data.subarray(31, 62);
+    const nullifier = Buffer.from(data.subarray(0, 31));
+    const secret = Buffer.from(data.subarray(31, 62));
     const poolId = data.subarray(62, 94).toString('hex');
+    const amountPadding = data.subarray(102, 110);
+    if (!amountPadding.equals(Buffer.alloc(8))) {
+      throw new Error('Invalid note amount encoding');
+    }
     const amount = data.readBigUInt64BE(94);
+
+    assertCanonicalScalar(nullifier, 'Nullifier');
+    assertCanonicalScalar(secret, 'Secret');
+    assertCanonicalPoolId(poolId);
 
     return new Note(nullifier, secret, poolId, amount);
   }
