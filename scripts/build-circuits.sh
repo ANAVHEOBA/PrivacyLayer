@@ -14,4 +14,7 @@ for dir in circuits/*/; do
   fi
 done
 
+echo "🧾 Generating artifact manifest..."
+node scripts/generate-zk-manifest.mjs
+
 echo "✅ All circuits built successfully"

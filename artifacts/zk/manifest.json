@@ -1,11 +1,20 @@
 {
-  "version": "1.0",
-  "backend": "barretenberg",
+  "schemaVersion": "1.0",
   "circuits": {
     "withdraw": {
+      "circuitId": "withdraw",
+      "artifact": "withdraw.json",
       "path": "withdraw.json",
-      "checksum": "0x0",
-      "root_depth": 20
+      "artifactHash": "79121f029f2e694e898b68f0a45dc7924bcc8abccad5c0c38913aebde54e8aad",
+      "checksum": "79121f029f2e694e898b68f0a45dc7924bcc8abccad5c0c38913aebde54e8aad",
+      "backend": "barretenberg",
+      "backendVersion": "unknown",
+      "compiler": "nargo",
+      "compilerVersion": "unknown",
+      "generatedAt": "2026-04-24T22:31:10.379Z",
+      "metadata": {
+        "noirVersion": "0.31.0"
+      }
     }
   }
 }
