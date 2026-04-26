@@ -25,13 +25,13 @@ pub fn compute_root(
     // Decompose index into 20 bits with range validation.
     // This guarantees index is in [0, 2^20 - 1] and the bits faithfully
     // represent the index value (no silent truncation of higher bits).
-    let index_bits: [u1; 20] = index::decompose_and_validate(index);
+    let index_bits: [bool; 20] = index::decompose_and_validate(index);
 
     let mut current = leaf;
 
     // Bit 0 = deepest level (leaf level), bit 19 = root level.
     for i in 0..config::TREE_DEPTH {
-        let is_right: bool = index_bits[i] as bool;
+        let is_right = index_bits[i];
         let left  = if is_right { hash_path[i] } else { current };
         let right = if is_right { current } else { hash_path[i] };
         current = hash::hash_pair(left, right);

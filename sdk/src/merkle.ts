@@ -65,6 +65,71 @@ export interface MerkleFixtureGenerationOptions {
   proveLeafIndices?: number[];
 }
 
+/**
+ * Empty-tree / bootstrap-root fixture for a single (pool, denomination) class
+ * (ZK-025). Generated deterministically from `LocalMerkleTree`'s zero-node
+ * ladder so the SDK and the on-chain pool agree on the initial root the very
+ * first deposit will be verified against.
+ */
+export interface EmptyTreeFixture {
+  poolId: string;
+  denomination: string;
+  depth: number;
+  /** Hex-encoded canonical empty root for this (pool, denomination). */
+  rootHex: string;
+  /** Per-level zero nodes: `zeroLadder[i]` is the hash of two `zeroLadder[i-1]`. */
+  zeroLadderHex: string[];
+}
+
+/**
+ * Compute the canonical zero-node ladder for the given depth.
+ *
+ * Exposed so fixture tooling can derive empty roots without instantiating a
+ * `LocalMerkleTree`. The zero ladder is the SHA-2-driven recursive hash of
+ * `Buffer.alloc(32, 0)`; matches the per-instance ladder used internally.
+ */
+export function computeMerkleZeroLadder(
+  depth: number = PRODUCTION_MERKLE_TREE_DEPTH,
+): Buffer[] {
+  assertMerkleDepth(depth);
+  // We use a throwaway tree solely to access its private buildZeroes via the
+  // documented constructor path; the resulting ladder is identical regardless
+  // of which tree instance produced it.
+  const tree = new LocalMerkleTree(depth);
+  const ladder: Buffer[] = [];
+  // The first slot is always the all-zero leaf; subsequent slots derive from
+  // it via the same `hashPair` used during normal insertion. We round-trip
+  // through `getRoot()` of an empty tree to capture the canonical root.
+  for (let level = 0; level <= depth; level += 1) {
+    ladder.push(Buffer.from((tree as any).zeroes[level]));
+  }
+  return ladder;
+}
+
+/**
+ * Generate one bootstrap-root fixture per supplied (poolId, denomination)
+ * combination (ZK-025). Roots are deterministic and protocol-derived — there
+ * are no hand-entered values.
+ */
+export function generateBootstrapRootFixtures(
+  classes: Array<{ poolId: string; denomination: string }>,
+  depth: number = PRODUCTION_MERKLE_TREE_DEPTH,
+): EmptyTreeFixture[] {
+  if (classes.length === 0) {
+    throw new Error("generateBootstrapRootFixtures requires at least one class");
+  }
+  const ladder = computeMerkleZeroLadder(depth);
+  const rootHex = ladder[depth]!.toString("hex");
+  const zeroLadderHex = ladder.map((entry) => entry.toString("hex"));
+  return classes.map(({ poolId, denomination }) => ({
+    poolId,
+    denomination,
+    depth,
+    rootHex,
+    zeroLadderHex,
+  }));
+}
+
 function toLeaf(commitment: CommitmentLike): Buffer {
   if (Buffer.isBuffer(commitment) || commitment instanceof Uint8Array) {
     const bytes = Buffer.from(commitment);

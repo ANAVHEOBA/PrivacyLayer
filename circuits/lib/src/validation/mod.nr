@@ -5,6 +5,7 @@
 // ============================================================
 
 pub mod commitment;
+pub mod denomination;
 pub mod fee;
 pub mod nullifier;
 pub mod relayer;

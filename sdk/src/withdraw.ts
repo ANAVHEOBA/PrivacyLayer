@@ -1,13 +1,3 @@
-import { Note } from './note';
-import { MerkleProof, PreparedWitness, ProofCache, ProofGenerator, ProvingBackend, VerifyingBackend } from './proof';
-import { BatchSyncResult, CommitmentLike, LocalMerkleTree, MerkleCheckpoint, syncCommitmentBatch } from './merkle';
-import {
-  SerializedWithdrawalPublicInputs,
-  WithdrawalPublicInputs,
-  serializeWithdrawalPublicInputs,
-} from './encoding';
-import { stableHash32, stableStringify } from './stable';
-import { WitnessValidationError } from './errors';
 import { Note } from "./note";
 import {
   MerkleProof,
@@ -24,7 +14,13 @@ import {
   MerkleCheckpoint,
   syncCommitmentBatch,
 } from "./merkle";
+import {
+  SerializedWithdrawalPublicInputs,
+  WithdrawalPublicInputs,
+  serializeWithdrawalPublicInputs,
+} from "./encoding";
 import { stableHash32, stableStringify } from "./stable";
+import { WitnessValidationError } from "./errors";
 
 /**
  * WithdrawalRequest
@@ -53,15 +49,15 @@ interface WithdrawalCacheMaterial {
     hash_path: string[];
   };
   publicInputs: WithdrawalPublicInputs;
+  pool: string;
+  denomination: string;
 }
-
-function buildCacheMaterial(witness: PreparedWitness): WithdrawalCacheMaterial {
-  const serialized = serializeWithdrawalPublicInputs(witness);
 
 function buildCacheMaterial(
   request: WithdrawalRequest,
   witness: PreparedWitness,
 ): WithdrawalCacheMaterial {
+  const serialized = serializeWithdrawalPublicInputs(witness);
   return {
     privateInputs: {
       nullifier: witness.nullifier,
@@ -69,30 +65,17 @@ function buildCacheMaterial(
       leaf_index: witness.leaf_index,
       hash_path: witness.hash_path.slice(),
     },
-    publicInputs: serialized.values
-      pool: request.note.poolId,
-      denomination: witness.amount,
-    },
-    root: witness.root,
+    publicInputs: serialized.values,
     pool: request.note.poolId,
-    publicInputs: {
-      root: witness.root,
-      nullifier_hash: witness.nullifier_hash,
-      recipient: witness.recipient,
-      amount: witness.amount,
-      relayer: witness.relayer,
-      fee: witness.fee,
-    },
+    denomination: witness.amount,
   };
 }
 
 export function buildWithdrawalProofCacheKey(
-  _request: WithdrawalRequest,
-  witness: PreparedWitness
   request: WithdrawalRequest,
   witness: PreparedWitness,
 ): string {
-  const material = buildCacheMaterial(witness);
+  const material = buildCacheMaterial(request, witness);
   const canonical = stableStringify(material);
   return `withdraw-proof:${stableHash32("withdraw-proof-cache-v1", canonical).toString("hex")}`;
 }
@@ -115,19 +98,19 @@ export function restoreWithdrawalTree(
 }
 
 function assertNamedWithdrawalPublicInputs(
-  publicInputs: WithdrawalPublicInputs | PreparedWitness | string[]
+  publicInputs: WithdrawalPublicInputs | PreparedWitness | string[],
 ): asserts publicInputs is WithdrawalPublicInputs | PreparedWitness {
   if (Array.isArray(publicInputs)) {
     throw new WitnessValidationError(
-      'Public inputs must be provided as named fields so canonical schema order can be enforced',
-      'PUBLIC_INPUT_SCHEMA',
-      'structure'
+      "Public inputs must be provided as named fields so canonical schema order can be enforced",
+      "PUBLIC_INPUT_SCHEMA",
+      "structure",
     );
   }
 }
 
 export function buildWithdrawalPublicInputLayout(
-  publicInputs: WithdrawalPublicInputs | PreparedWitness
+  publicInputs: WithdrawalPublicInputs | PreparedWitness,
 ): SerializedWithdrawalPublicInputs {
   return serializeWithdrawalPublicInputs(publicInputs);
 }
@@ -175,7 +158,10 @@ export async function generateWithdrawalProof(
   });
 
   // 3. Format the proof for the Soroban contract
-  const proof = ProofGenerator.formatProof(rawProof, buildWithdrawalPublicInputLayout(witness).values);
+  const proof = ProofGenerator.formatProof(
+    rawProof,
+    buildWithdrawalPublicInputLayout(witness).values,
+  );
   if (options.cache) {
     await options.cache.set(key, proof);
   }
@@ -185,20 +171,11 @@ export async function generateWithdrawalProof(
 /**
  * extractPublicInputs
  *
- * Extracts the 7 public inputs from a prepared witness in the canonical order
+ * Extracts the public inputs from a prepared witness in the canonical order
  * defined by WITHDRAWAL_PUBLIC_INPUT_SCHEMA (pool_id … fee).
  */
 export function extractPublicInputs(witness: PreparedWitness): string[] {
   return buildWithdrawalPublicInputLayout(witness).fields;
-  return [
-    witness.pool_id, // 0
-    witness.root, // 1
-    witness.nullifier_hash, // 2
-    witness.recipient, // 3
-    witness.amount, // 4
-    witness.relayer, // 5
-    witness.fee, // 6
-  ];
 }
 
 /**
@@ -218,5 +195,9 @@ export async function verifyWithdrawalProof(
   backend: VerifyingBackend,
 ): Promise<boolean> {
   assertNamedWithdrawalPublicInputs(publicInputs);
-  return backend.verifyProof(proof, buildWithdrawalPublicInputLayout(publicInputs).fields, artifacts);
+  return backend.verifyProof(
+    proof,
+    buildWithdrawalPublicInputLayout(publicInputs).fields,
+    artifacts,
+  );
 }

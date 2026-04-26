@@ -11,7 +11,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const baselinesPath = path.join(repoRoot, 'artifacts', 'zk', 'constraint_baselines.json');
+
+// ZK-041: Accept version parameter for versioned artifact layout
+const zkVersion = process.argv[2] || '1';
+const baselinesPath = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`, 'constraint_baselines.json');
 const nargo = process.env.NARGO_BIN || path.join(process.env.HOME || '', '.nargo', 'bin', 'nargo');
 
 function runNargoInfoJson(pkg) {
@@ -68,7 +71,13 @@ if (expectVer && expectVer !== nargoVersionLine) {
 
 let fail = false;
 
-for (const pkg of ['withdraw', 'commitment']) {
+// ZK-041: Update circuits list to include merkle
+for (const pkg of ['withdraw', 'commitment', 'merkle']) {
+  if (!baselines.circuits[pkg]) {
+    console.warn(`[warn] No baseline found for ${pkg}, skipping`);
+    continue;
+  }
+  
   const expected = baselines.circuits[pkg].acir_opcodes;
   const out = runNargoInfoJson(pkg);
   const prog = (out.programs || [])[0];
@@ -80,7 +89,7 @@ for (const pkg of ['withdraw', 'commitment']) {
   if (count > expected) {
     console.error(
       `[fail] ${pkg} ACIR opcodes regressed: ${count} > ${expected}. ` +
-        `If this increase is expected, update artifacts/zk/constraint_baselines.json in a reviewed commit.`
+        `If this increase is expected, update artifacts/zk/v${zkVersion}/constraint_baselines.json in a reviewed commit.`
     );
     fail = true;
   } else if (count < expected) {

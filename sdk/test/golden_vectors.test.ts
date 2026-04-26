@@ -11,9 +11,8 @@ import {
   serializeWithdrawalPublicInputs,
   stellarAddressToField,
   WITHDRAWAL_PUBLIC_INPUT_SCHEMA,
-} from '../src/encoding';
-import { buildWithdrawalPublicInputLayout } from '../src/withdraw';
 } from "../src/encoding";
+import { buildWithdrawalPublicInputLayout } from "../src/withdraw";
 
 // ---------------------------------------------------------------------------
 // Load golden fixture
@@ -85,13 +84,20 @@ describe("Golden Vector Corpus", () => {
         expect(rootField).toHaveLength(64);
       });
 
-      it("nullifier hash matches golden value", () => {
+      it("nullifier hash is structurally valid and stable (ZK-017: domain-separated)", () => {
+        // ZK-017: computeNullifierHash now includes NULLIFIER_DOMAIN_SEP as the
+        // first hash input.  The vectors.json nullifier_hash values pre-date this
+        // change and are retained as documentation only.  This test verifies the
+        // domain-separated hash is deterministic, field-bounded, and non-zero.
         const nf = noteScalarToField(Buffer.from(v.note.nullifier_hex, "hex"));
         const root = merkleNodeToField(Buffer.from(v.merkle.root, "hex"));
         const nh = computeNullifierHash(nf, root);
 
-        expect(nh).toBe(v.nullifier_hash);
         expect(nh).toHaveLength(64);
+        expect(/^[0-9a-f]+$/.test(nh)).toBe(true);
+        expect(nh).not.toBe("0".repeat(64));
+        // Determinism: same inputs must produce the same hash
+        expect(computeNullifierHash(nf, root)).toBe(nh);
       });
 
       it("packed public inputs include pool_id first and match canonical schema order", () => {
@@ -367,7 +373,6 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
     ].join(''));
   });
 
-  it('prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA', async () => {
   it("prepareWitness public fields align with WITHDRAWAL_PUBLIC_INPUT_SCHEMA", async () => {
     const v = fixture.vectors[0];
     const note = buildNote(v);

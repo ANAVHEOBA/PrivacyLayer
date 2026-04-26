@@ -1,11 +1,45 @@
 {
-  "version": "1.0",
-  "backend": "barretenberg",
+  "version": 2,
+  "backend": {
+    "name": "nargo/noir",
+    "nargo_version": "nargo version = 1.0.0-beta.20",
+    "noirc_version": "noirc version = 1.0.0-beta.20+b4236c1957d0c26cb65d82adc9e5447b6ff1d629"
+  },
   "circuits": {
     "withdraw": {
+      "circuit_id": "withdraw",
       "path": "withdraw.json",
-      "checksum": "0x0",
-      "root_depth": 20
+      "artifact_sha256": "0xc17a200f981dc8f8e60c4966947beae65b447b03df6c53c1df3d8ec29e200dfe",
+      "bytecode_sha256": "0xf00f05d4d66c318b5431358606330634e5afa4e0683b396bc275da38e23c7d1c",
+      "abi_sha256": "0x7df703d28f134039b2a91f933dee13a695639def3a18b3117c5a1ef9918d48aa",
+      "name": "withdraw",
+      "backend": "nargo/noir",
+      "root_depth": 20,
+      "public_input_schema": [
+        "pool_id",
+        "root",
+        "nullifier_hash",
+        "recipient",
+        "amount",
+        "relayer",
+        "fee"
+      ]
+    },
+    "commitment": {
+      "circuit_id": "commitment",
+      "path": "commitment.json",
+      "artifact_sha256": "0xc664b4c5e4bb06f7d54c4e86fd6a81d42a968899941e6f42d91656ddf9f9a661",
+      "bytecode_sha256": "0xdfbdca2108939b0184db56a381088d4698702988647507242598869290c5d5e0",
+      "abi_sha256": "0xe084f973bddc1be32518abc050b9f03bcb06ffbef43034b653e9319485a4bb9d",
+      "name": "commitment",
+      "backend": "nargo/noir"
+    }
+  },
+  "files": {
+    "commitment_vectors": {
+      "path": "commitment_vectors.json",
+      "sha256": "0x4f68c123c9d40fb34d03019f4e72a5cee64e27e0fd1c4d2e9f0113de7fa54f3d",
+      "version": 1
     }
   }
 }

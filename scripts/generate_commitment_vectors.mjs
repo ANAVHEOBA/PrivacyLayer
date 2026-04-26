@@ -1,0 +1,192 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
+
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const repoRoot = path.resolve(__dirname, '..');
+const requireFromSdk = createRequire(path.join(repoRoot, 'sdk', 'package.json'));
+const { poseidon2Hash } = requireFromSdk('@zkpassport/poseidon2');
+
+const FIELD_MODULUS =
+  21888242871839275222246405745257275088548364400416034343698204186575808495617n;
+const NOTE_SCALAR_BYTE_LENGTH = 31;
+const FIELD_BYTE_LENGTH = 32;
+
+const jsonPath = path.join(repoRoot, 'artifacts', 'zk', 'commitment_vectors.json');
+const noirFixturesPath = path.join(repoRoot, 'circuits', 'commitment', 'src', 'fixtures.nr');
+
+function fieldToHex(n) {
+  if (n < 0n || n >= FIELD_MODULUS) {
+    throw new RangeError(`Field element out of range: ${n}`);
+  }
+  return n.toString(16).padStart(64, '0');
+}
+
+function assertEvenHex(value, label, byteLength) {
+  const clean = value.toLowerCase();
+  if (!/^[0-9a-f]+$/.test(clean) || clean.length !== byteLength * 2) {
+    throw new Error(`${label} must be ${byteLength} bytes of hex`);
+  }
+  return clean;
+}
+
+function noteScalarHexToFieldHex(hex) {
+  const clean = assertEvenHex(hex, 'note scalar', NOTE_SCALAR_BYTE_LENGTH);
+  return clean.padStart(FIELD_BYTE_LENGTH * 2, '0');
+}
+
+function poolIdHexToFieldHex(hex) {
+  const clean = assertEvenHex(hex, 'pool_id', FIELD_BYTE_LENGTH);
+  const n = BigInt(`0x${clean}`);
+  if (n >= FIELD_MODULUS) {
+    throw new Error('pool_id must be a canonical BN254 field element');
+  }
+  return fieldToHex(n);
+}
+
+function computeCommitmentField(nullifierHex, secretHex, poolIdHex) {
+  const hash = poseidon2Hash([
+    BigInt(`0x${noteScalarHexToFieldHex(nullifierHex)}`),
+    BigInt(`0x${noteScalarHexToFieldHex(secretHex)}`),
+    BigInt(`0x${poolIdHexToFieldHex(poolIdHex)}`),
+  ]);
+  return fieldToHex(hash);
+}
+
+const VALID_CASES = [
+  {
+    id: 'CV-001',
+    description: 'Basic small-field note',
+    note: {
+      nullifier_hex: '00'.repeat(30) + '01',
+      secret_hex: '00'.repeat(30) + '02',
+      pool_id: '00'.repeat(31) + '03',
+    },
+  },
+  {
+    id: 'CV-002',
+    description: 'All-zero note material',
+    note: {
+      nullifier_hex: '00'.repeat(31),
+      secret_hex: '00'.repeat(31),
+      pool_id: '00'.repeat(32),
+    },
+  },
+  {
+    id: 'CV-003',
+    description: 'Near-max 31-byte nullifier',
+    note: {
+      nullifier_hex: 'ff'.repeat(31),
+      secret_hex: '00'.repeat(30) + '01',
+      pool_id: '00'.repeat(31) + '11',
+    },
+  },
+  {
+    id: 'CV-004',
+    description: 'Near-modulus pool identifier boundary',
+    note: {
+      nullifier_hex: '12'.repeat(31),
+      secret_hex: '34'.repeat(31),
+      pool_id: fieldToHex(FIELD_MODULUS - 1n),
+    },
+  },
+];
+
+const INVALID_CASES = [
+  {
+    id: 'CI-001',
+    description: 'nullifier is 30 bytes instead of 31',
+    note: {
+      nullifier_hex: '11'.repeat(30),
+      secret_hex: '22'.repeat(31),
+      pool_id: '00'.repeat(31) + '01',
+    },
+    expected_error:
+      'Nullifier and secret must be 31 bytes to fit BN254 field',
+  },
+  {
+    id: 'CI-002',
+    description: 'secret is 32 bytes instead of 31',
+    note: {
+      nullifier_hex: '11'.repeat(31),
+      secret_hex: '22'.repeat(32),
+      pool_id: '00'.repeat(31) + '01',
+    },
+    expected_error:
+      'Nullifier and secret must be 31 bytes to fit BN254 field',
+  },
+  {
+    id: 'CI-003',
+    description: 'pool_id is not 32 bytes',
+    note: {
+      nullifier_hex: '11'.repeat(31),
+      secret_hex: '22'.repeat(31),
+      pool_id: '33'.repeat(31),
+    },
+    expected_error:
+      'Pool ID must be exactly 32 bytes encoded as 64 hex characters',
+  },
+  {
+    id: 'CI-004',
+    description: 'pool_id is 32 bytes but not a canonical BN254 field element',
+    note: {
+      nullifier_hex: '11'.repeat(31),
+      secret_hex: '22'.repeat(31),
+      pool_id: FIELD_MODULUS.toString(16).padStart(64, '0'),
+    },
+    expected_error: 'Pool ID must be < BN254 field modulus',
+  },
+];
+
+const validVectors = VALID_CASES.map((vector) => ({
+  ...vector,
+  fields: {
+    nullifier: noteScalarHexToFieldHex(vector.note.nullifier_hex),
+    secret: noteScalarHexToFieldHex(vector.note.secret_hex),
+    pool_id: poolIdHexToFieldHex(vector.note.pool_id),
+    commitment: computeCommitmentField(
+      vector.note.nullifier_hex,
+      vector.note.secret_hex,
+      vector.note.pool_id
+    ),
+  },
+}));
+
+const fixtureJson = {
+  version: 1,
+  hash_algorithm: 'Poseidon2 (BN254, inputs: nullifier_field, secret_field, pool_id_field)',
+  description:
+    'Shared commitment vectors generated from one source for Noir circuit tests and SDK note hashing tests.',
+  valid: validVectors,
+  invalid: INVALID_CASES,
+};
+
+function toNoirFieldLiteral(hex) {
+  return `0x${hex}`;
+}
+
+const noirFixtures = `// Generated by scripts/generate_commitment_vectors.mjs. Do not edit by hand.
+
+pub fn fixture_cv_001() -> (Field, Field, Field, Field) {
+    (${toNoirFieldLiteral(validVectors[0].fields.nullifier)}, ${toNoirFieldLiteral(validVectors[0].fields.secret)}, ${toNoirFieldLiteral(validVectors[0].fields.pool_id)}, ${toNoirFieldLiteral(validVectors[0].fields.commitment)})
+}
+
+pub fn fixture_cv_002() -> (Field, Field, Field, Field) {
+    (${toNoirFieldLiteral(validVectors[1].fields.nullifier)}, ${toNoirFieldLiteral(validVectors[1].fields.secret)}, ${toNoirFieldLiteral(validVectors[1].fields.pool_id)}, ${toNoirFieldLiteral(validVectors[1].fields.commitment)})
+}
+
+pub fn fixture_cv_003() -> (Field, Field, Field, Field) {
+    (${toNoirFieldLiteral(validVectors[2].fields.nullifier)}, ${toNoirFieldLiteral(validVectors[2].fields.secret)}, ${toNoirFieldLiteral(validVectors[2].fields.pool_id)}, ${toNoirFieldLiteral(validVectors[2].fields.commitment)})
+}
+
+pub fn fixture_cv_004() -> (Field, Field, Field, Field) {
+    (${toNoirFieldLiteral(validVectors[3].fields.nullifier)}, ${toNoirFieldLiteral(validVectors[3].fields.secret)}, ${toNoirFieldLiteral(validVectors[3].fields.pool_id)}, ${toNoirFieldLiteral(validVectors[3].fields.commitment)})
+}
+`;
+
+fs.writeFileSync(jsonPath, JSON.stringify(fixtureJson, null, 2) + '\n');
+fs.writeFileSync(noirFixturesPath, noirFixtures);
+
+console.log(`Wrote ${path.relative(repoRoot, jsonPath)}`);
+console.log(`Wrote ${path.relative(repoRoot, noirFixturesPath)}`);

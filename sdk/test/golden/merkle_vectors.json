@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "description": "Cross-stack Merkle inclusion vectors for ZK-022 and ZK-024. Roots and paths are produced by LocalMerkleTree (sdk/src/merkle.ts) using SHA-256 as a stand-in for BN254 Pedersen. The same hash ordering and zero-node derivation must be reproduced by the Noir circuit helpers in circuits/lib/src/merkle/.",
+  "hash_algorithm": "stableHash32('merkle-node', left, right) — SHA-256 stand-in",
+  "tree_depth": 4,
+  "note": "Depth-4 trees are used so vectors are compact. Production depth is 20; the structural invariants are depth-independent.",
+  "vectors": [
+    {
+      "id": "MV-001",
+      "description": "Empty tree — all zero leaves. Root is the depth-4 zero-node.",
+      "tree": { "depth": 4, "leaves": [], "leaf_count": 0 },
+      "prove_leaf_index": null,
+      "root_hex": null,
+      "note": "Empty-tree root is computed from LocalMerkleTree(4).getRoot(). No inclusion proof."
+    },
+    {
+      "id": "MV-002",
+      "description": "Single leaf at index 0 — sparse tree, only the left-most slot filled.",
+      "tree": { "depth": 4, "leaves": ["0000000000000000000000000000000000000000000000000000000000000001"], "leaf_count": 1 },
+      "prove_leaf_index": 0,
+      "path_length": 4,
+      "path_note": "All siblings are zero nodes; the root is computed by hashing the leaf up with zero siblings at each level."
+    },
+    {
+      "id": "MV-003",
+      "description": "Two leaves at indices 0 and 1 — minimal non-trivial pair.",
+      "tree": { "depth": 4, "leaves": [
+        "0000000000000000000000000000000000000000000000000000000000000001",
+        "0000000000000000000000000000000000000000000000000000000000000002"
+      ], "leaf_count": 2 },
+      "prove_leaf_index": 0,
+      "path_length": 4,
+      "path_note": "Sibling at level 0 is leaf[1]; siblings at levels 1-3 are zero nodes."
+    },
+    {
+      "id": "MV-004",
+      "description": "Four leaves covering both halves of the depth-4 tree.",
+      "tree": { "depth": 4, "leaves": [
+        "aabbccdd00000000000000000000000000000000000000000000000000000000",
+        "1122334400000000000000000000000000000000000000000000000000000000",
+        "deadbeef00000000000000000000000000000000000000000000000000000000",
+        "cafebabe00000000000000000000000000000000000000000000000000000000"
+      ], "leaf_count": 4 },
+      "prove_leaf_index": 2,
+      "path_length": 4,
+      "path_note": "Prove leaf[2]. Sibling at level 0 is leaf[3]; sibling at level 1 is the hash of leaf[0]+leaf[1]; levels 2-3 are zero nodes."
+    },
+    {
+      "id": "MV-005",
+      "description": "Right-most leaf at index 15 in a full depth-4 tree (16 leaves).",
+      "tree": { "depth": 4, "leaf_count": 16 },
+      "prove_leaf_index": 15,
+      "path_length": 4,
+      "path_note": "Rightmost leaf; all siblings come from the left subtree. Tests full-index bit decomposition."
+    },
+    {
+      "id": "MV-006",
+      "description": "Invalid path — tampered sibling at level 0 should fail inclusion.",
+      "tree": { "depth": 4, "leaves": ["0000000000000000000000000000000000000000000000000000000000000001"], "leaf_count": 1 },
+      "prove_leaf_index": 0,
+      "tamper": { "level": 0, "sibling_override": "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff" },
+      "expected": "INVALID",
+      "path_note": "Tampered sibling causes recomputed root to differ from stored root; inclusion must be rejected."
+    },
+    {
+      "id": "MV-007",
+      "description": "Non-zero index 7 — tests that left/right bit ordering is correct for a mid-tree index.",
+      "tree": { "depth": 4, "leaves": [
+        "0000000000000000000000000000000000000000000000000000000000000001",
+        "0000000000000000000000000000000000000000000000000000000000000002",
+        "0000000000000000000000000000000000000000000000000000000000000003",
+        "0000000000000000000000000000000000000000000000000000000000000004",
+        "0000000000000000000000000000000000000000000000000000000000000005",
+        "0000000000000000000000000000000000000000000000000000000000000006",
+        "0000000000000000000000000000000000000000000000000000000000000007",
+        "0000000000000000000000000000000000000000000000000000000000000008"
+      ], "leaf_count": 8 },
+      "prove_leaf_index": 7,
+      "path_length": 4,
+      "path_note": "Index 7 = binary 0111; leaf is right child at levels 0, 1, 2 and left child at level 3."
+    }
+  ]
+}

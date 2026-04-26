@@ -35,6 +35,11 @@ export default [
     description: 'Constraint, prover, and performance optimization work',
   },
   {
+    name: 'performance',
+    color: 'C5DEF5',
+    description: 'Runtime, proving throughput, and benchmark-focused work',
+  },
+  {
     name: 'priority: high',
     color: 'B60205',
     description: 'Critical path work for the current wave',
@@ -68,6 +73,16 @@ export default [
     name: 'wave: zk-1',
     color: '1D76DB',
     description: 'Wave 1: ZK system buildout before contract work',
+  },
+  {
+    name: 'wave: zk-2',
+    color: '0E8A16',
+    description: 'Wave 2: ZK parity, backend, and deployment hardening',
+  },
+  {
+    name: 'wave: zk-3',
+    color: 'FBCA04',
+    description: 'Wave 3: ZK pool derivation, ABI parity, and release rehearsal',
   },
   {
     name: 'area: foundations',
