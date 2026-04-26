@@ -161,6 +161,37 @@ Run tests with: `cd circuits && nargo test`
 
 ---
 
+## Cross-Stack Merkle Inclusion Vectors (`sdk/test/golden/merkle_vectors.json`)
+
+Added in ZK-022 / ZK-024.  Depth-4 fixture trees consumed by both the SDK
+Merkle tests (`sdk/test/merkle_cross_stack.test.ts`) and serve as the
+specification for equivalent Noir circuit tests.
+
+### Vectors
+
+| ID     | Description                                      | Tree leaves | Prove index | Status   |
+| ------ | ------------------------------------------------ | ----------- | ----------- | -------- |
+| MV-001 | Empty tree — all zero leaves                     | 0           | —           | No proof |
+| MV-002 | Single leaf at index 0 (sparse)                  | 1           | 0           | VALID    |
+| MV-003 | Two leaves at indices 0 and 1                    | 2           | 0           | VALID    |
+| MV-004 | Four leaves, prove leaf[2]                       | 4           | 2           | VALID    |
+| MV-005 | Full depth-4 tree (16 leaves), prove leaf[15]    | 16          | 15          | VALID    |
+| MV-006 | Single leaf, tampered sibling at level 0         | 1           | 0           | INVALID  |
+| MV-007 | Eight leaves, prove leaf[7] (bits 0111)          | 8           | 7           | VALID    |
+
+### Cross-stack invariants verified
+
+1. **Zero-node ladder** — `computeMerkleZeroLadder(depth)` produces the same
+   per-level zero hashes as `circuits/lib/src/hash/zeroes.nr`.
+2. **Left/right ordering** — bit `i` of `leaf_index` determines whether `current`
+   is placed left (`bit=0`) or right (`bit=1`) when hashing with its sibling.
+3. **Root recomputation** — recomputing the root from any SDK-generated path must
+   equal `tree.getRoot()`.
+4. **Tamper detection** — overwriting any sibling with a different value changes
+   the recomputed root, making invalid inclusion detectable.
+
+---
+
 ## Golden Vector Corpus (`sdk/test/golden/vectors.json`)
 
 The machine-readable golden corpus spans the full end-to-end ZK spend path and is

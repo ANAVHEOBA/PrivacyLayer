@@ -274,3 +274,82 @@ fn test_off_by_one_commitment_fails() {
     let tampered: Field = real_commitment + 1;
     main(nullifier, secret, pool_id, tampered);
 }
+
+// ============================================================
+// ZK-018: Edge-case commitment regression corpus
+// ============================================================
+// Additional tests covering near-field-limit values, incremental
+// deltas on all three inputs, and cross-domain isolation.
+// These vectors are shared between this Noir test suite and the
+// SDK commitment corpus tests in sdk/test/commitment_corpus.test.ts.
+// ============================================================
+
+/// TC-C-18: Near-field-limit nullifier with zero secret.
+/// Tests that a nullifier at the high end of the safe field range
+/// produces a valid and distinct commitment.
+#[test]
+fn test_near_field_limit_nullifier_zero_secret() {
+    // 0x0FFFF... is well within BN254 (< r) but near the 31-byte ceiling
+    let nullifier: Field = 0x0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    let secret: Field    = 0;
+    let pool_id: Field   = 1;
+    let c = hash::compute_commitment(nullifier, secret, pool_id);
+    main(nullifier, secret, pool_id, c);
+    assert(c != 0, "near-max nullifier with zero secret must still produce non-zero commitment");
+}
+
+/// TC-C-19: Zero nullifier with near-field-limit secret.
+/// Mirror of TC-C-18 to confirm neither field position is special-cased.
+#[test]
+fn test_zero_nullifier_near_field_limit_secret() {
+    let nullifier: Field = 0;
+    let secret: Field    = 0x0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    let pool_id: Field   = 1;
+    let c = hash::compute_commitment(nullifier, secret, pool_id);
+    main(nullifier, secret, pool_id, c);
+    assert(c != 0, "zero nullifier with near-max secret must produce non-zero commitment");
+}
+
+/// TC-C-20: TC-C-18 and TC-C-19 produce different commitments.
+/// Verifies that swapping near-max and zero between the two positions
+/// does not accidentally collide.
+#[test]
+fn test_near_field_limit_position_swap_produces_distinct_commitments() {
+    let high: Field = 0x0FFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFFF;
+    let pool_id: Field = 1;
+    let c1 = hash::compute_commitment(high, 0, pool_id);
+    let c2 = hash::compute_commitment(0, high, pool_id);
+    assert(c1 != c2, "swapping near-max and zero between nullifier/secret must yield distinct commitments");
+}
+
+/// TC-C-21: Incremental delta on all three inputs simultaneously.
+/// Verifies that a unit increment on each input changes the commitment,
+/// ruling out any accidental cancellation in the hash.
+#[test]
+fn test_incremental_delta_all_inputs_changes_commitment() {
+    let c_base      = hash::compute_commitment(100, 200, 300);
+    let c_null_inc  = hash::compute_commitment(101, 200, 300);
+    let c_sec_inc   = hash::compute_commitment(100, 201, 300);
+    let c_pool_inc  = hash::compute_commitment(100, 200, 301);
+
+    assert(c_base != c_null_inc,  "nullifier+1 must change the commitment");
+    assert(c_base != c_sec_inc,   "secret+1 must change the commitment");
+    assert(c_base != c_pool_inc,  "pool_id+1 must change the commitment");
+    // All four must be mutually distinct
+    assert(c_null_inc != c_sec_inc,  "nullifier-delta and secret-delta commitments must differ");
+    assert(c_null_inc != c_pool_inc, "nullifier-delta and pool_id-delta commitments must differ");
+    assert(c_sec_inc  != c_pool_inc, "secret-delta and pool_id-delta commitments must differ");
+}
+
+/// TC-C-22: All-equal inputs (nullifier == secret == pool_id).
+/// An edge case where the three preimage positions carry identical values;
+/// the circuit must still accept the commitment and produce a unique output.
+#[test]
+fn test_all_equal_inputs_valid_and_unique() {
+    let v: Field = 0xabcdef;
+    let c = hash::compute_commitment(v, v, v);
+    main(v, v, v, c);
+    // Must differ from a commitment with only two equal inputs
+    let c2 = hash::compute_commitment(v, v, 0);
+    assert(c != c2, "all-equal inputs must yield a different commitment than a partially-zero variant");
+}

@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH } from './zk_constants';
+import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX } from './zk_constants';
 import { StrKey } from '@stellar/stellar-base';
 import { WitnessValidationError } from './errors';
 
@@ -89,17 +89,23 @@ export function stellarAddressToField(address: string): string {
 }
 
 /**
- * Compute the nullifier hash: H(nullifier_field, root_field).
+ * Compute the domain-separated nullifier hash: H(DOMAIN, nullifier, root).
  *
- * The withdrawal circuit defines:
- *   nullifier_hash = pedersen_hash([nullifier, root])
+ * The withdrawal circuit defines (circuits/lib/src/hash/nullifier.nr):
+ *   nullifier_hash = pedersen_hash([NULLIFIER_DOMAIN_SEP, nullifier, root])
  *
- * This implementation uses SHA-256 as a structural stand-in.  Replace the
- * hash call with a BN254 Pedersen implementation (e.g. @noir-lang/barretenberg)
- * before running against a real prover.
+ * The domain separator prevents cross-domain hash conflation between the
+ * nullifier and commitment hash domains.
+ *
+ * This SDK implementation uses SHA-256 as a structural stand-in for the
+ * BN254 Pedersen hash.  Replace with a real BN254 Pedersen implementation
+ * (e.g. @noir-lang/barretenberg) before running against a real prover.
+ * The input layout (domain ‖ nullifier ‖ root) mirrors the Noir circuit
+ * so that both stacks are structurally equivalent.
  */
 export function computeNullifierHash(nullifierField: string, rootField: string): string {
   const input = Buffer.concat([
+    Buffer.from(NULLIFIER_DOMAIN_SEP_HEX, 'hex'),
     Buffer.from(nullifierField.padStart(64, '0'), 'hex'),
     Buffer.from(rootField.padStart(64, '0'), 'hex'),
   ]);
