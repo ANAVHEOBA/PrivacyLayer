@@ -126,7 +126,7 @@ export function poolIdToField(poolId: string): string {
 }
 
 /**
- * Canonical public-input ordering for the withdrawal circuit (ZK-032).
+ * Canonical public-input ordering for the withdrawal circuit (ZK-032, ZK-030).
  *
  * Mirrors the `pub` parameter declaration order in circuits/withdraw/src/main.nr.
  * Any change here must be reflected in witness preparation, proof formatting,
@@ -141,6 +141,7 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'amount',
   'relayer',
   'fee',
+  'denomination',
 ] as const;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
@@ -216,7 +217,7 @@ export function serializeWithdrawalPublicInputs(
  * Pack the public inputs of the withdrawal circuit in the canonical order
  * defined by WITHDRAWAL_PUBLIC_INPUT_SCHEMA:
  *
- *   pool_id | root | nullifier_hash | recipient | amount | relayer | fee
+ *   pool_id | root | nullifier_hash | recipient | amount | relayer | fee | denomination
  */
 export function packWithdrawalPublicInputs(
   poolId: string,
@@ -225,7 +226,8 @@ export function packWithdrawalPublicInputs(
   recipient: string,
   amount: bigint,
   relayer: string,
-  fee: bigint
+  fee: bigint,
+  denomination: bigint
 ): string[] {
   return serializeWithdrawalPublicInputs({
     pool_id: poolId,
@@ -235,5 +237,6 @@ export function packWithdrawalPublicInputs(
     amount: amount.toString(),
     relayer,
     fee: fee.toString(),
+    denomination: denomination.toString(),
   }).fields;
 }

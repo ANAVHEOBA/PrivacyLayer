@@ -13,7 +13,7 @@ import {
   assertValidGroth16ProofBytes,
   assertValidPreparedWithdrawalWitness,
 } from "./witness";
-import { STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX } from "./zk_constants";
+import { STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX, DEFAULT_DENOMINATION } from "./zk_constants";
 import {
   PRODUCTION_MERKLE_TREE_DEPTH,
   assertMerkleDepth,
@@ -160,6 +160,7 @@ export interface PreparedWitness {
   amount: string;
   relayer: string;
   fee: string;
+  denomination: string;
 }
 
 export const PREPARED_WITHDRAWAL_WITNESS_SCHEMA = [
@@ -174,6 +175,7 @@ export const PREPARED_WITHDRAWAL_WITNESS_SCHEMA = [
   'amount',
   'relayer',
   'fee',
+  'denomination',
 ] as const;
 
 function canonicalizePreparedWitness(witness: PreparedWitness): PreparedWitness {
@@ -189,11 +191,13 @@ function canonicalizePreparedWitness(witness: PreparedWitness): PreparedWitness 
     amount: witness.amount,
     relayer: witness.relayer,
     fee: witness.fee,
+    denomination: witness.denomination,
   };
 }
 
 export interface WitnessPreparationOptions {
   merkleDepth?: number;
+  denomination?: bigint;
 }
 
 /**
@@ -258,7 +262,9 @@ export class ProofGenerator {
    * the circuit parameter list in circuits/withdraw/src/main.nr:
    *
    *   Private:  nullifier, secret, leaf_index, hash_path
-   *   Public:   pool_id, root, nullifier_hash, recipient, amount, relayer, fee
+   *   Public:   pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination
+   *
+   * ZK-030: Validates that the note amount matches the pool's fixed denomination.
    */
   static async prepareWitness(
     note: Note,
@@ -306,6 +312,16 @@ export class ProofGenerator {
       );
     }
 
+    // ZK-030: Validate denomination matches note amount
+    const expectedDenomination = options.denomination ?? DEFAULT_DENOMINATION;
+    if (note.amount !== expectedDenomination) {
+      throw new WitnessValidationError(
+        `Denomination mismatch: note amount ${note.amount} does not match pool denomination ${expectedDenomination}`,
+        "DENOMINATION",
+        "domain",
+      );
+    }
+
     const rootField = merkleNodeToField(merkleProof.root);
     const nullifierField = noteScalarToField(note.nullifier);
     const secretField = noteScalarToField(note.secret);
@@ -327,6 +343,7 @@ export class ProofGenerator {
       amount: note.amount.toString(),
       relayer: relayerField,
       fee: fee.toString(),
+      denomination: expectedDenomination.toString(),
     };
   }
 

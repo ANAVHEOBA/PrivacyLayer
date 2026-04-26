@@ -23,6 +23,28 @@ export const FIELD_MODULUS =
 export const XLM_DECIMALS = 7;
 export const STROOPS_PER_XLM = 10_000_000n;
 
+// ============================================================
+// Denomination Constants (ZK-030)
+// ============================================================
+// Fixed-denomination pools enforce that withdrawals can only
+// occur for the exact amount class of the pool. This prevents
+// amount manipulation and ensures consistency between note
+// commitments and withdrawal proofs.
+//
+// Denomination values are expressed in the smallest unit (stroops for XLM).
+// Common denominations:
+// - 100 XLM  = 1_000_000_000 stroops
+// - 1000 XLM = 10_000_000_000 stroops
+// - 10000 XLM = 100_000_000_000 stroops
+// ============================================================
+
+export const DENOMINATION_100_XLM = 1_000_000_000n;
+export const DENOMINATION_1000_XLM = 10_000_000_000n;
+export const DENOMINATION_10000_XLM = 100_000_000_000n;
+
+// Default denomination for testing (100 XLM)
+export const DEFAULT_DENOMINATION = DENOMINATION_100_XLM;
+
 /**
  * Domain separator for nullifier hashing (ZK-017).
  *
