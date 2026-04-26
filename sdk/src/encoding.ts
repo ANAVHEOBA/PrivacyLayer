@@ -89,6 +89,23 @@ export function stellarAddressToField(address: string): string {
 }
 
 /**
+ * Domain separator for nullifier hashing (ZK-017).
+ *
+ * Prefixed into every nullifier hash so the hash domain is permanently
+ * distinguished from commitment hashing (which uses COMMITMENT_HASH_DOMAIN).
+ * Any change to this constant is a breaking protocol change.
+ */
+export const NULLIFIER_HASH_DOMAIN = 'PrivacyLayer_NullifierHash_v1';
+
+/**
+ * Domain separator for commitment hashing (ZK-017).
+ *
+ * Allows tests to assert that nullifier and commitment domains are never
+ * conflated.  Must not equal NULLIFIER_HASH_DOMAIN.
+ */
+export const COMMITMENT_HASH_DOMAIN = 'PrivacyLayer_Commitment_v1';
+
+/**
  * Compute the nullifier hash: H(nullifier_field, root_field).
  *
  * The withdrawal circuit defines:
@@ -97,9 +114,42 @@ export function stellarAddressToField(address: string): string {
  * This implementation uses SHA-256 as a structural stand-in.  Replace the
  * hash call with a BN254 Pedersen implementation (e.g. @noir-lang/barretenberg)
  * before running against a real prover.
+ *
+ * @deprecated Use computeNullifierHashDomainSeparated for new code (ZK-017).
  */
 export function computeNullifierHash(nullifierField: string, rootField: string): string {
   const input = Buffer.concat([
+    Buffer.from(nullifierField.padStart(64, '0'), 'hex'),
+    Buffer.from(rootField.padStart(64, '0'), 'hex'),
+  ]);
+  const digest = createHash('sha256').update(input).digest();
+  return fieldToHex(BigInt('0x' + digest.toString('hex')) % FIELD_MODULUS);
+}
+
+/**
+ * Compute the domain-separated nullifier hash (ZK-017).
+ *
+ * Input layout:
+ *   NULLIFIER_HASH_DOMAIN (UTF-8, length-prefixed) | nullifier (32 bytes) | root (32 bytes)
+ *
+ * The domain prefix prevents hash collisions with commitment computation and
+ * any other hash that consumes the same field-element pairs.
+ *
+ * Production code must replace SHA-256 with the BN254 Pedersen hash that
+ * matches the Noir circuit.  The domain separator must be mapped into a field
+ * constant before passing to the prover.
+ */
+export function computeNullifierHashDomainSeparated(
+  nullifierField: string,
+  rootField: string
+): string {
+  const domain = Buffer.from(NULLIFIER_HASH_DOMAIN, 'utf8');
+  const domainLen = Buffer.alloc(4);
+  domainLen.writeUInt32BE(domain.length, 0);
+
+  const input = Buffer.concat([
+    domainLen,
+    domain,
     Buffer.from(nullifierField.padStart(64, '0'), 'hex'),
     Buffer.from(rootField.padStart(64, '0'), 'hex'),
   ]);
