@@ -1,6 +1,7 @@
 import { stableHash32 } from './stable';
 import { createHash } from 'crypto';
 import {
+  NOTE_BACKUP_DENOMINATION_BYTE_LENGTH,
   NOTE_BACKUP_PAYLOAD_LENGTH,
   NOTE_BACKUP_PREFIX,
   NOTE_BACKUP_VERSION,
@@ -27,13 +28,14 @@ export interface RuntimeRandomnessSourceOptions {
   enableNodeFallback?: boolean;
 }
 
-// Payload layout (107 bytes):
-//   version    1 byte
-//   nullifier 31 bytes
-//   secret    31 bytes
-//   poolId    32 bytes
-//   amount     8 bytes  (BigUInt64BE)
-//   checksum   4 bytes  (first 4 bytes of SHA-256 over all preceding bytes)
+// Payload layout (115 bytes):
+//   version       1 byte
+//   nullifier    31 bytes
+//   secret       31 bytes
+//   poolId       32 bytes
+//   amount        8 bytes  (BigUInt64BE)
+//   denomination  8 bytes  (BigUInt64BE)
+//   checksum      4 bytes  (first 4 bytes of SHA-256 over all preceding bytes)
 
 function resolveRuntimeCrypto(options: RuntimeRandomnessSourceOptions = {}): CryptoLike {
   const runtime = options.runtime ?? (globalThis as RuntimeRandomnessSourceOptions['runtime']);
@@ -107,7 +109,8 @@ export class Note {
     public readonly nullifier: Buffer,
     public readonly secret: Buffer,
     public readonly poolId: string,
-    public readonly amount: bigint
+    public readonly amount: bigint,
+    public readonly denomination: bigint = 0n
   ) {
     if (nullifier.length !== NOTE_SCALAR_BYTE_LENGTH || secret.length !== NOTE_SCALAR_BYTE_LENGTH) {
       throw new Error(`Nullifier and secret must be ${NOTE_SCALAR_BYTE_LENGTH} bytes to fit BN254 field`);
@@ -118,17 +121,21 @@ export class Note {
     if (amount < 0n || amount > MAX_NOTE_AMOUNT) {
       throw new Error(`Note amount must fit within an unsigned 64-bit integer, got ${amount}`);
     }
+    if (denomination < 0n || denomination > MAX_NOTE_AMOUNT) {
+      throw new Error(`Note denomination must fit within an unsigned 64-bit integer, got ${denomination}`);
+    }
   }
 
   /**
    * Create a new random note for a specific pool.
    */
-  static generate(poolId: string, amount: bigint, randomnessSource: RandomnessSource = defaultRandomnessSource): Note {
+  static generate(poolId: string, amount: bigint, denomination: bigint = 0n, randomnessSource: RandomnessSource = defaultRandomnessSource): Note {
     return new Note(
       Buffer.from(randomnessSource.randomBytes(NOTE_SCALAR_BYTE_LENGTH)),
       Buffer.from(randomnessSource.randomBytes(NOTE_SCALAR_BYTE_LENGTH)),
       poolId,
-      amount
+      amount,
+      denomination
     );
   }
 
@@ -136,19 +143,20 @@ export class Note {
    * Deterministic derivation for fixtures/testing only.
    * Keep this separate from production randomness.
    */
-  static deriveDeterministic(seed: Uint8Array | Buffer | string, poolId: string, amount: bigint): Note {
+  static deriveDeterministic(seed: Uint8Array | Buffer | string, poolId: string, amount: bigint, denomination: bigint = 0n): Note {
     const seedBytes = typeof seed === 'string' ? Buffer.from(seed, 'utf8') : Buffer.from(seed);
-    const nullifier = stableHash32('note-nullifier', seedBytes, poolId, amount).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
-    const secret = stableHash32('note-secret', seedBytes, poolId, amount).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
-    return new Note(Buffer.from(nullifier), Buffer.from(secret), poolId, amount);
+    const nullifier = stableHash32('note-nullifier', seedBytes, poolId, amount, denomination).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
+    const secret = stableHash32('note-secret', seedBytes, poolId, amount, denomination).subarray(0, NOTE_SCALAR_BYTE_LENGTH);
+    return new Note(Buffer.from(nullifier), Buffer.from(secret), poolId, amount, denomination);
   }
 
   /**
-   * Commitment = Poseidon2(nullifier_field, secret_field, pool_id_field).
-   * The nullifier/secret are first interpreted as 31-byte canonical field values.
+   * Commitment = Poseidon2(nullifier_field, secret_field, pool_id_field, denomination_field).
+   * The denomination field binds the note's amount class into the commitment so that
+   * notes cannot be reused across denomination pools (ZK-013).
    */
   getCommitment(): Buffer {
-    return computeNoteCommitmentBytes(this.nullifier, this.secret, this.poolId);
+    return computeNoteCommitmentBytes(this.nullifier, this.secret, this.poolId, this.denomination);
   }
 
   // ---------------------------------------------------------------------------
@@ -159,13 +167,14 @@ export class Note {
    * Export this note as a portable backup string.
    *
    * Format: `privacylayer-note:<hex>`
-   * Payload (107 bytes):
-   *   [0]      version byte (0x01)
-   *   [1..31]  nullifier (31 bytes)
-   *   [32..62] secret    (31 bytes)
-   *   [63..94] poolId    (32 bytes, decoded from hex)
-   *   [95..102] amount   (8 bytes, BigUInt64BE)
-   *   [103..106] SHA-256 checksum over bytes [0..102] (first 4 bytes)
+   * Payload (115 bytes):
+   *   [0]        version byte (0x01)
+   *   [1..31]    nullifier (31 bytes)
+   *   [32..62]   secret    (31 bytes)
+   *   [63..94]   poolId    (32 bytes, decoded from hex)
+   *   [95..102]  amount    (8 bytes, BigUInt64BE)
+   *   [103..110] denomination (8 bytes, BigUInt64BE)
+   *   [111..114] SHA-256 checksum over bytes [0..110] (first 4 bytes)
    */
   exportBackup(): string {
     const payload = Buffer.alloc(NOTE_BACKUP_PAYLOAD_LENGTH);
@@ -180,6 +189,8 @@ export class Note {
     offset += 32;
     payload.writeBigUInt64BE(this.amount, offset);
     offset += 8;
+    payload.writeBigUInt64BE(this.denomination, offset);
+    offset += NOTE_BACKUP_DENOMINATION_BYTE_LENGTH;
 
     const checksum = createHash('sha256').update(payload.subarray(0, offset)).digest();
     checksum.copy(payload, offset, 0, 4);
@@ -191,11 +202,11 @@ export class Note {
    * Import a note from a backup string produced by `exportBackup`.
    *
    * Throws `NoteBackupError` with a typed `code` field on any validation failure:
-   * - `INVALID_PREFIX`   — string does not start with the expected prefix
-   * - `INVALID_LENGTH`   — payload is not exactly 107 bytes
-   * - `INVALID_VERSION`  — version byte is not recognised
+   * - `INVALID_PREFIX`    — string does not start with the expected prefix
+   * - `INVALID_LENGTH`    — payload is not exactly 115 bytes
+   * - `INVALID_VERSION`   — version byte is not recognised
    * - `CHECKSUM_MISMATCH` — integrity check failed (truncated or corrupt data)
-   * - `CORRUPT_DATA`     — the hex payload could not be parsed
+   * - `CORRUPT_DATA`      — the hex payload could not be parsed
    */
   static importBackup(backup: string): Note {
     if (!backup.startsWith(NOTE_BACKUP_PREFIX)) {
@@ -238,9 +249,10 @@ export class Note {
       );
     }
 
-    // Verify checksum over bytes [0..102]
-    const storedChecksum = payload.subarray(103, 107);
-    const computed = createHash('sha256').update(payload.subarray(0, 103)).digest();
+    // Payload data region: bytes [0..110] (111 bytes before the 4-byte checksum)
+    const dataLength = NOTE_BACKUP_PAYLOAD_LENGTH - 4;
+    const storedChecksum = payload.subarray(dataLength, dataLength + 4);
+    const computed = createHash('sha256').update(payload.subarray(0, dataLength)).digest();
     if (!computed.subarray(0, 4).equals(storedChecksum)) {
       throw new NoteBackupError(
         'Note backup checksum mismatch: data may be corrupt or truncated',
@@ -252,8 +264,9 @@ export class Note {
     const secret = Buffer.from(payload.subarray(32, 63));
     const poolId = payload.subarray(63, 95).toString('hex');
     const amount = payload.readBigUInt64BE(95);
+    const denomination = payload.readBigUInt64BE(103);
 
-    return new Note(nullifier, secret, poolId, amount);
+    return new Note(nullifier, secret, poolId, amount, denomination);
   }
 
   // ---------------------------------------------------------------------------

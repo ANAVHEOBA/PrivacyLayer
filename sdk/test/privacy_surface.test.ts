@@ -47,7 +47,7 @@ describe('Privacy surface regression', () => {
     const backup = makeNote().exportBackup();
 
     expect(backup).toMatch(/^privacylayer-note:[0-9a-f]+$/);
-    expect(backup.length).toBe('privacylayer-note:'.length + (107 * 2));
+    expect(backup.length).toBe('privacylayer-note:'.length + (115 * 2));
     expect(backup).not.toContain('recipient');
     expect(backup).not.toContain('nullifier_hash');
     expect(backup).not.toContain('hash_path');

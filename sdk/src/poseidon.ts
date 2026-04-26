@@ -30,19 +30,22 @@ export function poseidonFieldBuffer(inputs: readonly string[]): Buffer {
 export function computeNoteCommitmentField(
   nullifier: Buffer | Uint8Array,
   secret: Buffer | Uint8Array,
-  poolId: string
+  poolId: string,
+  denomination: bigint = 0n
 ): string {
   return poseidonFieldHex([
     noteScalarToField(Buffer.from(nullifier)),
     noteScalarToField(Buffer.from(secret)),
     poolIdToField(poolId),
+    fieldToHex(denomination),
   ]);
 }
 
 export function computeNoteCommitmentBytes(
   nullifier: Buffer | Uint8Array,
   secret: Buffer | Uint8Array,
-  poolId: string
+  poolId: string,
+  denomination: bigint = 0n
 ): Buffer {
-  return Buffer.from(computeNoteCommitmentField(nullifier, secret, poolId), 'hex');
+  return Buffer.from(computeNoteCommitmentField(nullifier, secret, poolId, denomination), 'hex');
 }
