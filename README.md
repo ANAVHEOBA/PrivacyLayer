@@ -59,6 +59,11 @@ User                   PrivacyLayer SDK               Soroban Contract
 | Withdraw (prove) | ZK proof: know preimage of a commitment in the tree | Noir circuit (BN254) |
 | Withdraw (verify) | Groth16 pairing check on-chain | `bn254_pairing` host fn |
 
+Witness and verifier boundaries use canonical 32-byte BN254 field hex strings.
+The SDK normalizes 31-byte note scalars by left-padding into a single field
+element, rejects non-canonical field encodings before witness generation, and
+serializes withdrawal public inputs in the exact Noir verifier order.
+
 ---
 
 ## Repository Structure
@@ -142,17 +147,28 @@ noirup
 ### Build Circuits
 
 ```bash
-cd circuits/commitment
-nargo build       # Compile commitment circuit
-nargo test        # Run circuit tests
+cd circuits
+nargo compile --package commitment
+nargo test --package commitment
 
-cd ../withdraw
-nargo build       # Compile withdrawal circuit
-nargo test
+nargo compile --package withdraw
+nargo test --package withdraw
 
-cd ../merkle
-nargo build       # Compile merkle library
+nargo compile --package merkle
 ```
+
+### Rebuild ZK Artifacts
+
+```bash
+./scripts/rebuild-zk.sh --update-baselines
+```
+
+This regenerates:
+
+- `artifacts/zk/commitment.json`
+- `artifacts/zk/withdraw.json`
+- `artifacts/zk/manifest.json`
+- `artifacts/zk/commitment_vectors.json`
 
 ### Build Contracts
 

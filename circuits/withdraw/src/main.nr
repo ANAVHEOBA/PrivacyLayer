@@ -39,6 +39,7 @@ mod tests;
 /// - `amount`         : denomination being withdrawn
 /// - `relayer`        : optional relayer address hash (0 if none)
 /// - `fee`            : relayer fee (0 if no relayer)
+/// - `denomination`   : fixed denomination of the pool (ZK-030)
 fn main(
     // --- Private witnesses ---
     nullifier: Field,
@@ -54,6 +55,7 @@ fn main(
     amount: pub Field,
     relayer: pub Field,
     fee: pub Field,
+    denomination: pub Field,
 ) {
     // Delegate all constraint verification to the spend module
     spend::verify_withdrawal_constraints(
@@ -68,5 +70,6 @@ fn main(
         amount,
         relayer,
         fee,
+        denomination,
     );
 }

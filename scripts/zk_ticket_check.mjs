@@ -48,17 +48,31 @@ function printHelp() {
       '  node scripts/zk_ticket_check.mjs --issue-key ZK-001 --changed-files-path /tmp/files.txt',
       '',
       'Options:',
-      '  --issue-key <ZK-###>         Required issue key from ops/github/waves/zk-wave-1.mjs',
+      '  --issue-key <ZK-###>         Required issue key from ops/github/waves/zk-wave-*.mjs',
       '  --run                        Execute the derived validation commands',
       '  --changed-files-path <path>  Optional newline-separated changed file list to compare with issue scope',
     ].join('\n'),
   );
 }
 
-async function loadWave() {
-  const moduleUrl = pathToFileURL(path.join(repoRoot, 'ops', 'github', 'waves', 'zk-wave-1.mjs')).href;
-  const { default: wave } = await import(moduleUrl);
-  return wave;
+async function loadWaves() {
+  const wavesDir = path.join(repoRoot, 'ops', 'github', 'waves');
+  const filenames = fs
+    .readdirSync(wavesDir)
+    .filter((name) => name.startsWith('zk-wave-') && name.endsWith('.mjs'))
+    .sort();
+
+  const waves = [];
+  for (const filename of filenames) {
+    const moduleUrl = pathToFileURL(path.join(wavesDir, filename)).href;
+    const { default: wave } = await import(moduleUrl);
+    waves.push({
+      id: filename.replace(/\.mjs$/, ''),
+      wave,
+    });
+  }
+
+  return waves;
 }
 
 function unique(items) {
@@ -85,6 +99,7 @@ function refsToPackages(issue) {
   const refs = [...(issue.references ?? []), ...(issue.codeAreas ?? [])];
   const hasSdk = refs.some((ref) => ref.startsWith('sdk/'));
   const hasCircuits = refs.some((ref) => ref.startsWith('circuits/'));
+  const hasContracts = refs.some((ref) => ref.startsWith('contracts/'));
   const packages = new Set();
 
   if (refs.some((ref) => ref.startsWith('circuits/commitment/'))) {
@@ -105,13 +120,14 @@ function refsToPackages(issue) {
   return {
     hasSdk,
     hasCircuits,
+    hasContracts,
     packages: Array.from(packages),
   };
 }
 
 function buildChecks(issue) {
   const { area } = issue;
-  const { hasSdk, hasCircuits, packages } = refsToPackages(issue);
+  const { hasSdk, hasCircuits, hasContracts, packages } = refsToPackages(issue);
   const checks = [];
   const nargo = resolveNargoBinary();
 
@@ -176,6 +192,14 @@ function buildChecks(issue) {
       name: 'SDK TypeScript build',
       cwd: 'sdk',
       command: ['npm', 'run', 'build'],
+    });
+  }
+
+  if (hasContracts) {
+    checks.push({
+      name: 'Soroban contract tests',
+      cwd: 'contracts',
+      command: ['cargo', 'test'],
     });
   }
 
@@ -259,16 +283,28 @@ async function main() {
     fail('Provide a valid issue key with `--issue-key ZK-###`.');
   }
 
-  const wave = await loadWave();
-  const issue = wave.issues.find((candidate) => candidate.key === options.issueKey);
-  if (!issue) {
-    fail(`Issue ${options.issueKey} was not found in zk-wave-1.`);
+  const waves = await loadWaves();
+  const matches = waves.flatMap(({ id, wave }) =>
+    wave.issues
+      .filter((candidate) => candidate.key === options.issueKey)
+      .map((issue) => ({ id, wave, issue })),
+  );
+
+  if (matches.length === 0) {
+    fail(`Issue ${options.issueKey} was not found in ops/github/waves/zk-wave-*.mjs.`);
   }
+  if (matches.length > 1) {
+    fail(`Issue ${options.issueKey} is defined in multiple wave files: ${matches.map((match) => match.id).join(', ')}`);
+  }
+
+  const [{ id: waveId, wave, issue }] = matches;
 
   const checks = buildChecks(issue);
   const changedFiles = compareChangedFiles(issue, options.changedFilesPath);
 
   console.log(`${issue.key}: ${issue.title}`);
+  console.log(`Wave File: ${waveId}`);
+  console.log(`Wave Title: ${wave.title}`);
   console.log(`Area: ${issue.area}`);
   console.log(`Priority: ${issue.priority}`);
   console.log(`Complexity: ${issue.complexity}`);

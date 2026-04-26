@@ -1,5 +1,5 @@
 use super::main;
-use lib::validation::test_helpers::WithdrawalBuilder;
+use lib::validation::test_helpers::{WithdrawalBuilder, build_sparse_path};
 use lib::hash;
 use lib::merkle;
 
@@ -299,7 +299,7 @@ fn test_leaf_index_exceeds_tree_capacity() {
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
 
     // Build a valid path at index 0, then attempt with invalid index 2^20
-    let (hash_path, root) = build_path_at(commitment, 0);
+    let (hash_path, root) = build_sparse_path(commitment, 0);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
     // 2^20 = 1,048,576 -- first invalid index
@@ -316,7 +316,7 @@ fn test_leaf_index_large_out_of_range() {
     let pool_id: Field   = 1;
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
 
-    let (hash_path, root) = build_path_at(commitment, 0);
+    let (hash_path, root) = build_sparse_path(commitment, 0);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
     // Far outside valid range
@@ -335,7 +335,7 @@ fn test_leaf_index_zero_boundary() {
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let leaf_index: Field = 0;
 
-    let (hash_path, root) = build_path_at(commitment, leaf_index);
+    let (hash_path, root) = build_sparse_path(commitment, leaf_index);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
     main(
@@ -353,7 +353,7 @@ fn test_leaf_index_max_boundary() {
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let leaf_index: Field = 1_048_575;
 
-    let (hash_path, root) = build_path_at(commitment, leaf_index);
+    let (hash_path, root) = build_sparse_path(commitment, leaf_index);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
     main(
@@ -371,7 +371,7 @@ fn test_leaf_index_high_bit_only() {
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let leaf_index: Field = 524_288;
 
-    let (hash_path, root) = build_path_at(commitment, leaf_index);
+    let (hash_path, root) = build_sparse_path(commitment, leaf_index);
     let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
 
     main(

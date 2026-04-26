@@ -18,6 +18,8 @@ function parseArgs(argv) {
   const options = {
     author: '@me',
     dryRun: false,
+    fromKey: '',
+    skipExisting: false,
     yes: false,
   };
 
@@ -30,6 +32,10 @@ function parseArgs(argv) {
       options.author = argv[++i];
     } else if (arg === '--dry-run') {
       options.dryRun = true;
+    } else if (arg === '--from-key') {
+      options.fromKey = argv[++i];
+    } else if (arg === '--skip-existing') {
+      options.skipExisting = true;
     } else if (arg === '--yes') {
       options.yes = true;
     } else {
@@ -241,20 +247,42 @@ async function deleteIssues(repo, author, dryRun, yes) {
   }
 }
 
-async function createWave(repo, waveId, dryRun) {
+async function createWave(repo, waveId, dryRun, { fromKey = '', skipExisting = false } = {}) {
   ensureGh();
   ensureGhAuth();
 
   const wave = await loadWave(waveId);
-  console.log(`Creating ${wave.issues.length} issues for ${wave.title}.`);
+  let issues = wave.issues;
 
-  for (const issue of wave.issues) {
+  if (fromKey) {
+    const startIndex = issues.findIndex((issue) => issue.key === fromKey);
+    if (startIndex === -1) {
+      fail(`Issue key "${fromKey}" was not found in wave "${waveId}".`);
+    }
+    issues = issues.slice(startIndex);
+  }
+
+  let existingTitles = new Set();
+  if (skipExisting) {
+    const existingIssues = listIssues(repo, '');
+    existingTitles = new Set(existingIssues.map((issue) => issue.title));
+  }
+
+  console.log(`Creating ${issues.length} issues for ${wave.title}.`);
+
+  for (const issue of issues) {
+    const title = `${issue.key}: ${issue.title}`;
+    if (skipExisting && existingTitles.has(title)) {
+      console.log(`Skipping existing ${title}`);
+      continue;
+    }
+
     const labels = issueLabels(wave, issue);
     const args = [
       'issue',
       'create',
       '--title',
-      `${issue.key}: ${issue.title}`,
+      title,
       '--body',
       renderBody(wave, issue),
       '-R',
@@ -289,7 +317,7 @@ async function main() {
       [
         'Usage:',
         '  node scripts/github_issue_ops.mjs labels [--repo OWNER/REPO] [--dry-run]',
-        '  node scripts/github_issue_ops.mjs create-wave <wave-id> [--repo OWNER/REPO] [--dry-run]',
+        '  node scripts/github_issue_ops.mjs create-wave <wave-id> [--repo OWNER/REPO] [--from-key ZK-###] [--skip-existing] [--dry-run]',
         '  node scripts/github_issue_ops.mjs delete-issues [--repo OWNER/REPO] [--author USER|@me] [--dry-run] [--yes]',
         '  node scripts/github_issue_ops.mjs reset-wave <wave-id> [--repo OWNER/REPO] [--author USER|@me] [--dry-run] [--yes]',
       ].join('\n'),
@@ -311,7 +339,10 @@ async function main() {
   }
 
   if (command === 'create-wave') {
-    await createWave(repo, waveId, options.dryRun);
+    await createWave(repo, waveId, options.dryRun, {
+      fromKey: options.fromKey,
+      skipExisting: options.skipExisting,
+    });
     return;
   }
 

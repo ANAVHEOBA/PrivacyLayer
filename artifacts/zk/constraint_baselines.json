@@ -1,16 +1,16 @@
 {
   "comment": "Update only when changing circuits intentionally. ACIR opcode counts for main(). Run: node scripts/check_circuit_constraints.mjs from repo root.",
   "nargo": {
-    "version_line": "nargo version = 1.0.0-beta.3"
+    "version_line": "nargo version = 1.0.0-beta.20"
   },
   "circuits": {
     "withdraw": {
       "function": "main",
-      "acir_opcodes": 198
+      "acir_opcodes": 1592
     },
     "commitment": {
       "function": "main",
-      "acir_opcodes": 6
+      "acir_opcodes": 3
     }
   }
 }

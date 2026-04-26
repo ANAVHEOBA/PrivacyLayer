@@ -5,4 +5,15 @@
  * and proving systems.
  */
 
-export { NoirBackend, NoirBackendConfig, NoirArtifacts, createBarretenbergBackend } from './noir';
+export {
+  ArtifactManifestError,
+  NoirBackend,
+  NoirBackendConfig,
+  NoirArtifacts,
+  ZkArtifactManifest,
+  ZkArtifactManifestBackend,
+  ZkArtifactManifestCircuit,
+  ZkArtifactManifestFile,
+  assertManifestMatchesNoirArtifacts,
+  createBarretenbergBackend,
+} from './noir';

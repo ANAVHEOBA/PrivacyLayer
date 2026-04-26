@@ -5,7 +5,10 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
-const baselinesPath = path.join(repoRoot, 'artifacts', 'zk', 'constraint_baselines.json');
+
+// ZK-041: Accept version parameter for versioned artifact layout
+const zkVersion = process.argv[2] || '1';
+const baselinesPath = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`, 'constraint_baselines.json');
 const nargo = process.env.NARGO_BIN || 'nargo';
 
 function runNargoInfoJson(pkg) {
@@ -27,15 +30,36 @@ function mainOpCount(program) {
 }
 
 function main() {
-  console.log('Updating constraint baselines...');
-  const baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf8'));
+  console.log(`Updating constraint baselines for version ${zkVersion}...`);
+  
+  // ZK-041: Create directory if it doesn't exist
+  if (!fs.existsSync(path.dirname(baselinesPath))) {
+    fs.mkdirSync(path.dirname(baselinesPath), { recursive: true });
+  }
+
+  // ZK-041: Initialize baselines structure if it doesn't exist
+  let baselines;
+  if (fs.existsSync(baselinesPath)) {
+    baselines = JSON.parse(fs.readFileSync(baselinesPath, 'utf8'));
+  } else {
+    baselines = {
+      version: zkVersion,
+      nargo: {},
+      circuits: {},
+    };
+  }
 
   const versionResult = spawnSync(nargo, ['--version'], { encoding: 'utf8' });
   if (versionResult.status === 0) {
     baselines.nargo.version_line = versionResult.stdout.split('\n')[0]?.trim();
   }
 
-  for (const pkg of ['withdraw', 'commitment']) {
+  // ZK-041: Update circuits list to include merkle
+  for (const pkg of ['withdraw', 'commitment', 'merkle']) {
+    if (!baselines.circuits[pkg]) {
+      baselines.circuits[pkg] = {};
+    }
+    
     const out = runNargoInfoJson(pkg);
     if (!out) continue;
     const prog = (out.programs || [])[0];

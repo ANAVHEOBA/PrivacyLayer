@@ -14,7 +14,8 @@ export class WitnessValidationError extends Error {
       | 'ADDRESS'
       | 'WITNESS_SEMANTICS'
       | 'PUBLIC_INPUT_SCHEMA'
-      | 'PROOF_FORMAT',
+      | 'PROOF_FORMAT'
+      | 'DENOMINATION',
     public readonly reason?: 'structure' | 'domain'
   ) {
     super(message);
