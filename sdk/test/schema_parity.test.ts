@@ -107,16 +107,17 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
       expect(publicInputsSchema).toContain('denomination');
     });
 
-    it('should exclude pool_id and denomination from contract verifier schema', () => {
-      // Contract verifier doesn't receive pool_id and denomination
-      expect(contractVerifierSchema).not.toContain('pool_id');
-      expect(contractVerifierSchema).not.toContain('denomination');
+    it('should include pool_id and denomination in contract verifier schema (ZK-087)', () => {
+      // ZK-087: Contract verifier now receives all public inputs for parity
+      expect(contractVerifierSchema).toContain('pool_id');
+      expect(contractVerifierSchema).toContain('denomination');
     });
 
-    it('should have contract verifier schema as a subset of full schema', () => {
+    it('should have contract verifier schema match full schema exactly (ZK-087)', () => {
       // All contract verifier fields should be in the full schema
-      for (const field of contractVerifierSchema) {
-        expect(publicInputsSchema).toContain(field);
+      expect(contractVerifierSchema.length).toBe(publicInputsSchema.length);
+      for (let i = 0; i < publicInputsSchema.length; i++) {
+        expect(contractVerifierSchema[i]).toBe(publicInputsSchema[i]);
       }
     });
   });
@@ -209,6 +210,23 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
       // encoding.ts should match circuit order exactly
       for (let i = 0; i < expectedCircuitOrder.length; i++) {
         expect(encodingSchema[i]).toBe(expectedCircuitOrder[i]);
+      }
+    });
+  });
+
+  describe('Artifact Schema Parity (ZK-087)', () => {
+    it('should match the verifier_schema.json artifact', () => {
+      const fs = require('fs');
+      const path = require('path');
+      const schemaPath = path.resolve(__dirname, '../../artifacts/zk/v1/verifier_schema.json');
+      
+      if (fs.existsSync(schemaPath)) {
+        const schema = JSON.parse(fs.readFileSync(schemaPath, 'utf8'));
+        const artifactInputNames = schema.public_inputs.map((i: any) => i.name);
+        
+        expect(Array.from(publicInputsSchema)).toEqual(artifactInputNames);
+        expect(Array.from(contractVerifierSchema)).toEqual(artifactInputNames);
+        expect(Array.from(encodingSchema)).toEqual(artifactInputNames);
       }
     });
   });

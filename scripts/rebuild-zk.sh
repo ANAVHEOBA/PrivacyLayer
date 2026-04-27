@@ -55,6 +55,9 @@ node scripts/generate_commitment_vectors.mjs "$ZK_VERSION"
 echo "📝 Refreshing manifest..."
 node scripts/refresh_manifest.mjs "$ZK_VERSION"
 
+echo "📜 Emitting verifier schema..."
+node scripts/generate_verifier_schema.mjs "$ZK_VERSION"
+
 # ZK-086: Remove stale, legacy copies that keep old layouts half-alive
 echo "🧹 Removing legacy unversioned artifacts..."
 rm -f artifacts/zk/*.json

@@ -87,9 +87,9 @@ impl PrivacyPool {
         view::withdraw_count(env)
     }
 
-    /// Check if a root is in the historical root buffer.
-    pub fn is_known_root(env: Env, root: BytesN<32>) -> bool {
-        view::is_known_root(env, root)
+    /// Check if a nullifier has been spent in a specific pool.
+    pub fn is_spent(env: Env, pool_id: PoolId, nullifier_hash: BytesN<32>) -> bool {
+        view::is_spent(env, pool_id, nullifier_hash)
     }
 
     /// Returns the configuration for a specific pool.

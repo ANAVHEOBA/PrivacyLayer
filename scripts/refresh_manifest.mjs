@@ -155,10 +155,17 @@ function main() {
     manifest.circuits[name].bytecode_sha256 = checksums.bytecode_sha256;
     manifest.circuits[name].abi_sha256 = checksums.abi_sha256;
     
-    // Production artifact depth is fixed for this protocol version.
+    // Production artifact depth and schema (ZK-087)
     if (name === 'withdraw') {
       manifest.circuits[name].root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-      manifest.circuits[name].public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
+      
+      const verifierSchemaPath = path.join(artifactsDir, 'verifier_schema.json');
+      if (fs.existsSync(verifierSchemaPath)) {
+        const schema = JSON.parse(fs.readFileSync(verifierSchemaPath, 'utf8'));
+        manifest.circuits[name].public_input_schema = schema.public_inputs.map(i => i.name);
+      } else {
+        manifest.circuits[name].public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
+      }
     }
   }
 

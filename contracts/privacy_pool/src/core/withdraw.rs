@@ -30,6 +30,14 @@ pub fn execute(
     // Step 2: Check nullifier not already spent in this pool
     validation::require_nullifier_unspent(&env, &pool_id, &pub_inputs.nullifier_hash)?;
 
+    // Step 2.5: Validate pool-id and denomination binding
+    if pub_inputs.pool_id != pool_id.0 {
+        return Err(Error::InvalidPoolId);
+    }
+    if pub_inputs.denomination != pool_config.denomination.encode_as_field(&env) {
+        return Err(Error::InvalidDenomination);
+    }
+
     // Step 3: Validate and decode fee
     let fee = validation::decode_and_validate_fee(&pub_inputs.fee, denomination_amount)?;
 

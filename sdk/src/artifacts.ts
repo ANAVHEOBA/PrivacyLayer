@@ -133,6 +133,18 @@ export function getProvingKeyPath(circuitName: string, version: string = ZK_ARTI
 }
 
 /**
+ * Filename for the verifier schema artifact.
+ */
+export const VERIFIER_SCHEMA_FILENAME = 'verifier_schema.json';
+
+/**
+ * Get the verifier schema path for a specific version.
+ */
+export function getVerifierSchemaPath(version: string = ZK_ARTIFACT_VERSION): string {
+  return join(getVersionedArtifactsDir(version), VERIFIER_SCHEMA_FILENAME);
+}
+
+/**
  * Known circuit names in the PrivacyLayer system.
  */
 export const CIRCUIT_NAMES = {
@@ -170,6 +182,8 @@ export const ARTIFACT_LAYOUT = {
   getProvingKeyPath,
   CIRCUIT_NAMES,
   getKnownCircuitPath,
+  VERIFIER_SCHEMA_FILENAME,
+  getVerifierSchemaPath,
 } as const;
 /**
  * Browser-compatible artifact loader that fetches versioned artifacts from URLs

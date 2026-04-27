@@ -265,7 +265,7 @@ fn create_dummy_proof(env: &Env) -> crate::types::state::Proof {
 
 fn create_dummy_vk(env: &Env) -> crate::types::state::VerifyingKey {
     let mut ic = soroban_sdk::Vec::new(env);
-    for i in 0..7 {
+    for i in 0..9 {
         let point = BytesN::<64>::from_array(env, &[(i + 1) as u8; 64]);
         ic.push_back(point);
     }

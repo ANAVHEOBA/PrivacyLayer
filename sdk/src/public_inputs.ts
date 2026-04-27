@@ -234,17 +234,9 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
 
 /**
  * Order of public inputs expected by the contract verifier.
- * Matches the order in contracts/privacy_pool/src/crypto/verifier.rs.
- * Note: pool_id and denomination are SDK-only validation inputs.
+ * Matches the circuit's parameter order for BN254 pairing checks.
  */
-export const CONTRACT_VERIFIER_INPUT_SCHEMA = [
-  'root',
-  'nullifier_hash',
-  'recipient',
-  'amount',
-  'relayer',
-  'fee',
-] as const;
+export const CONTRACT_VERIFIER_INPUT_SCHEMA = WITHDRAWAL_PUBLIC_INPUT_SCHEMA;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
 export type ContractVerifierInputKey = (typeof CONTRACT_VERIFIER_INPUT_SCHEMA)[number];
@@ -351,12 +343,14 @@ export function serializeContractVerifierInputs(
   source: WithdrawalPublicInputs
 ): SerializedContractVerifierInputs {
   const values: ContractVerifierInputs = {
+    pool_id: source.pool_id,
     root: source.root,
     nullifier_hash: source.nullifier_hash,
     recipient: source.recipient,
     amount: source.amount,
     relayer: source.relayer,
     fee: source.fee,
+    denomination: source.denomination,
   };
 
   const fields = CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => values[key]);

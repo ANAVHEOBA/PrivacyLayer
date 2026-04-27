@@ -25,19 +25,21 @@ pub struct PoolId(pub BytesN<32>);
 pub enum DataKey {
     /// Contract configuration (admin, etc.) - GLOBAL
     Config,
-    /// Current Merkle tree state (root index, next leaf index)
-    TreeState,
-    /// Historical Merkle roots — DataKey::Root(index) → BytesN<32>
-    Root(u32),
-    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(level) → BytesN<32>
-    FilledSubtree(u32),
-    /// Spent nullifier hashes — DataKey::Nullifier(hash) → bool
-    Nullifier(BytesN<32>),
-    /// Verification key for the Groth16 proof system
-    VerifyingKey,
-    /// Aggregate analytics counters (no user-identifiable data)
+    /// Pool configuration for a specific pool — DataKey::PoolConfig(pool_id) → PoolConfig
+    PoolConfig(PoolId),
+    /// Current Merkle tree state (root index, next leaf index) per pool
+    TreeState(PoolId),
+    /// Historical Merkle roots — DataKey::Root(pool_id, index) → BytesN<32>
+    Root(PoolId, u32),
+    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(pool_id, level) → BytesN<32>
+    FilledSubtree(PoolId, u32),
+    /// Spent nullifier hashes — DataKey::Nullifier(pool_id, hash) → bool
+    Nullifier(PoolId, BytesN<32>),
+    /// Verification key for the Groth16 proof system per pool
+    VerifyingKey(PoolId),
+    /// Aggregate analytics counters (no user-identifiable data) - GLOBAL
     AnalyticsState,
-    /// Fixed-size hourly analytics buckets for trend charts
+    /// Fixed-size hourly analytics buckets for trend charts - GLOBAL
     AnalyticsBucket(u32),
 }
 
@@ -72,6 +74,14 @@ impl Denomination {
             Denomination::Usdc100  =>      100_000_000, // 100 USDC (6 dec)
             Denomination::Usdc1000 =>    1_000_000_000, // 1000 USDC
         }
+    }
+
+    /// Encodes the denomination amount as a 32-byte big-endian field element.
+    pub fn encode_as_field(&self, env: &Env) -> BytesN<32> {
+        let mut bytes = [0u8; 32];
+        let amount_be = self.amount().to_be_bytes();
+        bytes[16..32].copy_from_slice(&amount_be); // i128 is 16 bytes
+        BytesN::from_array(env, &bytes)
     }
 }
 
@@ -112,14 +122,14 @@ pub struct TreeState {
 /// Groth16 verifying key — stored on-chain and used to verify withdrawal proofs.
 /// Encoded as raw bytes (G1/G2 points on BN254, uncompressed).
 ///
-/// Structure (Groth16 VK for 6 public inputs):
+/// Structure (Groth16 VK for 8 public inputs):
 ///   alpha_g1   : 64 bytes (G1 point)
 ///   beta_g2    : 128 bytes (G2 point)
 ///   gamma_g2   : 128 bytes (G2 point)
 ///   delta_g2   : 128 bytes (G2 point)
-///   gamma_abc  : 7 * 64 bytes (one G1 point per public input + 1)
+///   gamma_abc  : 9 * 64 bytes (one G1 point per public input + 1)
 ///
-/// Total: 64 + 128 + 128 + 128 + (7 * 64) = 896 bytes
+/// Total: 64 + 128 + 128 + 128 + (9 * 64) = 1024 bytes
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct VerifyingKey {
@@ -131,8 +141,8 @@ pub struct VerifyingKey {
     pub gamma_g2: BytesN<128>,
     /// G2 point: delta
     pub delta_g2: BytesN<128>,
-    /// G1 points for public input combination: [IC_0, IC_1, ..., IC_6]
-    /// One per public input (root, nullifier_hash, recipient, amount, relayer, fee) + IC_0
+    /// G1 points for public input combination: [IC_0, IC_1, ..., IC_8]
+    /// One per public input (pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination) + IC_0
     pub gamma_abc_g1: soroban_sdk::Vec<BytesN<64>>,
 }
 
@@ -146,18 +156,22 @@ pub struct VerifyingKey {
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct PublicInputs {
+    /// unique identifier for the shielded pool
+    pub pool_id: BytesN<32>,
     /// Root of the Merkle tree at deposit time (must be a known historical root)
     pub root: BytesN<32>,
     /// Poseidon2(nullifier, root) — prevents double-spend
     pub nullifier_hash: BytesN<32>,
     /// Stellar address of the withdrawal recipient (as field element)
     pub recipient: BytesN<32>,
-    /// Denomination amount being withdrawn
+    /// Amount being withdrawn (as field element)
     pub amount: BytesN<32>,
     /// Relayer address (zero if none)
     pub relayer: BytesN<32>,
     /// Relayer fee (zero if none)
     pub fee: BytesN<32>,
+    /// Fixed denomination of the pool
+    pub denomination: BytesN<32>,
 }
 
 /// Groth16 proof — three elliptic curve points on BN254.
