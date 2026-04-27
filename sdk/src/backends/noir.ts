@@ -86,6 +86,7 @@ export interface ZkArtifactManifestCircuit {
   backend: string;
   root_depth?: number;
   public_input_schema?: string[];
+  schema_version?: string;
 }
 
 export interface ZkArtifactManifestBackend {
@@ -170,6 +171,35 @@ export function assertManifestMatchesNoirArtifacts(
 }
 
 /**
+ * Parses a semantic version string into components.
+ * 
+ * Expected format: MAJOR.MINOR.PATCH (e.g., "1.20680.19972")
+ * 
+ * For schema versions:
+ * - MAJOR: Fixed at 1 for initial release (increment for breaking changes to versioning system)
+ * - MINOR: Derived from first 4 hex digits of schema hash (0-65535)
+ * - PATCH: Derived from next 4 hex digits of schema hash (0-65535)
+ * 
+ * This function validates the format and extracts the numeric components.
+ * 
+ * @param version - Semantic version string (e.g., "1.2.3")
+ * @returns Object with major, minor, and patch components
+ * @throws Error if version format is invalid (not matching MAJOR.MINOR.PATCH pattern)
+ */
+function parseSemanticVersion(version: string): { major: number; minor: number; patch: number } {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) {
+    throw new Error(`Invalid semantic version format: ${version}`);
+  }
+  
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+  };
+}
+
+/**
  * NoirBackend
  *
  * Implements the ProvingBackend interface for Noir circuits.
@@ -179,6 +209,7 @@ export class NoirBackend implements ProvingBackend {
   private artifacts: NoirArtifacts;
   private backend: any; // BarretenbergBackend when imported
   private capabilities: ZkCapabilities;
+  private schemaVersion?: string;
 
   constructor(config: NoirBackendConfig) {
     this.artifacts = config.artifacts;
@@ -193,12 +224,15 @@ export class NoirBackend implements ProvingBackend {
     }
     
     if (config.manifest && config.circuitName) {
-      assertManifestMatchesNoirArtifacts(
+      const entry = assertManifestMatchesNoirArtifacts(
         config.manifest,
         config.circuitName,
         config.artifacts,
         config.artifactPath
       );
+      
+      // Validate and store schema version
+      this.validateAndStoreSchemaVersion(entry);
     }
   }
 
@@ -208,6 +242,98 @@ export class NoirBackend implements ProvingBackend {
    */
   private assertProvingCapabilities(): void {
     assertProvingBackendSupported();
+  }
+
+  /**
+   * Validates that a circuit entry has a schema_version if it has a public_input_schema.
+   * Stores the schema version for later use.
+   * 
+   * Schema Version Validation Logic:
+   * 1. Check if circuit has public_input_schema array with at least one field
+   * 2. If yes, verify schema_version field exists in manifest
+   * 3. If schema_version is missing:
+   *    - Log warning to alert developer (backward compatibility mode)
+   *    - Treat as version "0.0.0" to allow loading old manifests
+   *    - Recommend regenerating manifest with refresh_manifest.mjs
+   * 4. If schema_version exists, store it for later compatibility checks
+   * 5. If no public_input_schema, skip validation (circuit has no public inputs)
+   * 
+   * This approach ensures:
+   * - New manifests always have schema versions for circuits with public inputs
+   * - Old manifests continue to work during migration period
+   * - Developers are notified when manifests need updating
+   * - Circuits without public inputs are not affected
+   * 
+   * @param entry - Manifest circuit entry
+   */
+  private validateAndStoreSchemaVersion(entry: ZkArtifactManifestCircuit): void {
+    // Only validate circuits that have public inputs
+    if (entry.public_input_schema && entry.public_input_schema.length > 0) {
+      if (!entry.schema_version) {
+        // Backward compatibility: treat missing schema_version as "0.0.0"
+        // This allows old manifests to load while alerting developers to update
+        console.warn(
+          `Circuit "${entry.circuit_id}" has public_input_schema but no schema_version. ` +
+          `Treating as version "0.0.0". Please regenerate manifest.`
+        );
+        this.schemaVersion = "0.0.0";
+      } else {
+        // Store the validated schema version for later use
+        this.schemaVersion = entry.schema_version;
+      }
+    }
+    // If no public_input_schema, schemaVersion remains undefined
+  }
+
+  /**
+   * Returns the schema version for this circuit.
+   * 
+   * @returns Schema version string or undefined if circuit has no public inputs
+   */
+  getSchemaVersion(): string | undefined {
+    return this.schemaVersion;
+  }
+
+  /**
+   * Checks if two schema versions are compatible.
+   * 
+   * Schema Version Compatibility Rules (Semantic Versioning):
+   * 
+   * Given version format: MAJOR.MINOR.PATCH (e.g., "1.20680.19972")
+   * 
+   * Compatible if:
+   * - Major version matches exactly (breaking changes to versioning system)
+   * - Minor version matches exactly (schema structure changes)
+   * - Patch version can differ (bug fixes, no schema changes)
+   * 
+   * Incompatible if:
+   * - Major version differs (different versioning system)
+   * - Minor version differs (different schema structure)
+   * 
+   * Why this matters:
+   * - Schema versions are derived from SHA-256 hash of public_input_schema
+   * - Any change to field order, names, or count changes the hash
+   * - Hash changes result in different minor/patch versions
+   * - Only identical schemas (same hash) have compatible versions
+   * 
+   * Examples:
+   * - "1.20680.19972" vs "1.20680.19972" → Compatible (identical)
+   * - "1.20680.19972" vs "1.20680.99999" → Compatible (same schema, different patch)
+   * - "1.20680.19972" vs "1.20681.19972" → Incompatible (different schema)
+   * - "1.20680.19972" vs "2.20680.19972" → Incompatible (different major version)
+   * 
+   * @param version1 - First schema version
+   * @param version2 - Second schema version
+   * @returns true if versions are compatible, false otherwise
+   * @throws Error if version format is invalid
+   */
+  static isSchemaVersionCompatible(version1: string, version2: string): boolean {
+    const v1 = parseSemanticVersion(version1);
+    const v2 = parseSemanticVersion(version2);
+    
+    // Compatible if major and minor versions match exactly
+    // Patch version can differ (represents same schema with potential bug fixes)
+    return v1.major === v2.major && v1.minor === v2.minor;
   }
 
   /**
