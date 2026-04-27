@@ -35,6 +35,65 @@ import { StrKey } from '@stellar/stellar-base';
 import { WitnessValidationError } from './errors';
 
 // ============================================================
+// Utility Functions
+// ============================================================
+
+const FIELD_HEX = /^[0-9a-fA-F]{64}$/;
+const HEX_PAYLOAD = /^[0-9a-fA-F]+$/;
+
+function stripHexPrefix(hex: string): string {
+  return hex.startsWith('0x') ? hex.slice(2) : hex;
+}
+
+function assertHexPayload(hex: string, label: string): string {
+  const clean = stripHexPrefix(hex);
+  if (clean.length === 0 || !HEX_PAYLOAD.test(clean) || clean.length % 2 !== 0) {
+    throw new Error(`${label} must be an even-length hex string`);
+  }
+  return clean.toLowerCase();
+}
+
+function assertByteLength(buf: Buffer, expectedLength: number, label: string): void {
+  if (buf.length !== expectedLength) {
+    throw new Error(`${label} must be ${expectedLength} bytes, got ${buf.length}`);
+  }
+}
+
+/**
+ * Convert hex string to Buffer with validation.
+ */
+export function hexToBytes(
+  value: string,
+  label: string = 'hex value',
+  expectedByteLength?: number
+): Buffer {
+  const clean = assertHexPayload(value, label);
+  const bytes = Buffer.from(clean, 'hex');
+  if (expectedByteLength !== undefined) {
+    assertByteLength(bytes, expectedByteLength, label);
+  }
+  return bytes;
+}
+
+/**
+ * Convert Buffer to hex string.
+ */
+export function bytesToHex(value: Buffer | Uint8Array): string {
+  return Buffer.from(value).toString('hex');
+}
+
+/**
+ * Convert a canonical field hex string to Buffer.
+ */
+export function fieldHexToBuffer(value: string, label: string = 'field'): Buffer {
+  const clean = stripHexPrefix(value);
+  if (!FIELD_HEX.test(clean)) {
+    throw new Error(`${label} must be a 64-digit hex string`);
+  }
+  return Buffer.from(clean, 'hex');
+}
+
+// ============================================================
 // Field Element Encoding
 // ============================================================
 
@@ -191,6 +250,10 @@ export function encodeDenomination(denomination: bigint): string {
   }
   return fieldToHex(denomination);
 }
+
+// ============================================================
+// Additional Utility Functions (Consolidated from encoding.ts)
+// ============================================================
 
 /**
  * Computes the domain-separated nullifier hash: H(DOMAIN, nullifier, pool_id) (ZK-035).

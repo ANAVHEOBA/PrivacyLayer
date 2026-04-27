@@ -38,7 +38,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "i128": "200000000000"
+                  "i128": "50000000000"
                 }
               ]
             }
@@ -60,7 +60,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
                 },
                 {
-                  "i128": "200000000000"
+                  "i128": "50000000000"
                 }
               ]
             }
@@ -82,7 +82,7 @@
                 {
                   "vec": [
                     {
-                      "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                     }
                   ]
                 },
@@ -175,6 +175,7 @@
         }
       ]
     ],
+    [],
     [
       [
         "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
@@ -187,7 +188,7 @@
                 {
                   "vec": [
                     {
-                      "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                      "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                     }
                   ]
                 },
@@ -195,7 +196,7 @@
                   "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
                 },
                 {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000201"
+                  "bytes": "0201010101010101010101010101010101010101010101010101010101010101"
                 }
               ]
             }
@@ -225,109 +226,6 @@
         }
       ]
     ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-              "function_name": "deposit",
-              "args": [
-                {
-                  "vec": [
-                    {
-                      "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
-                    }
-                  ]
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
-                },
-                {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000302"
-                }
-              ]
-            }
-          },
-          "sub_invocations": [
-            {
-              "function": {
-                "contract_fn": {
-                  "contract_address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
-                  "function_name": "transfer",
-                  "args": [
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM"
-                    },
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                    },
-                    {
-                      "i128": "1000000000"
-                    }
-                  ]
-                }
-              },
-              "sub_invocations": []
-            }
-          ]
-        }
-      ]
-    ],
-    [
-      [
-        "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-        {
-          "function": {
-            "contract_fn": {
-              "contract_address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-              "function_name": "deposit",
-              "args": [
-                {
-                  "vec": [
-                    {
-                      "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
-                    }
-                  ]
-                },
-                {
-                  "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                },
-                {
-                  "bytes": "0000000000000000000000000000000000000000000000000000000000000403"
-                }
-              ]
-            }
-          },
-          "sub_invocations": [
-            {
-              "function": {
-                "contract_fn": {
-                  "contract_address": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
-                  "function_name": "transfer",
-                  "args": [
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4"
-                    },
-                    {
-                      "address": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4"
-                    },
-                    {
-                      "i128": "1000000000"
-                    }
-                  ]
-                }
-              },
-              "sub_invocations": []
-            }
-          ]
-        }
-      ]
-    ],
-    [],
-    [],
-    [],
     [],
     []
   ],
@@ -467,7 +365,7 @@
                       "symbol": "deposits"
                     },
                     "val": {
-                      "u32": 3
+                      "u32": 1
                     }
                   },
                   {
@@ -605,7 +503,7 @@
                       "symbol": "successful_deposits"
                     },
                     "val": {
-                      "u64": "3"
+                      "u64": "1"
                     }
                   },
                   {
@@ -672,7 +570,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -683,7 +581,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0000000000000000000000000000000000000000000000000000000000000403"
+                "bytes": "0201010101010101010101010101010101010101010101010101010101010101"
               }
             }
           },
@@ -706,7 +604,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -717,7 +615,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2651d6005b24c8106154ffc4be9c25db0cf6ce635ff9d69a1e7c5f8299282ec9"
+                "bytes": "1f53b4b01ab590654f48486ae670d59465df515f4a73a368ba1f10313656c0b4"
               }
             }
           },
@@ -740,7 +638,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -751,7 +649,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "04468a0110e38b596363e72eaf5ab803d956b5a9b6e26dbd23679a6434b9c20c"
+                "bytes": "2d6c1ff6724b1209dc3fa4ec703893a61b1f28d5b6626bcc550013121680f543"
               }
             }
           },
@@ -774,7 +672,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -785,7 +683,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "18b2861758922b57ed582d86b04c758f260becf9c6ceab268cfe6850d247f965"
+                "bytes": "043b11cedcafd6896a3e55bf8c6e10b86d0531685d8742814ff83bcaba4fb7e2"
               }
             }
           },
@@ -808,7 +706,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -819,7 +717,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "25a5388ce3b2310775345cc17e1ef816721fc2be12b7fba96440ed5a4f01b571"
+                "bytes": "13438547ef0de799e8d0034d5b9e142f99d2c1c26072d2236d56cfd6f901f566"
               }
             }
           },
@@ -842,7 +740,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -853,7 +751,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "089dc63a19c66b8de70d4beba3061787a07090855dac4e2b804478082fd9e400"
+                "bytes": "185285384a7a3cc401a6c96c595fe1be25c9ac544f6d032a87822dc8d619b105"
               }
             }
           },
@@ -876,7 +774,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -887,7 +785,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "206c403139373b664c350618dc2ffd00268c432575e5f6ab487ffcf8aedd5f3f"
+                "bytes": "178c51545d207e2e20bede0073c932c0f1cefc4eda73d9f205b321b895aab588"
               }
             }
           },
@@ -910,7 +808,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -921,7 +819,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "018fafc958d53cb8189ec3d3be92409d01eded5b5e8435df33cd3861eff3ed6c"
+                "bytes": "1cecd80eb5be9e1423274273d9e75b9c1e8bcc5e8563a7f6adf6c158753afcd3"
               }
             }
           },
@@ -944,7 +842,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -955,7 +853,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2d20636a4ea36393a161802ccac99f6dc3b589cff83c7de4fdf89fd28ad4ff2d"
+                "bytes": "21cf28e7a233600803b90f2b407e68c24af28e10056766aad4a48d8af6c12d24"
               }
             }
           },
@@ -978,7 +876,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -989,7 +887,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2868dd8a24210e53f5a2ae8040b45ec4b02712e8fa05564dd9968b1d596ff91d"
+                "bytes": "2c3b44d51f149df6c3da04ab610a0ca4bce199b0f1cdef99bbb35b43f56b2cd3"
               }
             }
           },
@@ -1012,7 +910,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1023,7 +921,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "21909dc8dbb684e4dd3637175c0a273367322a18d956cfc2391ae93c1d220581"
+                "bytes": "277b4a52ceb6092b346fde97de3cfe675b29073af84a910d8152e3f730789669"
               }
             }
           },
@@ -1046,7 +944,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1057,7 +955,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0958ec5e6ce07c318a09b5a9b15a4fa8f37c06b58da069488fb3e1af58ae4528"
+                "bytes": "17db4dec2e498805c5f463edcb669f997f2fb41a2dd1e4b1bc5518abfbb7a627"
               }
             }
           },
@@ -1080,7 +978,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1091,7 +989,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2988b4d7a19a01417d3a1de82add49f98aa124c5803450d7b82348af09089719"
+                "bytes": "073bf251a298431c1e5495a38435eb8e27191f6122bb18dcc7775d855cb0bb91"
               }
             }
           },
@@ -1114,7 +1012,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1125,7 +1023,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "14cc06ef9cf2718ff3342910535c1a19bd719dac40a3c7a555a88197e811a49d"
+                "bytes": "02752a7668e4487350c18b138b601641bf2176ae983ee8680836cb25cdb4a64a"
               }
             }
           },
@@ -1148,7 +1046,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1159,7 +1057,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0c6d3d70a54834135a71149e6ae6e47cfc67cbe6daf54c49ce021b42c1fff2a6"
+                "bytes": "18b56fa94e932639c68f31e4403c2730842742fc0cdfd7ab02edfe3df9cd8e3d"
               }
             }
           },
@@ -1182,7 +1080,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1193,7 +1091,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "123c854c5a490fcc909d5b671e04130136f499486f91e5095c6e24b8a893b59f"
+                "bytes": "2b36455863b8f2dbd1df958b11af3ea8e8aa0a7507313afc00b6afab80e2663c"
               }
             }
           },
@@ -1216,7 +1114,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1227,7 +1125,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2195f313004eab68589d229d52699ef4c135a39e8b4d21c9a2ebc6e0d9b8c7e8"
+                "bytes": "13bae30670bc5cd3443646d7a0572d78188de7f8f700995a94b73eac15446372"
               }
             }
           },
@@ -1250,7 +1148,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1261,7 +1159,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0a5382eaef2f7e990a41a2a5dac1c75129df77fe5220b7008a6619f06589627a"
+                "bytes": "016e21a65b3694d0c2420ff011bb9bd656b6a13c76c7c54ad8601070a26c6d48"
               }
             }
           },
@@ -1284,7 +1182,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1295,7 +1193,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "1e9168f6493033d65433339c4a3c36f77e8b031ba894a3b837b36b859f7bafe2"
+                "bytes": "23afdd7bcfb035b8f8124208dd82e2365781d12ea7c7eb8e7ceb89f39bb84603"
               }
             }
           },
@@ -1318,7 +1216,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1329,7 +1227,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "0833d28d710696b316846b018ecfe8754199acc3017c2ac2b466fb895578ec40"
+                "bytes": "1d80b5edd857fc98b6feec635d19d68323f8ef1ae5ae7935e369d346684c9ac0"
               }
             }
           },
@@ -1352,7 +1250,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   }
@@ -1428,7 +1326,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   },
@@ -1439,75 +1337,7 @@
               },
               "durability": "persistent",
               "val": {
-                "bytes": "2b0198720ce4ad6cfd2039b797f7fd46c1d004cd9d3cf8f7473c8d6d6dc911e7"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 4095
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "Root"
-                  },
-                  {
-                    "vec": [
-                      {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
-                      }
-                    ]
-                  },
-                  {
-                    "u32": 2
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "bytes": "1152a70bba2b01d8afcfb8ec5ddd67b1febbbab9e25ecb6395c761f9a98e8877"
-              }
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 4095
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAITA4",
-              "key": {
-                "vec": [
-                  {
-                    "symbol": "Root"
-                  },
-                  {
-                    "vec": [
-                      {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
-                      }
-                    ]
-                  },
-                  {
-                    "u32": 3
-                  }
-                ]
-              },
-              "durability": "persistent",
-              "val": {
-                "bytes": "2ba7d1d6925eea7816984571c847e88c7b671d14cadd2b8ee1086a07f07a0f78"
+                "bytes": "1d039491ed5427813bb5a8c8e2b4a6c8cd8ec3a27fbdebe77915cedc4552814e"
               }
             }
           },
@@ -1530,7 +1360,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   }
@@ -1544,7 +1374,7 @@
                       "symbol": "current_root_index"
                     },
                     "val": {
-                      "u32": 3
+                      "u32": 1
                     }
                   },
                   {
@@ -1552,7 +1382,7 @@
                       "symbol": "next_index"
                     },
                     "val": {
-                      "u32": 3
+                      "u32": 1
                     }
                   }
                 ]
@@ -1578,7 +1408,7 @@
                   {
                     "vec": [
                       {
-                        "bytes": "0707070707070707070707070707070707070707070707070707070707070707"
+                        "bytes": "0101010101010101010101010101010101010101010101010101010101010101"
                       }
                     ]
                   }
@@ -1712,46 +1542,6 @@
           "data": {
             "contract_data": {
               "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAK3IM",
-              "key": {
-                "ledger_key_nonce": {
-                  "nonce": "4270020994084947596"
-                }
-              },
-              "durability": "temporary",
-              "val": "void"
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 6311999
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
-              "contract": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMDR4",
-              "key": {
-                "ledger_key_nonce": {
-                  "nonce": "8370022561469687789"
-                }
-              },
-              "durability": "temporary",
-              "val": "void"
-            }
-          },
-          "ext": "v0"
-        },
-        "live_until": 6311999
-      },
-      {
-        "entry": {
-          "last_modified_ledger_seq": 0,
-          "data": {
-            "contract_data": {
-              "ext": "v0",
               "contract": "CBEPDNVYXQGWB5YUBXKJWYJA7OXTZW5LFLNO5JRRGE6Z6C5OSUZPCCEL",
               "key": {
                 "vec": [
@@ -1771,7 +1561,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "3000000000"
+                      "i128": "1000000000"
                     }
                   },
                   {
@@ -1823,7 +1613,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "198000000000"
+                      "i128": "49000000000"
                     }
                   },
                   {
@@ -1875,7 +1665,7 @@
                       "symbol": "amount"
                     },
                     "val": {
-                      "i128": "199000000000"
+                      "i128": "50000000000"
                     }
                   },
                   {
