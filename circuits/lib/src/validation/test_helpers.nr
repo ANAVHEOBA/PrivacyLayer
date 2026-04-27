@@ -276,6 +276,7 @@ pub struct WithdrawalBuilder {
     pub amount: Field,
     pub relayer: Field,
     pub fee: Field,
+    pub denomination: Field,
     
     pub override_hash_path: bool,
     pub hash_path: [Field; 20],
@@ -298,6 +299,7 @@ impl WithdrawalBuilder {
             amount: KAT_AMOUNT,
             relayer: 0,
             fee: 0,
+            denomination: KAT_AMOUNT,
             
             override_hash_path: false,
             hash_path: [0; 20],
@@ -350,6 +352,11 @@ impl WithdrawalBuilder {
         self
     }
 
+    pub fn with_denomination(mut self, denomination: Field) -> Self {
+        self.denomination = denomination;
+        self
+    }
+
     pub fn with_root(mut self, root: Field) -> Self {
         self.override_root = true;
         self.root = root;
@@ -370,7 +377,7 @@ impl WithdrawalBuilder {
 
     /// Builds the full witness tuple, computing the commitment, path, root, and nullifier_hash
     /// dynamically unless overridden.
-    pub fn build(self) -> (Field, Field, Field, [Field; 20], Field, Field, Field, Field, Field, Field, Field) {
+    pub fn build(self) -> (Field, Field, Field, [Field; 20], Field, Field, Field, Field, Field, Field, Field, Field) {
         let commitment = hash::compute_commitment(self.nullifier, self.secret, self.pool_id);
         
         let hash_path = if self.override_hash_path {
@@ -402,7 +409,8 @@ impl WithdrawalBuilder {
             self.recipient,
             self.amount,
             self.relayer,
-            self.fee
+            self.fee,
+            self.denomination
         )
     }
 }

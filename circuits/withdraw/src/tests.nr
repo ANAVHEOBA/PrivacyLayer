@@ -4,8 +4,8 @@ use lib::hash;
 use lib::merkle;
 
 fn execute(builder: WithdrawalBuilder) {
-    let (n, s, li, hp, p, r, nh, rec, a, rel, f) = builder.build();
-    main(n, s, li, hp, p, r, nh, rec, a, rel, f);
+    let (n, s, li, hp, p, r, nh, rec, a, rel, f, d) = builder.build();
+    main(n, s, li, hp, p, r, nh, rec, a, rel, f, d);
 }
 
 #[test]
@@ -305,7 +305,7 @@ fn test_leaf_index_exceeds_tree_capacity() {
     // 2^20 = 1,048,576 -- first invalid index
     main(
         nullifier, secret, 1_048_576, hash_path,
-        pool_id, root, nullifier_hash, 0xFFFF, 100_0000000, 0, 0,
+        pool_id, root, nullifier_hash, 0xFFFF, 100_0000000, 0, 0, 100_0000000,
     );
 }
 
@@ -322,7 +322,7 @@ fn test_leaf_index_large_out_of_range() {
     // Far outside valid range
     main(
         nullifier, secret, 99_999_999, hash_path,
-        pool_id, root, nullifier_hash, 0xFFFF, 100_0000000, 0, 0,
+        pool_id, root, nullifier_hash, 0xFFFF, 100_0000000, 0, 0, 100_0000000,
     );
 }
 
@@ -340,7 +340,7 @@ fn test_leaf_index_zero_boundary() {
 
     main(
         nullifier, secret, leaf_index, hash_path,
-        pool_id, root, nullifier_hash, 0x1234, 100_0000000, 0, 0,
+        pool_id, root, nullifier_hash, 0x1234, 100_0000000, 0, 0, 100_0000000,
     );
 }
 
@@ -358,7 +358,7 @@ fn test_leaf_index_max_boundary() {
 
     main(
         nullifier, secret, leaf_index, hash_path,
-        pool_id, root, nullifier_hash, 0x5678, 100_0000000, 0, 0,
+        pool_id, root, nullifier_hash, 0x5678, 100_0000000, 0, 0, 100_0000000,
     );
 }
 
@@ -376,6 +376,6 @@ fn test_leaf_index_high_bit_only() {
 
     main(
         nullifier, secret, leaf_index, hash_path,
-        pool_id, root, nullifier_hash, 0x9ABC, 100_0000000, 0, 0,
+        pool_id, root, nullifier_hash, 0x9ABC, 100_0000000, 0, 0, 100_0000000,
     );
 }
