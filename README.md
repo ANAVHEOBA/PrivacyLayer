@@ -165,10 +165,10 @@ nargo compile --package merkle
 
 This regenerates:
 
-- `artifacts/zk/commitment.json`
-- `artifacts/zk/withdraw.json`
-- `artifacts/zk/manifest.json`
-- `artifacts/zk/commitment_vectors.json`
+- `artifacts/zk/v1/circuits/commitment/commitment.json`
+- `artifacts/zk/v1/circuits/withdraw/withdraw.json`
+- `artifacts/zk/v1/manifests/manifest.json`
+- `artifacts/zk/v1/commitment_vectors.json`
 
 ### Build Contracts
 

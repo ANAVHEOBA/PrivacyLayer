@@ -21,6 +21,8 @@ artifacts/
         │       └── merkle.json        # Compiled circuit (ACIR + ABI)
         ├── manifests/                 # Circuit metadata and checksums
         │   └── manifest.json          # Global manifest for all circuits
+        ├── bundles/                   # Releasable bundle metadata
+        │   └── release-bundle.json    # Bundle tying manifest, schema, and contract metadata together
         ├── fixtures/                  # Test vectors and golden inputs
         │   ├── commitment/
         │   │   └── test_vectors.json  # Test vectors for commitment circuit
@@ -62,6 +64,10 @@ Artifact versions are tracked via the `version` field in `sdk/src/artifacts.ts`.
   - Backend type (e.g., barretenberg)
   - Circuit metadata (paths, checksums, configuration)
   - Root depth for Merkle trees
+
+### Release Bundles (`bundles/`)
+
+- **`release-bundle.json`**: Deterministic release envelope containing the manifest hash, verifier schema, and contract-facing metadata for a single coherent ZK release.
 
 ### Fixtures (`fixtures/`)
 

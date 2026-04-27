@@ -1,0 +1,54 @@
+{
+  "circuit": "withdraw",
+  "version": "1",
+  "public_inputs": [
+    {
+      "name": "pool_id",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Unique identifier for the shielded pool"
+    },
+    {
+      "name": "root",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Merkle root proving membership"
+    },
+    {
+      "name": "nullifier_hash",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Hash preventing double-spend"
+    },
+    {
+      "name": "recipient",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Stellar address hash of recipient"
+    },
+    {
+      "name": "amount",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Withdrawal amount"
+    },
+    {
+      "name": "relayer",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Optional relayer address hash"
+    },
+    {
+      "name": "fee",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Relayer fee"
+    },
+    {
+      "name": "denomination",
+      "bytes": 32,
+      "contract_visible": true,
+      "description": "Fixed denomination of the pool"
+    }
+  ]
+}

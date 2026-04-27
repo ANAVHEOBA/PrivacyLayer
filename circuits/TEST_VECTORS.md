@@ -192,12 +192,12 @@ specification for equivalent Noir circuit tests.
 
 ---
 
-## Shared Commitment Vectors (`artifacts/zk/commitment_vectors.json`)
+## Shared Commitment Vectors (`artifacts/zk/v1/commitment_vectors.json`)
 
 The commitment package and the SDK now consume one generated commitment corpus.
 `scripts/generate_commitment_vectors.mjs` emits:
 
-- `artifacts/zk/commitment_vectors.json` for Node/Jest tests
+- `artifacts/zk/v1/commitment_vectors.json` for Node/Jest tests
 - `circuits/commitment/src/fixtures.nr` for Noir tests
 
 ### Coverage

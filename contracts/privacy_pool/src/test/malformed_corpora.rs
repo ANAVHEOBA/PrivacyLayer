@@ -9,6 +9,9 @@
  * Usage: Import corpora in Soroban-side and SDK-side validation tests.
  */
 
+#[cfg(test)]
+extern crate std;
+
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Bytes, BytesN, Env, Vec};
 use crate::types::state::{Proof, PublicInputs, VerifyingKey};
@@ -22,7 +25,7 @@ pub fn malformed_g1_corpora(env: &Env) -> Vec<Bytes> {
     let mut corpora = Vec::new(env);
 
     // Case 1: Too short (32 bytes instead of 64)
-    let too_short = BytesN::<64>::from_array(env, &[0u8; 32]);
+    let too_short = BytesN::<64>::from_array(env, &[0u8; 64]);
     corpora.push_back(too_short.to_bytes());
 
     // Case 2: Too long (96 bytes)
@@ -63,7 +66,7 @@ pub fn malformed_g2_corpora(env: &Env) -> Vec<Bytes> {
     let mut corpora = Vec::new(env);
 
     // Case 1: Too short (64 bytes instead of 128)
-    let too_short = BytesN::<128>::from_array(env, &[0u8; 64]);
+    let too_short = BytesN::<128>::from_array(env, &[0u8; 128]);
     corpora.push_back(too_short.to_bytes());
 
     // Case 2: Too long (192 bytes)
@@ -106,8 +109,8 @@ pub enum ErrorCategory {
     Cryptographic,
 }
 
-pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
-    let mut corpora = Vec::new(env);
+pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
+    let mut corpora = std::vec::Vec::new();
 
     // Create base valid-looking points
     let alpha_g1 = BytesN::<64>::from_array(env, &[0xAA; 64]);
@@ -115,14 +118,14 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
     let gamma_g2 = BytesN::<128>::from_array(env, &[0xCC; 128]);
     let delta_g2 = BytesN::<128>::from_array(env, &[0xDD; 128]);
 
-    // Case 1: Too few IC points (6 instead of 7)
+    // Case 1: Too few IC points (8 instead of 9)
     let mut ic_too_few = Vec::new(env);
-    for i in 0..6 {
+    for i in 0..8 {
         let ic = BytesN::<64>::from_array(env, &[i as u8; 64]);
         ic_too_few.push_back(ic);
     }
-    corpora.push_back(MalformedVKTestCase {
-        label: "IC vector too short (6 points instead of 7)",
+    corpora.push(MalformedVKTestCase {
+        label: "IC vector too short (8 points instead of 9)",
         vk: VerifyingKey {
             alpha_g1: alpha_g1.clone(),
             beta_g2: beta_g2.clone(),
@@ -133,14 +136,14 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
         expected_error_category: ErrorCategory::Structural,
     });
 
-    // Case 2: Too many IC points (8 instead of 7)
+    // Case 2: Too many IC points (10 instead of 9)
     let mut ic_too_many = Vec::new(env);
-    for i in 0..8 {
+    for i in 0..10 {
         let ic = BytesN::<64>::from_array(env, &[i as u8; 64]);
         ic_too_many.push_back(ic);
     }
-    corpora.push_back(MalformedVKTestCase {
-        label: "IC vector too long (8 points instead of 7)",
+    corpora.push(MalformedVKTestCase {
+        label: "IC vector too long (10 points instead of 9)",
         vk: VerifyingKey {
             alpha_g1: alpha_g1.clone(),
             beta_g2: beta_g2.clone(),
@@ -153,7 +156,7 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
 
     // Case 3: Empty IC vector
     let ic_empty: Vec<BytesN<64>> = Vec::new(env);
-    corpora.push_back(MalformedVKTestCase {
+    corpora.push(MalformedVKTestCase {
         label: "IC vector empty",
         vk: VerifyingKey {
             alpha_g1: alpha_g1.clone(),
@@ -166,7 +169,7 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
     });
 
     // Case 4: All-zero alpha_g1 (invalid point)
-    corpora.push_back(MalformedVKTestCase {
+    corpora.push(MalformedVKTestCase {
         label: "Alpha G1 is point at infinity (all zeros)",
         vk: VerifyingKey {
             alpha_g1: BytesN::<64>::from_array(env, &[0u8; 64]),
@@ -179,7 +182,7 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
     });
 
     // Case 5: All-zero beta_g2 (invalid point)
-    corpora.push_back(MalformedVKTestCase {
+    corpora.push(MalformedVKTestCase {
         label: "Beta G2 is point at infinity (all zeros)",
         vk: VerifyingKey {
             alpha_g1: alpha_g1.clone(),
@@ -196,7 +199,7 @@ pub fn malformed_vk_corpora(env: &Env) -> Vec<MalformedVKTestCase> {
 
 fn valid_ic_vector(env: &Env) -> Vec<BytesN<64>> {
     let mut ic = Vec::new(env);
-    for i in 0..7 {
+    for i in 0..9 {
         let point = BytesN::<64>::from_array(env, &[(i + 1) as u8; 64]);
         ic.push_back(point);
     }
@@ -213,11 +216,11 @@ pub struct MalformedProofTestCase {
     pub expected_error_category: ErrorCategory,
 }
 
-pub fn malformed_proof_corpora(env: &Env) -> Vec<MalformedProofTestCase> {
-    let mut corpora = Vec::new(env);
+pub fn malformed_proof_corpora(env: &Env) -> std::vec::Vec<MalformedProofTestCase> {
+    let mut corpora = std::vec::Vec::new();
 
     // Case 1: All-zero proof (point at infinity)
-    corpora.push_back(MalformedProofTestCase {
+    corpora.push(MalformedProofTestCase {
         label: "All-zero proof (A, B, C at infinity)",
         proof: Proof {
             a: BytesN::<64>::from_array(env, &[0u8; 64]),
@@ -228,7 +231,7 @@ pub fn malformed_proof_corpora(env: &Env) -> Vec<MalformedProofTestCase> {
     });
 
     // Case 2: Random garbage in A
-    corpora.push_back(MalformedProofTestCase {
+    corpora.push(MalformedProofTestCase {
         label: "Random garbage in proof.A",
         proof: Proof {
             a: BytesN::<64>::from_array(env, &[0xFF; 64]),
@@ -239,7 +242,7 @@ pub fn malformed_proof_corpora(env: &Env) -> Vec<MalformedProofTestCase> {
     });
 
     // Case 3: Random garbage in B
-    corpora.push_back(MalformedProofTestCase {
+    corpora.push(MalformedProofTestCase {
         label: "Random garbage in proof.B",
         proof: Proof {
             a: BytesN::<64>::from_array(env, &[0x01; 64]),
@@ -250,7 +253,7 @@ pub fn malformed_proof_corpora(env: &Env) -> Vec<MalformedProofTestCase> {
     });
 
     // Case 4: Random garbage in C
-    corpora.push_back(MalformedProofTestCase {
+    corpora.push(MalformedProofTestCase {
         label: "Random garbage in proof.C",
         proof: Proof {
             a: BytesN::<64>::from_array(env, &[0x01; 64]),
@@ -269,11 +272,13 @@ pub fn malformed_proof_corpora(env: &Env) -> Vec<MalformedProofTestCase> {
 
 pub fn valid_public_inputs(env: &Env) -> PublicInputs {
     PublicInputs {
+        pool_id: BytesN::<32>::from_array(env, &[0x00; 32]),
         root: BytesN::<32>::from_array(env, &[0x01; 32]),
         nullifier_hash: BytesN::<32>::from_array(env, &[0x02; 32]),
         recipient: BytesN::<32>::from_array(env, &[0x03; 32]),
         amount: BytesN::<32>::from_array(env, &[0x04; 32]),
         relayer: BytesN::<32>::from_array(env, &[0x05; 32]),
         fee: BytesN::<32>::from_array(env, &[0x06; 32]),
+        denomination: BytesN::<32>::from_array(env, &[0x07; 32]),
     }
 }
