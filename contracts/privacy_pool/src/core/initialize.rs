@@ -47,8 +47,8 @@ pub fn create_pool(
     };
 
     // Save configuration and verifying key
-    config::save(&env, &pool_config);
-    config::save_verifying_key(&env, &vk);
+    config::save_pool_config(&env, &pool_id, &pool_config);
+    config::save_verifying_key(&env, &pool_id, &vk);
     analytics::initialize(&env);
 
     Ok(())

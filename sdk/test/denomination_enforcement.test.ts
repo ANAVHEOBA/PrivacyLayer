@@ -2,15 +2,17 @@
 import { Note } from '../src/note';
 import { MerkleProof, ProofGenerator } from '../src/proof';
 import { WitnessValidationError } from '../src/errors';
-import { DEFAULT_DENOMINATION, DENOMINATION_1000_XLM } from '../src/zk_constants';
+import { DEFAULT_DENOMINATION, DENOMINATION_1000_XLM, ZERO_FIELD_HEX } from '../src/zk_constants';
+import { fieldToHex } from '../src/encoding';
 
 const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-const r32 = Buffer.from('ab'.repeat(32), 'hex');
+// Valid 32-byte field element (< FIELD_MODULUS)
+const r32 = Buffer.from('00'.repeat(31) + '01', 'hex');
 const s31 = () => Buffer.from('01'.repeat(31), 'hex');
 const p20 = () => Array.from({ length: 20 }, () => r32);
 
 function makeNote(amount: bigint = DEFAULT_DENOMINATION) {
-  return new Note(s31(), s31(), 'cc'.repeat(32), amount);
+  return new Note(s31(), s31(), '00'.repeat(31) + 'cc', amount);
 }
 
 describe('Denomination Enforcement (ZK-030)', () => {
@@ -20,8 +22,8 @@ describe('Denomination Enforcement (ZK-030)', () => {
       const good: MerkleProof = { root: r32, pathElements: p20(), leafIndex: 0 };
       const witness = await ProofGenerator.prepareWitness(note, good, G);
       
-      expect(witness.amount).toBe(DEFAULT_DENOMINATION.toString());
-      expect(witness.denomination).toBe(DEFAULT_DENOMINATION.toString());
+      expect(witness.amount).toBe(fieldToHex(DEFAULT_DENOMINATION));
+      expect(witness.denomination).toBe(fieldToHex(DEFAULT_DENOMINATION));
     });
 
     it('accepts witness when note amount matches custom denomination', async () => {
@@ -31,8 +33,8 @@ describe('Denomination Enforcement (ZK-030)', () => {
         denomination: DENOMINATION_1000_XLM,
       });
       
-      expect(witness.amount).toBe(DENOMINATION_1000_XLM.toString());
-      expect(witness.denomination).toBe(DENOMINATION_1000_XLM.toString());
+      expect(witness.amount).toBe(fieldToHex(DENOMINATION_1000_XLM));
+      expect(witness.denomination).toBe(fieldToHex(DENOMINATION_1000_XLM));
     });
 
     it('rejects witness when note amount does not match pool denomination', async () => {
@@ -84,7 +86,7 @@ describe('Denomination Enforcement (ZK-030)', () => {
       const good: MerkleProof = { root: r32, pathElements: p20(), leafIndex: 0 };
       const witness = await ProofGenerator.prepareWitness(note, good, G);
       
-      expect(witness.denomination).toBe(DEFAULT_DENOMINATION.toString());
+      expect(witness.denomination).toBe(fieldToHex(DEFAULT_DENOMINATION));
     });
   });
 
@@ -92,7 +94,7 @@ describe('Denomination Enforcement (ZK-030)', () => {
     it('produces different witness amounts for same secrets with different denominations', async () => {
       const nullifier = s31();
       const secret = s31();
-      const poolId = 'cc'.repeat(32);
+      const poolId = '00'.repeat(31) + 'cc';
       
       const note100 = new Note(nullifier, secret, poolId, DEFAULT_DENOMINATION);
       const note1000 = new Note(nullifier, secret, poolId, DENOMINATION_1000_XLM);
@@ -107,8 +109,8 @@ describe('Denomination Enforcement (ZK-030)', () => {
         denomination: DENOMINATION_1000_XLM,
       });
       
-      expect(witness100.amount).toBe(DEFAULT_DENOMINATION.toString());
-      expect(witness1000.amount).toBe(DENOMINATION_1000_XLM.toString());
+      expect(witness100.amount).toBe(fieldToHex(DEFAULT_DENOMINATION));
+      expect(witness1000.amount).toBe(fieldToHex(DENOMINATION_1000_XLM));
       expect(witness100.amount).not.toBe(witness1000.amount);
       
       // Nullifier and secret should be the same
@@ -119,7 +121,7 @@ describe('Denomination Enforcement (ZK-030)', () => {
     it('rejects note with wrong denomination even with valid secrets', async () => {
       const nullifier = s31();
       const secret = s31();
-      const poolId = 'cc'.repeat(32);
+      const poolId = '00'.repeat(31) + 'cc';
       
       // Note created with 1000 XLM denomination
       const note = new Note(nullifier, secret, poolId, DENOMINATION_1000_XLM);

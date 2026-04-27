@@ -10,6 +10,7 @@ import {
   GROTH16_PROOF_BYTE_LENGTH,
 } from "../src/witness";
 import { WitnessValidationError } from "../src/errors";
+import { fieldToHex } from "../src/encoding";
 
 // ---------------------------------------------------------------------------
 // Guard: catch duplicate-import accidents early at lint / compile time.
@@ -120,13 +121,13 @@ describe("Fixture mutation contract (one dimension per case)", () => {
   it("M_fee: fee exceeds amount", () => {
     const w: PreparedWitness = {
       ...good,
-      fee: (BigInt(good.amount) + 1n).toString(),
+      fee: fieldToHex(BigInt(good.amount) + 1n),
     };
     mustFailBinding(w, "fee>amount");
   });
 
   it("M_leaf_index: out of range leaf index", () => {
-    const w: PreparedWitness = { ...good, leaf_index: "2000000" };
+    const w: PreparedWitness = { ...good, leaf_index: fieldToHex(2000000n) };
     try {
       assertValidPreparedWithdrawalWitness(w, { merkleDepth: OFFLINE_DEPTH });
       throw new Error("expected failure");

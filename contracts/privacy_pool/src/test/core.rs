@@ -22,7 +22,7 @@ use soroban_sdk::{
 
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
-    types::state::{Denomination, PerformanceMetricKind, VerifyingKey},
+    types::state::{Denomination, PerformanceMetricKind, PoolId, VerifyingKey},
     PrivacyPool, PrivacyPoolClient,
 };
 
@@ -90,7 +90,8 @@ fn dummy_vk(env: &Env) -> VerifyingKey {
     let g1 = BytesN::from_array(env, &[0u8; 64]);
     let g2 = BytesN::from_array(env, &[0u8; 128]);
     let mut abc = Vec::new(env);
-    for _ in 0..7 { abc.push_back(g1.clone()); }
+    // IC[0] + 8 public inputs = 9 points
+    for _ in 0..9 { abc.push_back(g1.clone()); }
     VerifyingKey { alpha_g1: g1, beta_g2: g2.clone(), gamma_g2: g2.clone(), delta_g2: g2, gamma_abc_g1: abc }
 }
 
@@ -353,7 +354,7 @@ fn test_analytics_snapshot_tracks_aggregate_usage() {
     t.init();
 
     t.client.record_page_view();
-    t.client.deposit(&t.alice, &commitment(&t.env, 1));
+    t.client.deposit(&t.pool_1, &t.alice, &commitment(&t.env, 1));
     t.client.record_error();
 
     let analytics = t.client.analytics_snapshot();

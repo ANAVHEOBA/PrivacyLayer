@@ -17,6 +17,9 @@ const FIELD_BYTE_LENGTH = 32;
 
 const jsonPath = path.join(repoRoot, 'artifacts', 'zk', 'commitment_vectors.json');
 const versionedJsonPath = path.join(versionedArtifactsDir, 'commitment_vectors.json');
+// ZK-086: Accept version parameter for versioned artifact layout
+const zkVersion = process.argv[2] || '1';
+const jsonPath = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`, 'commitment_vectors.json');
 const noirFixturesPath = path.join(repoRoot, 'circuits', 'commitment', 'src', 'fixtures.nr');
 
 function fieldToHex(n) {
@@ -192,6 +195,9 @@ if (!fs.existsSync(versionedArtifactsDir)) {
   fs.mkdirSync(versionedArtifactsDir, { recursive: true });
 }
 
+if (!fs.existsSync(path.dirname(jsonPath))) {
+  fs.mkdirSync(path.dirname(jsonPath), { recursive: true });
+}
 fs.writeFileSync(jsonPath, JSON.stringify(fixtureJson, null, 2) + '\n');
 fs.writeFileSync(versionedJsonPath, JSON.stringify(fixtureJson, null, 2) + '\n');
 fs.writeFileSync(noirFixturesPath, noirFixtures);

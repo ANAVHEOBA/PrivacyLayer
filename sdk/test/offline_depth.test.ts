@@ -96,9 +96,8 @@ describe("Offline merkle depth support", () => {
       generateWithdrawalProof(
         { note, merkleProof: proof, recipient: RECIPIENT },
         backend,
-        { merkleDepth: depth, denomination: note.amount },
         // HASH_MODE: mock — testOnlyAllowMockHash acknowledges SHA-256 stand-ins
-        { merkleDepth: depth, testOnlyAllowMockHash: MOCK_HASH_CONTEXT },
+        { merkleDepth: depth, denomination: note.amount, testOnlyAllowMockHash: MOCK_HASH_CONTEXT },
       ),
     ).resolves.toBeInstanceOf(Buffer);
   });

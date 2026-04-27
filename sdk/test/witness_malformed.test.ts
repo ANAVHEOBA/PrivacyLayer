@@ -7,7 +7,8 @@ import { generateWithdrawalProof } from '../src/withdraw';
 import { ProvingBackend } from '../src/proof';
 
 const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-const r32 = Buffer.from('ab'.repeat(32), 'hex');
+// Valid 32-byte field element (< FIELD_MODULUS) - use a small value that fits in the field
+const r32 = Buffer.from('00'.repeat(31) + '01', 'hex');
 const s31 = () => Buffer.from('01'.repeat(31), 'hex');
 const p20 = () => Array.from({ length: 20 }, () => r32);
 

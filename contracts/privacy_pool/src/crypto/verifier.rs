@@ -35,9 +35,9 @@ fn compute_vk_x(
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
-    // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
-    // [root, nullifier_hash, recipient, amount, relayer, fee]
-    if vk.gamma_abc_g1.len() != 7 {
+    // The VK must have exactly 9 IC points: IC[0] + 8 public inputs
+    // [pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination]
+    if vk.gamma_abc_g1.len() != 9 {
         return Err(Error::MalformedVerifyingKey);
     }
 
@@ -48,13 +48,15 @@ fn compute_vk_x(
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
     // Public inputs as 32-byte field elements → Fr scalars
-    let inputs: [&BytesN<32>; 6] = [
+    let inputs: [&BytesN<32>; 8] = [
+        &pub_inputs.pool_id,
         &pub_inputs.root,
         &pub_inputs.nullifier_hash,
         &pub_inputs.recipient,
         &pub_inputs.amount,
         &pub_inputs.relayer,
         &pub_inputs.fee,
+        &pub_inputs.denomination,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
@@ -135,4 +137,54 @@ pub fn verify_proof(
     let result = bn254.pairing_check(g1_points, g2_points);
 
     Ok(result)
+}
+
+// ──────────────────────────────────────────────────────────────
+// Tests
+// ──────────────────────────────────────────────────────────────
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_verifier_schema_parity() {
+        // ZK-087: Ensure the contract verifier's expectations match the 
+        // authoritative machine-readable schema artifact.
+        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
+        
+        // Count public input names in schema
+        let input_count = schema_json.matches("\"name\":").count();
+        
+        // Verifier expects IC[0] + all public inputs
+        let expected_ic_total = input_count + 1;
+        
+        // This pins the verifier to the schema
+        assert_eq!(expected_ic_total, 9, "Schema must define exactly 8 public inputs (plus IC[0])");
+    }
+
+    #[test]
+    fn test_public_input_order() {
+        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
+        
+        // Names must appear in this order in the JSON
+        let expected_order = [
+            "pool_id",
+            "root",
+            "nullifier_hash",
+            "recipient",
+            "amount",
+            "relayer",
+            "fee",
+            "denomination"
+        ];
+        
+        let mut last_pos = 0;
+        for name in expected_order {
+            let pos = schema_json.find(&format!("\"name\": \"{}\"", name))
+                .expect(&format!("Field {} missing from schema", name));
+            assert!(pos > last_pos, "Field {} out of order in schema", name);
+            last_pos = pos;
+        }
+    }
 }

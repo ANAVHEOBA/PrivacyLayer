@@ -322,13 +322,14 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       7n,
     );
 
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("pool_id")]).toBe(poolId);
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("root")]).toBe(root);
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("nullifier_hash")]).toBe(nh);
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("recipient")]).toBe(recip);
-    expect(parseField(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("amount")])).toBe(999n);
-    expect(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("relayer")]).toBe(relayer);
-    expect(parseField(packed[WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf("fee")])).toBe(7n);
+    expect(packed).toHaveLength(7);
+    expect(packed[0]).toBe(poolId);
+    expect(packed[1]).toBe(root);
+    expect(packed[2]).toBe(nh);
+    expect(packed[3]).toBe(recip);
+    expect(parseField(packed[4])).toBe(999n);
+    expect(packed[5]).toBe(relayer);
+    expect(parseField(packed[6])).toBe(7n);
   });
 
   it('serializeWithdrawalPublicInputs emits canonical verifier byte order', () => {

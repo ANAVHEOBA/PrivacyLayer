@@ -75,7 +75,7 @@ describe('Withdrawal proof cache', () => {
     const cache = new InMemoryProofCache();
 
     const firstRequest = makeRequest({ recipient: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF' });
-    const secondRequest = makeRequest({ recipient: 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5' });
+    const secondRequest = makeRequest({ recipient: 'GDJ7GPYZZGBS2HRRFZF6RESX24ZSP4QUIU2ICLM74F6L74WXP742IGOZ' });
 
     const witnessA = await ProofGenerator.prepareWitness(
       firstRequest.note,

@@ -75,7 +75,7 @@ function buildCacheMaterial(
     },
     publicInputs: serialized.values,
     pool: request.note.poolId,
-    denomination: witness.amount,
+    denomination: witness.denomination,
   };
 }
 

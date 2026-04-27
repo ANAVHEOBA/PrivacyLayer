@@ -188,6 +188,9 @@ export function poolIdToField(poolId: string): string {
  * Any change here must be reflected in witness preparation, proof formatting,
  * and the on-chain verifier.  Golden tests pin this order so accidental
  * reordering causes a test failure.
+ * 
+ * Note: This schema represents the circuit's public inputs only.
+ * The denomination field is SDK-only and is not part of the circuit interface.
  */
 export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'pool_id',
@@ -197,6 +200,7 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'amount',
   'relayer',
   'fee',
+  'denomination',
 ] as const;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
@@ -208,6 +212,15 @@ export interface SerializedWithdrawalPublicInputs {
   bytes: Buffer;
 }
 
+/**
+ * Collects and validates all withdrawal public inputs.
+ * 
+ * ZK-082: Amount and fee must be canonical 64-character field hex strings.
+ * Decimal strings are explicitly rejected at the SDK boundary.
+ * 
+ * Note: This function validates only the circuit's public inputs.
+ * The denomination field is SDK-only and validated separately.
+ */
 export function collectWithdrawalPublicInputs(
   source: WithdrawalPublicInputs
 ): WithdrawalPublicInputs {
@@ -218,6 +231,17 @@ export function collectWithdrawalPublicInputs(
     if (typeof value !== 'string') {
       throw new Error(`Missing public input: ${key}`);
     }
+    // ZK-082: Reject decimal strings for amount and fee
+    // A decimal string is one that is NOT a 64-char hex string but contains only digits
+    if (key === 'amount' || key === 'fee') {
+      // If it's not 64 chars and looks like a decimal, reject it
+      if (value.length !== 64 && /^\d+$/.test(value)) {
+        throw new Error(
+          `${key} must be a canonical 64-character field hex string, not a decimal string. ` +
+          `Use fieldToHex() to convert bigint to canonical hex.`
+        );
+      }
+    }
     values[key] = assertCanonicalFieldHex(value, key);
   }
 
@@ -227,6 +251,9 @@ export function collectWithdrawalPublicInputs(
 /**
  * Serialize the named withdrawal public inputs into the exact canonical
  * field order and 32-byte big-endian byte layout consumed by verifier boundaries.
+ * 
+ * ZK-082: Amount, fee, and denomination must be canonical 64-character field hex strings.
+ * Decimal strings are explicitly rejected.
  */
 export function serializeWithdrawalPublicInputs(
   source: WithdrawalPublicInputs
@@ -245,6 +272,12 @@ export function serializeWithdrawalPublicInputs(
  * defined by WITHDRAWAL_PUBLIC_INPUT_SCHEMA:
  *
  *   pool_id | root | nullifier_hash | recipient | amount | relayer | fee
+ * 
+ * ZK-082: Amount and fee are converted to canonical field hex.
+ * All other fields must already be canonical 64-character hex strings.
+ * 
+ * Note: This function packs only the circuit's public inputs.
+ * The denomination is an SDK-only field and is not included.
  */
 export function packWithdrawalPublicInputs(
   poolId: string,

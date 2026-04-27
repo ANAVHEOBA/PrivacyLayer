@@ -16,7 +16,7 @@ import {
   encodeAmount,
   encodeFee,
   encodeDenomination,
-  encodeRelayer,
+  encodeStellarAddress,
   encodeNullifierHash,
   serializeWithdrawalPublicInputs,
   packWithdrawalPublicInputs,
@@ -58,8 +58,8 @@ describe('Zero-value field encoding (ZK-103)', () => {
     expect(ZERO_FIELD_HEX.length).toBe(64);
   });
 
-  it('encodeRelayer with zero-account sentinel gives 64-char hex zero', () => {
-    const encoded = encodeRelayer(STELLAR_ZERO_ACCOUNT);
+  it('encodeStellarAddress with zero-account sentinel gives 64-char hex zero', () => {
+    const encoded = encodeStellarAddress(STELLAR_ZERO_ACCOUNT);
     expect(typeof encoded).toBe('string');
     expect(encoded.length).toBe(64);
     expect(/^[0-9a-f]{64}$/.test(encoded)).toBe(true);
@@ -75,16 +75,19 @@ describe('Serialized public inputs: no bare "0" strings at contract boundary (ZK
   const NULLIFIER_HASH = ZERO_HEX_64;
   const RECIPIENT = ZERO_HEX_64;
   const RELAYER   = ZERO_HEX_64;
+  const ZERO_AMOUNT = encodeAmount(0n);
+  const ZERO_FEE = encodeFee(0n);
+  const DENOMINATION = encodeDenomination(1_000_000_000n);
 
   const zeroInputs = {
     pool_id: POOL_ID,
     root: ROOT,
     nullifier_hash: NULLIFIER_HASH,
     recipient: RECIPIENT,
-    amount: '0',
+    amount: ZERO_AMOUNT,
     relayer: RELAYER,
-    fee: '0',
-    denomination: String(1_000_000_000), // non-zero denomination required
+    fee: ZERO_FEE,
+    denomination: DENOMINATION,
   };
 
   it('all serialized fields are 64-char hex strings (no bare "0")', () => {
@@ -115,12 +118,26 @@ describe('Serialized public inputs: no bare "0" strings at contract boundary (ZK
   });
 
   it('packed buffer for all-zero inputs is 256 bytes of zeros (except denomination)', () => {
-    const packed = packWithdrawalPublicInputs(zeroInputs);
-    // 8 fields × 32 bytes = 256 bytes
-    expect(packed.length).toBe(256);
-    // bytes 0..192 cover pool_id, root, nullifier_hash, recipient, amount, relayer, fee — all zero
-    const head = packed.slice(0, 7 * 32);
-    expect(head).toEqual(Buffer.alloc(7 * 32, 0));
+    const fields = packWithdrawalPublicInputs(
+      POOL_ID,
+      ROOT,
+      NULLIFIER_HASH,
+      RECIPIENT,
+      0n,
+      RELAYER,
+      0n,
+      1_000_000_000n
+    );
+    // 8 fields as 64-char hex strings
+    expect(fields.length).toBe(8);
+    // Each field should be 64 characters
+    for (const field of fields) {
+      expect(field.length).toBe(64);
+    }
+    // First 7 fields (pool_id through fee) should be all zeros
+    for (let i = 0; i < 7; i++) {
+      expect(fields[i]).toBe(ZERO_HEX_64);
+    }
   });
 });
 
@@ -128,26 +145,28 @@ describe('Serialized public inputs: no bare "0" strings at contract boundary (ZK
 // 3. Contract verifier inputs: zero-fee and zero-relayer round-trip
 // ---------------------------------------------------------------------------
 describe('Contract verifier inputs zero round-trip (ZK-103)', () => {
-  const inputs = {
+  const fullInputs = {
+    pool_id: ZERO_HEX_64,
     root: ZERO_HEX_64,
     nullifier_hash: ZERO_HEX_64,
     recipient: ZERO_HEX_64,
-    amount: '0',
+    amount: encodeAmount(0n),
     relayer: ZERO_HEX_64,
-    fee: '0',
+    fee: encodeFee(0n),
+    denomination: encodeDenomination(1_000_000_000n),
   };
 
   it('serializeContractVerifierInputs with zero fee/relayer produces all-hex output', () => {
-    const result = serializeContractVerifierInputs(inputs);
+    const result = serializeContractVerifierInputs(fullInputs);
     for (const field of result.fields) {
       expect(field).toMatch(/^[0-9a-f]{64}$/);
     }
   });
 
   it('zero fee in contract verifier is 64 hex zeros', () => {
-    const result = serializeContractVerifierInputs(inputs);
-    const feeIdx = result.schema.indexOf('fee');
-    expect(result.fields[feeIdx]).toBe(ZERO_HEX_64);
+    const result = serializeContractVerifierInputs(fullInputs);
+    // fee is the 6th field (index 5) in contract verifier schema
+    expect(result.fields[5]).toBe(ZERO_HEX_64);
   });
 });
 
@@ -159,10 +178,9 @@ describe('nullifierHash zero encoding (ZK-103)', () => {
     // A valid nullifier hash must be a 64-char hex string.
     // We don't call it with literal zero (it domain-hashes inputs),
     // but the return type must always be 64-char hex.
-    const result = encodeNullifierHash(
-      Buffer.alloc(31, 0),
-      ZERO_HEX_64,
-    );
+    const nullifierHex = ZERO_HEX_64;
+    const poolIdHex = ZERO_HEX_64;
+    const result = encodeNullifierHash(nullifierHex, poolIdHex);
     expect(result).toMatch(/^[0-9a-f]{64}$/);
     expect(result.length).toBe(64);
   });

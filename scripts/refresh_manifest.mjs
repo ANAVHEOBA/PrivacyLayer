@@ -99,6 +99,7 @@ function normalizeBackend(backend) {
   };
 }
 
+
 function buildExtraFileEntries() {
   return Object.fromEntries(
     Object.entries(EXTRA_FILES).map(([key, file]) => {
@@ -149,6 +150,11 @@ function buildReleaseBundle(manifest) {
       schema_version: 1,
       verifier_key_storage: 'DataKey::VerifyingKey',
     },
+function computeChecksums(raw, artifact) {
+  return {
+    artifact_sha256: sha256Hex(raw),
+    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
+    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
   };
 }
 
@@ -169,6 +175,15 @@ function main() {
     manifest = JSON.parse(fs.readFileSync(legacyManifestPath, 'utf8'));
   } else {
     throw new Error('No manifest found to refresh. Run the rebuild pipeline first.');
+    manifest = {
+      version: zkVersion,
+      backend: {
+        name: 'nargo/noir',
+        nargo_version: 'unknown',
+        noirc_version: 'unknown'
+      },
+      circuits: {},
+    };
   }
 
   manifest.version = Number.parseInt(zkVersion, 10);
@@ -178,6 +193,10 @@ function main() {
 
   for (const name of circuits) {
     const filePath = path.join(artifactsDir, 'circuits', name, `${name}.json`);
+    // ZK-041: Look for circuits in versioned directory structure
+    const circuitFile = `circuits/${name}/${name}.json`;
+    const filePath = path.join(artifactsDir, circuitFile);
+    
     if (!fs.existsSync(filePath)) {
       console.warn(`Warning: Missing artifact for ${name} at ${filePath}`);
       continue;
@@ -214,6 +233,42 @@ function main() {
   console.log(`Manifest updated at ${versionedManifestPath}`);
   console.log(`Legacy manifest updated at ${legacyManifestPath}`);
   console.log(`Release bundle updated at ${releaseBundlePath}`);
+    const checksums = computeChecksums(raw, artifact);
+
+    if (!manifest.circuits[name]) {
+      manifest.circuits[name] = {
+        circuit_id: name,
+        name: artifact.name ?? name,
+        backend: 'nargo/noir'
+      };
+    }
+    
+    // ZK-041/ZK-085: Update path and checksums
+    manifest.circuits[name].path = circuitFile;
+    manifest.circuits[name].artifact_sha256 = checksums.artifact_sha256;
+    manifest.circuits[name].bytecode_sha256 = checksums.bytecode_sha256;
+    manifest.circuits[name].abi_sha256 = checksums.abi_sha256;
+    
+    // Production artifact depth and schema (ZK-087)
+    if (name === 'withdraw') {
+      manifest.circuits[name].root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
+      
+      const verifierSchemaPath = path.join(artifactsDir, 'verifier_schema.json');
+      if (fs.existsSync(verifierSchemaPath)) {
+        const schema = JSON.parse(fs.readFileSync(verifierSchemaPath, 'utf8'));
+        manifest.circuits[name].public_input_schema = schema.public_inputs.map(i => i.name);
+      } else {
+        manifest.circuits[name].public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
+      }
+    }
+  }
+
+  // Update extra files
+  manifest.files = buildExtraFileEntries();
+
+  // Idempotent write
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`Manifest updated at ${manifestPath}`);
 }
 
 main();

@@ -22,7 +22,7 @@ import {
 import { WitnessValidationError } from '../src/errors';
 import { FIELD_MODULUS } from '../src/zk_constants';
 
-const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 
 describe('Public Input Encoding (ZK-008)', () => {
   describe('Field element encoding', () => {
@@ -50,7 +50,7 @@ describe('Public Input Encoding (ZK-008)', () => {
     });
 
     it('converts buffer to field element', () => {
-      const buf = Buffer.from([0x00, 0x01]);
+      const buf = Buffer.from([0x01, 0x00]);
       expect(bufferToField(buf)).toBe(256n);
     });
 
@@ -185,16 +185,16 @@ describe('Public Input Encoding (ZK-008)', () => {
       expect(encodedAmount).toBe(encodedFee);
     });
 
-    it('serializes zero values correctly', () => {
+    it('serializes zero values correctly with canonical hex', () => {
       const inputs = {
         pool_id: '0'.repeat(64),
         root: '0'.repeat(64),
         nullifier_hash: '0'.repeat(64),
         recipient: '0'.repeat(64),
-        amount: '0',
+        amount: '0'.repeat(64),
         relayer: '0'.repeat(64),
-        fee: '0',
-        denomination: '64'.padStart(64, '0'),
+        fee: '0'.repeat(64),
+        denomination: encodeDenomination(1000000000n),
       };
       const serialized = serializeWithdrawalPublicInputs(inputs);
       expect(serialized.fields[0]).toBe('0'.repeat(64));
@@ -257,32 +257,32 @@ describe('Public Input Encoding (ZK-008)', () => {
   });
 
   describe('Serialization', () => {
-    it('serializes withdrawal public inputs', () => {
+    it('serializes withdrawal public inputs with canonical hex for amount/fee/denomination', () => {
       const inputs = {
         pool_id: 'a'.repeat(64),
         root: 'b'.repeat(64),
         nullifier_hash: 'c'.repeat(64),
         recipient: 'd'.repeat(64),
-        amount: '100',
+        amount: encodeAmount(100n),
         relayer: 'e'.repeat(64),
-        fee: '10',
-        denomination: '64'.padStart(64, '0'),
+        fee: encodeFee(10n),
+        denomination: encodeDenomination(100n),
       };
       const serialized = serializeWithdrawalPublicInputs(inputs);
       expect(serialized.fields).toHaveLength(8);
       expect(serialized.bytes).toHaveLength(256); // 8 * 32 bytes
     });
 
-    it('serializes contract verifier inputs', () => {
+    it('serializes contract verifier inputs with canonical hex', () => {
       const inputs = {
         pool_id: 'a'.repeat(64),
         root: 'b'.repeat(64),
         nullifier_hash: 'c'.repeat(64),
         recipient: 'd'.repeat(64),
-        amount: '100',
+        amount: encodeAmount(100n),
         relayer: 'e'.repeat(64),
-        fee: '10',
-        denomination: '64'.padStart(64, '0'),
+        fee: encodeFee(10n),
+        denomination: encodeDenomination(100n),
       };
       const serialized = serializeContractVerifierInputs(inputs);
       expect(serialized.fields).toHaveLength(6);
@@ -309,12 +309,53 @@ describe('Public Input Encoding (ZK-008)', () => {
         root: 'b'.repeat(64),
         nullifier_hash: 'c'.repeat(64),
         recipient: 'd'.repeat(64),
-        amount: '100',
+        amount: encodeAmount(100n),
         relayer: 'e'.repeat(64),
-        fee: '10',
+        fee: encodeFee(10n),
         // missing denomination
       } as any;
       expect(() => serializeWithdrawalPublicInputs(inputs)).toThrow();
+    });
+    
+    it('rejects decimal strings for amount, fee, and denomination', () => {
+      expect(() => {
+        serializeWithdrawalPublicInputs({
+          pool_id: 'a'.repeat(64),
+          root: 'b'.repeat(64),
+          nullifier_hash: 'c'.repeat(64),
+          recipient: 'd'.repeat(64),
+          amount: '100',
+          relayer: 'e'.repeat(64),
+          fee: encodeFee(10n),
+          denomination: encodeDenomination(100n),
+        });
+      }).toThrow('amount must be a canonical 64-character field hex string, not a decimal string');
+      
+      expect(() => {
+        serializeWithdrawalPublicInputs({
+          pool_id: 'a'.repeat(64),
+          root: 'b'.repeat(64),
+          nullifier_hash: 'c'.repeat(64),
+          recipient: 'd'.repeat(64),
+          amount: encodeAmount(100n),
+          relayer: 'e'.repeat(64),
+          fee: '10',
+          denomination: encodeDenomination(100n),
+        });
+      }).toThrow('fee must be a canonical 64-character field hex string, not a decimal string');
+      
+      expect(() => {
+        serializeWithdrawalPublicInputs({
+          pool_id: 'a'.repeat(64),
+          root: 'b'.repeat(64),
+          nullifier_hash: 'c'.repeat(64),
+          recipient: 'd'.repeat(64),
+          amount: encodeAmount(100n),
+          relayer: 'e'.repeat(64),
+          fee: encodeFee(10n),
+          denomination: '100',
+        });
+      }).toThrow('denomination must be a canonical 64-character field hex string, not a decimal string');
     });
   });
 

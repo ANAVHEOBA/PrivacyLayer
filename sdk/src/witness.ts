@@ -48,6 +48,24 @@ function assertAmountFeeFields(
 ): { amount: bigint; fee: bigint } {
   assertFieldHexString(amountHex, amountLabel);
   assertFieldHexString(feeHex, feeLabel);
+  
+  // ZK-082: Reject decimal strings for amount and fee
+  // A decimal string is one that is NOT a 64-char hex string but contains only digits
+  if (amountHex.length !== 64 && /^\d+$/.test(amountHex)) {
+    throw new WitnessValidationError(
+      `${amountLabel} must be a canonical 64-character field hex string, not a decimal string`,
+      "FIELD_ENCODING",
+      "structure",
+    );
+  }
+  if (feeHex.length !== 64 && /^\d+$/.test(feeHex)) {
+    throw new WitnessValidationError(
+      `${feeLabel} must be a canonical 64-character field hex string, not a decimal string`,
+      "FIELD_ENCODING",
+      "structure",
+    );
+  }
+  
   const amount = hexToField(amountHex, amountLabel);
   const fee = hexToField(feeHex, feeLabel);
   if (fee > amount) {
@@ -93,6 +111,9 @@ export function assertValidStellarAccountId(
 /**
  * Verifies a prepared witness object for structural safety and protocol consistency
  * (nullifier hash binding, fee / relayer rules) before a proving backend is invoked.
+ * 
+ * ZK-082: Validates that amount, fee, and denomination are canonical 64-character
+ * field hex strings, rejecting decimal strings.
  */
 export function assertValidPreparedWithdrawalWitness(
   witness: PreparedWitness,
@@ -141,6 +162,17 @@ export function assertValidPreparedWithdrawalWitness(
     "amount",
     "fee",
   );
+  
+  // ZK-082: Validate denomination is canonical field hex
+  assertFieldHexString(witness.denomination, "denomination");
+  if (witness.denomination.length !== 64 && /^\d+$/.test(witness.denomination)) {
+    throw new WitnessValidationError(
+      "denomination must be a canonical 64-character field hex string, not a decimal string",
+      "FIELD_ENCODING",
+      "structure",
+    );
+  }
+  
   if (fee === 0n && witness.relayer !== ZERO_FIELD_HEX) {
     throw new WitnessValidationError(
       "relayer must be the zero field when fee is zero (matches on-chain / circuit rules)",

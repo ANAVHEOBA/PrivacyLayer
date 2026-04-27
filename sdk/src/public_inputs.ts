@@ -153,6 +153,9 @@ export function encodeStellarAddress(address: string): string {
 /**
  * Encodes amount as a canonical field hex string.
  * Amounts are bigint values representing the withdrawal amount.
+ * 
+ * ZK-082: Canonical representation is 64-character hex string (32 bytes, big-endian).
+ * Decimal strings are NOT accepted at the SDK boundary.
  */
 export function encodeAmount(amount: bigint): string {
   if (amount < 0n) {
@@ -164,6 +167,9 @@ export function encodeAmount(amount: bigint): string {
 /**
  * Encodes fee as a canonical field hex string.
  * Fees are bigint values representing the relayer fee.
+ * 
+ * ZK-082: Canonical representation is 64-character hex string (32 bytes, big-endian).
+ * Decimal strings are NOT accepted at the SDK boundary.
  */
 export function encodeFee(fee: bigint): string {
   if (fee < 0n) {
@@ -175,6 +181,9 @@ export function encodeFee(fee: bigint): string {
 /**
  * Encodes denomination as a canonical field hex string.
  * Denominations are bigint values representing the pool's fixed denomination.
+ * 
+ * ZK-082: Canonical representation is 64-character hex string (32 bytes, big-endian).
+ * Decimal strings are NOT accepted at the SDK boundary.
  */
 export function encodeDenomination(denomination: bigint): string {
   if (denomination <= 0n) {
@@ -234,17 +243,9 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
 
 /**
  * Order of public inputs expected by the contract verifier.
- * Matches the order in contracts/privacy_pool/src/crypto/verifier.rs.
- * Note: pool_id and denomination are SDK-only validation inputs.
+ * Matches the circuit's parameter order for BN254 pairing checks.
  */
-export const CONTRACT_VERIFIER_INPUT_SCHEMA = [
-  'root',
-  'nullifier_hash',
-  'recipient',
-  'amount',
-  'relayer',
-  'fee',
-] as const;
+export const CONTRACT_VERIFIER_INPUT_SCHEMA = WITHDRAWAL_PUBLIC_INPUT_SCHEMA;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
 export type ContractVerifierInputKey = (typeof CONTRACT_VERIFIER_INPUT_SCHEMA)[number];
@@ -266,41 +267,39 @@ export interface SerializedContractVerifierInputs {
 
 /**
  * Validates that a value is a canonical 64-character hex string.
+ * 
+ * ZK-082: All withdrawal public inputs including amount, fee, and denomination
+ * must use canonical field hex representation (64-char hex, 32 bytes, big-endian).
  */
 function assertCanonicalFieldHex(value: string, label: string): string {
   const clean = value.startsWith('0x') ? value.slice(2) : value;
   if (!/^[0-9a-fA-F]{64}$/.test(clean)) {
-    throw new Error(`${label} must be a 64-digit hex string`);
+    throw new Error(`${label} must be a 64-digit hex string (canonical field encoding)`);
   }
   return clean.toLowerCase();
 }
 
 /**
- * Validates that a value is a non-negative decimal string and converts to bigint.
- */
-function assertCanonicalFieldDecimal(value: string, label: string): bigint {
-  if (!/^\d+$/.test(value)) {
-    throw new Error(`${label} must be a non-negative decimal string`);
-  }
-  return BigInt(value);
-}
-
-/**
- * Encodes a withdrawal public input value based on its type.
- * Amount and fee are decimal strings (converted from bigint), others are hex strings.
+ * Encodes a withdrawal public input value as a 32-byte big-endian buffer.
+ * 
+ * ZK-082: All public inputs use canonical field hex representation.
+ * Amount, fee, and denomination must be 64-char hex strings, NOT decimal strings.
  */
 function encodeWithdrawalPublicInputValue(
   key: WithdrawalPublicInputKey,
   value: string
 ): Buffer {
-  switch (key) {
-    case 'amount':
-    case 'fee':
-    case 'denomination':
-      return fieldToBuffer(assertCanonicalFieldDecimal(value, key));
-    default:
-      return Buffer.from(assertCanonicalFieldHex(value, key), 'hex');
+  // ZK-082: Reject decimal strings for amount, fee, denomination
+  // A decimal string is one that is NOT a 64-char hex string but contains only digits
+  if (key === 'amount' || key === 'fee' || key === 'denomination') {
+    if (value.length !== 64 && /^\d+$/.test(value)) {
+      throw new Error(
+        `${key} must be a canonical 64-character field hex string, not a decimal string. ` +
+        `Use encode${key.charAt(0).toUpperCase() + key.slice(1)}() to convert bigint to canonical hex.`
+      );
+    }
   }
+  return Buffer.from(assertCanonicalFieldHex(value, key), 'hex');
 }
 
 /**
@@ -351,12 +350,14 @@ export function serializeContractVerifierInputs(
   source: WithdrawalPublicInputs
 ): SerializedContractVerifierInputs {
   const values: ContractVerifierInputs = {
+    pool_id: source.pool_id,
     root: source.root,
     nullifier_hash: source.nullifier_hash,
     recipient: source.recipient,
     amount: source.amount,
     relayer: source.relayer,
     fee: source.fee,
+    denomination: source.denomination,
   };
 
   const fields = CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => values[key]);
@@ -372,6 +373,9 @@ export function serializeContractVerifierInputs(
  *
  * This is a convenience function that takes individual values and produces
  * the serialized format expected by the circuit.
+ * 
+ * ZK-082: Amount, fee, and denomination are converted to canonical field hex.
+ * All other fields must already be canonical 64-character hex strings.
  */
 export function packWithdrawalPublicInputs(
   poolId: string,
@@ -388,10 +392,10 @@ export function packWithdrawalPublicInputs(
     root,
     nullifier_hash: nullifierHash,
     recipient,
-    amount: amount.toString(),
+    amount: encodeAmount(amount),
     relayer,
-    fee: fee.toString(),
-    denomination: denomination.toString(),
+    fee: encodeFee(fee),
+    denomination: encodeDenomination(denomination),
   }).fields;
 }
 

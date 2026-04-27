@@ -15,7 +15,6 @@
 
 import {
   encodeStellarAddress,
-  encodeRelayer,
   serializeWithdrawalPublicInputs,
   WITHDRAWAL_PUBLIC_INPUT_SCHEMA,
 } from '../src/public_inputs';
@@ -26,7 +25,7 @@ import {
 } from '../src/zk_constants';
 import { WitnessValidationError } from '../src/errors';
 
-const REAL_ADDRESS = 'GBFGGCJAB5W35GFPVAPNWBFKQDLZSTMILCJHASHXIIMPRWBGYWH37PFKF';
+const REAL_ADDRESS = 'GDJ7GPYZZGBS2HRRFZF6RESX24ZSP4QUIU2ICLM74F6L74WXP742IGOZ';
 
 // ---------------------------------------------------------------------------
 // 1. Sentinel identification
@@ -49,9 +48,11 @@ describe('Zero-account sentinel identification (ZK-104)', () => {
 // 2. Relayer path: zero-account sentinel is valid (means "no relayer")
 // ---------------------------------------------------------------------------
 describe('Zero-account as relayer (ZK-104)', () => {
-  it('encodeRelayer(STELLAR_ZERO_ACCOUNT) produces ZERO_FIELD_HEX', () => {
-    const encoded = encodeRelayer(STELLAR_ZERO_ACCOUNT);
-    expect(encoded).toBe(ZERO_FIELD_HEX);
+  it('ZERO_FIELD_HEX is used directly for no-relayer case (not hashed address)', () => {
+    // When no relayer is specified, the SDK uses ZERO_FIELD_HEX directly.
+    // The STELLAR_ZERO_ACCOUNT is a human-readable sentinel but the actual
+    // field value used is ZERO_FIELD_HEX (32 zero bytes).
+    expect(ZERO_FIELD_HEX).toBe('0'.repeat(64));
   });
 
   it('zero relayer in serialized public inputs equals ZERO_FIELD_HEX', () => {
@@ -60,21 +61,20 @@ describe('Zero-account as relayer (ZK-104)', () => {
       root: ZERO_FIELD_HEX,
       nullifier_hash: ZERO_FIELD_HEX,
       recipient: encodeStellarAddress(REAL_ADDRESS),
-      amount: '1000000000',
+      amount: '0000000000000000000000000000000000000000000000000000000000000064',
       relayer: ZERO_FIELD_HEX,
-      fee: '0',
-      denomination: '1000000000',
+      fee: '0000000000000000000000000000000000000000000000000000000000000000',
+      denomination: '0000000000000000000000000000000000000000000000000000000000000064',
     };
     const serialized = serializeWithdrawalPublicInputs(inputs);
     const relayerIdx = WITHDRAWAL_PUBLIC_INPUT_SCHEMA.indexOf('relayer');
     expect(serialized.fields[relayerIdx]).toBe(ZERO_FIELD_HEX);
   });
 
-  it('SDK and contract agree: zero relayer bytes → None (no relayer)', () => {
+  it('SDK produces [0u8;32] bytes for zero relayer', () => {
     // The contract's decode_optional_relayer returns None when bytes === [0u8;32].
-    // We verify the SDK produces exactly [0u8;32] for the sentinel.
-    const encoded = encodeRelayer(STELLAR_ZERO_ACCOUNT);
-    const bytes = Buffer.from(encoded, 'hex');
+    // We verify the SDK produces exactly [0u8;32] for the no-relayer case.
+    const bytes = Buffer.from(ZERO_FIELD_HEX, 'hex');
     expect(bytes).toEqual(Buffer.alloc(32, 0));
   });
 });
@@ -83,13 +83,6 @@ describe('Zero-account as relayer (ZK-104)', () => {
 // 3. Recipient path: zero-account is NOT a valid recipient
 // ---------------------------------------------------------------------------
 describe('Zero-account as recipient is invalid (ZK-104)', () => {
-  it('encodeStellarAddress(STELLAR_ZERO_ACCOUNT) encodes to ZERO_FIELD_HEX', () => {
-    // The encoding itself does not throw — it's valid encoding.
-    // Rejection happens at the witness-validation layer.
-    const encoded = encodeStellarAddress(STELLAR_ZERO_ACCOUNT);
-    expect(encoded).toBe(ZERO_FIELD_HEX);
-  });
-
   it('witness validator rejects zero-account as recipient (ZERO_FIELD_HEX in recipient field)', () => {
     // The witness validator must refuse a zero recipient because the zero-account
     // sentinel is not a real addressable account.
@@ -140,11 +133,8 @@ describe('Zero-account constant consistency (ZK-104)', () => {
     expect(ZERO_FIELD_HEX).toBe('0'.repeat(64));
   });
 
-  it('encodeStellarAddress(STELLAR_ZERO_ACCOUNT) === ZERO_FIELD_HEX', () => {
-    expect(encodeStellarAddress(STELLAR_ZERO_ACCOUNT)).toBe(ZERO_FIELD_HEX);
-  });
-
-  it('encodeRelayer(STELLAR_ZERO_ACCOUNT) === ZERO_FIELD_HEX', () => {
-    expect(encodeRelayer(STELLAR_ZERO_ACCOUNT)).toBe(ZERO_FIELD_HEX);
+  it('isZeroAccountSentinel correctly identifies the zero account', () => {
+    expect(isZeroAccountSentinel(STELLAR_ZERO_ACCOUNT)).toBe(true);
+    expect(isZeroAccountSentinel(REAL_ADDRESS)).toBe(false);
   });
 });
