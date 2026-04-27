@@ -6,7 +6,11 @@
   "types": "dist/index.d.ts",
   "scripts": {
     "build": "tsc",
-    "test": "jest"
+    "test": "jest",
+    "test:smoke": "jest zk_smoke.test.ts --verbose",
+    "test:schema-parity": "jest schema_parity.test.ts --verbose",
+    "test:zk-107": "jest zk_smoke.test.ts --verbose",
+    "test:zk-108": "jest schema_parity.test.ts --verbose"
   },
   "dependencies": {
     "@stellar/stellar-base": "^12.1.1",
