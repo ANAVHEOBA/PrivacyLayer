@@ -44,14 +44,45 @@ echo "📦 Compiling circuits..."
 for pkg in commitment withdraw merkle; do
   echo "  → Building $pkg..."
   (cd "circuits" && nargo compile --package "$pkg")
-  cp "circuits/target/$pkg.json" "artifacts/zk/"
+  # ZK-086: Align with versioned layout contract
+  cp "circuits/target/$pkg.json" "$ARTIFACTS_DIR/circuits/$pkg/$pkg.json"
 done
 
 echo "🧪 Regenerating shared commitment vectors..."
-node scripts/generate_commitment_vectors.mjs
+# ZK-086: Pass version to generator
+node scripts/generate_commitment_vectors.mjs "$ZK_VERSION"
 
 echo "📝 Refreshing manifest..."
 node scripts/refresh_manifest.mjs "$ZK_VERSION"
+
+# ZK-086: Remove stale, legacy copies that keep old layouts half-alive
+echo "🧹 Removing legacy unversioned artifacts..."
+rm -f artifacts/zk/*.json
+
+# ZK-086: Validation check for versioned outputs
+echo "🔍 Validating versioned artifact tree..."
+MISSING=0
+for pkg in commitment withdraw merkle; do
+  if [ ! -f "$ARTIFACTS_DIR/circuits/$pkg/$pkg.json" ]; then
+    echo "❌ Error: Missing circuit artifact $pkg"
+    MISSING=1
+  fi
+done
+
+if [ ! -f "$ARTIFACTS_DIR/manifests/manifest.json" ]; then
+  echo "❌ Error: Missing manifest"
+  MISSING=1
+fi
+
+if [ ! -f "$ARTIFACTS_DIR/commitment_vectors.json" ]; then
+  echo "❌ Error: Missing commitment vectors"
+  MISSING=1
+fi
+
+if [ $MISSING -eq 1 ]; then
+  echo "💥 Rebuild failed: Incomplete artifact tree"
+  exit 1
+fi
 
 if [ "$UPDATE_BASELINES" = true ]; then
   echo "📊 Updating constraint baselines..."

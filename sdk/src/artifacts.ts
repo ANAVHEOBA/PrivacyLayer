@@ -24,6 +24,18 @@
  */
 
 import { join } from 'path';
+import { Buffer } from 'buffer';
+import { NoirArtifacts, ZkArtifactManifest, ArtifactManifestError } from './types';
+import { sha256Hex } from './hash';
+
+/**
+ * Join URL parts ensuring single slashes.
+ */
+function joinUrl(base: string, ...parts: string[]): string {
+  const normalizedBase = base.endsWith('/') ? base : base + '/';
+  const normalizedParts = parts.map((p) => (p.startsWith('/') ? p.slice(1) : p));
+  return normalizedBase + normalizedParts.join('/');
+}
 
 /**
  * Current ZK artifact version.
@@ -159,3 +171,91 @@ export const ARTIFACT_LAYOUT = {
   CIRCUIT_NAMES,
   getKnownCircuitPath,
 } as const;
+/**
+ * Browser-compatible artifact loader that fetches versioned artifacts from URLs
+ * and validates their integrity against a manifest.
+ */
+export class BrowserArtifactLoader {
+  constructor(private readonly baseUrl: string) {}
+
+  /**
+   * Fetches the manifest for a specific version.
+   */
+  async fetchManifest(
+    version: string = ZK_ARTIFACT_VERSION
+  ): Promise<ZkArtifactManifest> {
+    const manifestPath = `manifests/manifest.json`;
+    const url = joinUrl(
+      this.baseUrl,
+      ZK_ARTIFACTS_BASE_DIR,
+      `v${version}`,
+      manifestPath
+    );
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      throw new ArtifactManifestError(
+        `Failed to fetch manifest from ${url}: ${response.statusText}`
+      );
+    }
+
+    return await response.json();
+  }
+
+  /**
+   * Loads and validates artifacts for a specific circuit and version.
+   */
+  async loadArtifacts(
+    circuitName: string,
+    version: string = ZK_ARTIFACT_VERSION
+  ): Promise<NoirArtifacts> {
+    const manifest = await this.fetchManifest(version);
+    const entry = manifest.circuits[circuitName];
+
+    if (!entry) {
+      throw new ArtifactManifestError(
+        `Circuit "${circuitName}" not found in manifest for version "${version}"`
+      );
+    }
+
+    const artifactUrl = joinUrl(
+      this.baseUrl,
+      ZK_ARTIFACTS_BASE_DIR,
+      `v${version}`,
+      entry.path
+    );
+
+    const response = await fetch(artifactUrl);
+    if (!response.ok) {
+      throw new ArtifactManifestError(
+        `Failed to fetch artifact for "${circuitName}" from ${artifactUrl}: ${response.statusText}`
+      );
+    }
+
+    const raw = await response.arrayBuffer();
+    const bytes = new Uint8Array(raw);
+    
+    // Integrity check (ZK-085)
+    // Check 'artifact_sha256' first, then 'checksum' for compatibility
+    const expectedHash = entry.artifact_sha256 ?? entry.checksum;
+    if (expectedHash) {
+      const actualHash = await sha256Hex(bytes);
+      if (actualHash !== expectedHash) {
+        throw new ArtifactManifestError(
+          `Integrity check failed for "${circuitName}": expected ${expectedHash}, got ${actualHash}`
+        );
+      }
+    }
+
+    const artifact = JSON.parse(new TextDecoder().decode(bytes));
+
+    return {
+      acir: typeof artifact.bytecode === 'string' 
+        ? new Uint8Array(Buffer.from(artifact.bytecode, 'base64')) // If it's base64 encoded
+        : new Uint8Array(artifact.acir || []), // Fallback to raw acir array if present
+      abi: artifact.abi,
+      name: artifact.name || circuitName,
+      bytecode: artifact.bytecode,
+    };
+  }
+}

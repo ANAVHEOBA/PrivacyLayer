@@ -70,31 +70,7 @@ function readJson(filePath) {
   return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function buildCircuitEntry(name) {
-  const filePath = path.join(artifactsDir, `${name}.json`);
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Missing artifact file: ${path.relative(repoRoot, filePath)}`);
-  }
 
-  const raw = fs.readFileSync(filePath);
-  const artifact = JSON.parse(raw.toString('utf8'));
-  const entry = {
-    circuit_id: name,
-    path: `${name}.json`,
-    artifact_sha256: sha256Hex(raw),
-    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
-    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
-    name: artifact.name ?? name,
-    backend: 'nargo/noir',
-  };
-
-  if (name === 'withdraw') {
-    entry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-    entry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
-  }
-
-  return entry;
-}
 
 function buildExtraFileEntries() {
   return Object.fromEntries(
@@ -116,6 +92,14 @@ function buildExtraFileEntries() {
   );
 }
 
+function computeChecksums(raw, artifact) {
+  return {
+    artifact_sha256: sha256Hex(raw),
+    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
+    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
+  };
+}
+
 function main() {
   console.log(`Refreshing ZK manifest for version ${zkVersion}...`);
 
@@ -131,7 +115,11 @@ function main() {
   } else {
     manifest = {
       version: zkVersion,
-      backend: 'barretenberg',
+      backend: {
+        name: 'nargo/noir',
+        nargo_version: 'unknown',
+        noirc_version: 'unknown'
+      },
       circuits: {},
     };
   }
@@ -141,27 +129,41 @@ function main() {
 
   for (const name of circuits) {
     // ZK-041: Look for circuits in versioned directory structure
-    const filePath = path.join(artifactsDir, 'circuits', name, `${name}.json`);
+    const circuitFile = `circuits/${name}/${name}.json`;
+    const filePath = path.join(artifactsDir, circuitFile);
+    
     if (!fs.existsSync(filePath)) {
       console.warn(`Warning: Missing artifact for ${name} at ${filePath}`);
       continue;
     }
 
-    const artifact = JSON.parse(fs.readFileSync(filePath, 'utf8'));
-    const checksum = computeChecksum(artifact);
+    const raw = fs.readFileSync(filePath);
+    const artifact = JSON.parse(raw.toString('utf8'));
+    const checksums = computeChecksums(raw, artifact);
 
     if (!manifest.circuits[name]) {
-      manifest.circuits[name] = {};
+      manifest.circuits[name] = {
+        circuit_id: name,
+        name: artifact.name ?? name,
+        backend: 'nargo/noir'
+      };
     }
-    // ZK-041: Update path to reflect new directory structure
-    manifest.circuits[name].path = `circuits/${name}/${name}.json`;
-    manifest.circuits[name].checksum = checksum;
+    
+    // ZK-041/ZK-085: Update path and checksums
+    manifest.circuits[name].path = circuitFile;
+    manifest.circuits[name].artifact_sha256 = checksums.artifact_sha256;
+    manifest.circuits[name].bytecode_sha256 = checksums.bytecode_sha256;
+    manifest.circuits[name].abi_sha256 = checksums.abi_sha256;
     
     // Production artifact depth is fixed for this protocol version.
     if (name === 'withdraw') {
       manifest.circuits[name].root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
+      manifest.circuits[name].public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
     }
   }
+
+  // Update extra files
+  manifest.files = buildExtraFileEntries();
 
   // Idempotent write
   fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');

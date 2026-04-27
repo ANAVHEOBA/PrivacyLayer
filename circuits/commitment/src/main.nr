@@ -113,7 +113,7 @@ fn test_commitment_is_deterministic() {
 }
 
 /// Shared cross-stack fixtures generated from the same source as
-/// artifacts/zk/commitment_vectors.json. These pin exact Noir <-> SDK outputs.
+/// artifacts/zk/v1/commitment_vectors.json. These pin exact Noir <-> SDK outputs.
 #[test]
 fn test_shared_fixture_cv_001() {
     let (nullifier, secret, pool_id, commitment) = fixtures::fixture_cv_001();
