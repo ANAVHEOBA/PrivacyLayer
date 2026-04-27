@@ -6,10 +6,10 @@
 // ============================================================
 
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, Env, IntoVal, Val, Vec, BytesN};
+use soroban_sdk::{Address, Env, BytesN};
 use crate::types::events::{emit_deposit, emit_withdraw, DepositEvent, WithdrawEvent};
-use crate::types::state::{PoolId, AnalyticsBucket, AnalyticsSnapshot, AnalyticsState};
-use crate::storage::analytics::{record_deposit_success, record_withdraw_success, snapshot, ANALYTICS_HISTORY_HOURS, SNAPSHOT_WINDOW_HOURS};
+use crate::types::state::{PoolId, AnalyticsBucket};
+use crate::storage::analytics::{record_deposit_success, record_withdraw_success, snapshot, SNAPSHOT_WINDOW_HOURS};
 
 fn pool_id(env: &Env, id: u8) -> PoolId {
     let mut bytes = [0u8; 32];
@@ -74,64 +74,69 @@ fn test_withdraw_event_no_note_material() {
 #[test]
 fn test_analytics_state_no_user_identifiers() {
     let env = Env::default();
-    
-    // Initialize analytics
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
+    env.as_contract(&contract_id, || {
+        // Initialize analytics
+        crate::storage::analytics::initialize(&env);
 
-    // Record some operations
-    record_deposit_success(&env);
-    record_deposit_success(&env);
-    record_withdraw_success(&env);
+        // Record some operations
+        record_deposit_success(&env);
+        record_deposit_success(&env);
+        record_withdraw_success(&env);
 
-    // Create snapshot
-    let deposit_count: u32 = 2;
-    let snap = snapshot(&env, deposit_count);
+        // Create snapshot
+        let deposit_count: u32 = 2;
+        let snap = snapshot(&env, deposit_count);
 
-    // Verify snapshot contains ONLY aggregate counters
-    // No user addresses, no nullifiers, no commitments, no proof data
-    assert_eq!(snap.deposit_count, 2);
-    assert_eq!(snap.withdrawal_count, 1);
-    assert_eq!(snap.page_views, 0);
-    assert_eq!(snap.error_count, 0);
+        // Verify snapshot contains ONLY aggregate counters
+        // No user addresses, no nullifiers, no commitments, no proof data
+        assert_eq!(snap.deposit_count, 2);
+        assert_eq!(snap.withdrawal_count, 1);
+        assert_eq!(snap.page_views, 0);
+        assert_eq!(snap.error_count, 0);
 
-    // Hourly trend should contain only bucket aggregates
-    for bucket in snap.hourly_trend.iter() {
-        assert!(bucket.page_views <= u32::MAX);
-        assert!(bucket.deposits <= u32::MAX);
-        assert!(bucket.withdrawals <= u32::MAX);
-        assert!(bucket.errors <= u32::MAX);
-        // No user-specific data in buckets
-    }
+        // Hourly trend should contain only bucket aggregates
+        for bucket in snap.hourly_trend.iter() {
+            assert!(bucket.page_views <= u32::MAX);
+            assert!(bucket.deposits <= u32::MAX);
+            assert!(bucket.withdrawals <= u32::MAX);
+            assert!(bucket.errors <= u32::MAX);
+            // No user-specific data in buckets
+        }
+    });
 }
 
 #[test]
 fn test_analytics_bucket_structure_privacy() {
     let env = Env::default();
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
+    env.as_contract(&contract_id, || {
+        crate::storage::analytics::initialize(&env);
 
-    // AnalyticsBucket should only contain:
-    // - hour_epoch: timestamp (public)
-    // - page_views: counter (aggregate)
-    // - deposits: counter (aggregate)
-    // - withdrawals: counter (aggregate)
-    // - errors: counter (aggregate)
-    
-    let bucket = AnalyticsBucket {
-        hour_epoch: 1000,
-        page_views: 5,
-        deposits: 2,
-        withdrawals: 1,
-        errors: 0,
-    };
+        // AnalyticsBucket should only contain:
+        // - hour_epoch: timestamp (public)
+        // - page_views: counter (aggregate)
+        // - deposits: counter (aggregate)
+        // - withdrawals: counter (aggregate)
+        // - errors: counter (aggregate)
+        
+        let bucket = AnalyticsBucket {
+            hour_epoch: 1000,
+            page_views: 5,
+            deposits: 2,
+            withdrawals: 1,
+            errors: 0,
+        };
 
-    // Verify no privacy-leaking fields exist
-    // (This is a compile-time check: if someone adds a field like `user_address`, 
-    //  the test structure would need to be updated, triggering a review)
-    assert_eq!(bucket.hour_epoch, 1000);
-    assert_eq!(bucket.page_views, 5);
-    assert_eq!(bucket.deposits, 2);
-    assert_eq!(bucket.withdrawals, 1);
-    assert_eq!(bucket.errors, 0);
+        // Verify no privacy-leaking fields exist
+        // (This is a compile-time check: if someone adds a field like `user_address`, 
+        //  the test structure would need to be updated, triggering a review)
+        assert_eq!(bucket.hour_epoch, 1000);
+        assert_eq!(bucket.page_views, 5);
+        assert_eq!(bucket.deposits, 2);
+        assert_eq!(bucket.withdrawals, 1);
+        assert_eq!(bucket.errors, 0);
+    });
 }
 
 #[test]
@@ -199,30 +204,33 @@ fn test_events_forbidden_zk_data_classes() {
 #[test]
 fn test_analytics_snapshot_public_boundary() {
     let env = Env::default();
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
+    env.as_contract(&contract_id, || {
+        crate::storage::analytics::initialize(&env);
 
-    // Record operations
-    for _ in 0..5 {
-        record_deposit_success(&env);
-    }
-    for _ in 0..3 {
-        record_withdraw_success(&env);
-    }
+        // Record operations
+        for _ in 0..5 {
+            record_deposit_success(&env);
+        }
+        for _ in 0..3 {
+            record_withdraw_success(&env);
+        }
 
-    // Build snapshot
-    let snap = snapshot(&env, 5);
+        // Build snapshot
+        let snap = snapshot(&env, 5);
 
-    // Snapshot should be safe for public dashboard exposure
-    // All fields are aggregate counters or averages
-    assert!(snap.deposit_count <= u32::MAX);
-    assert!(snap.withdrawal_count <= u64::MAX);
-    assert!(snap.error_rate_bps <= 10_000); // basis points (0-100%)
-    assert!(snap.avg_page_load_ms <= u32::MAX);
-    assert!(snap.avg_deposit_ms <= u32::MAX);
-    assert!(snap.avg_withdraw_ms <= u32::MAX);
+        // Snapshot should be safe for public dashboard exposure
+        // All fields are aggregate counters or averages
+        assert!(snap.deposit_count <= u32::MAX);
+        assert!(snap.withdrawal_count <= u64::MAX);
+        assert!(snap.error_rate_bps <= 10_000); // basis points (0-100%)
+        assert!(snap.avg_page_load_ms <= u32::MAX);
+        assert!(snap.avg_deposit_ms <= u32::MAX);
+        assert!(snap.avg_withdraw_ms <= u32::MAX);
 
-    // Verify hourly trend length
-    assert_eq!(snap.hourly_trend.len() as u32, SNAPSHOT_WINDOW_HOURS);
+        // Verify hourly trend length
+        assert_eq!(snap.hourly_trend.len() as u32, SNAPSHOT_WINDOW_HOURS);
+    });
 }
 
 #[test]

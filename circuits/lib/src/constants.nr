@@ -4,6 +4,10 @@ pub global ZERO_ADDRESS: Field = 0;
 
 pub global STROOPS_PER_XLM: Field = 10_0000000;
 
+/// Domain separator for note commitments.
+/// Derived from "commitment_domain_v1".
+pub global COMMITMENT_DOMAIN_SEP: Field = 0x000000000000000000000000636f6d6d69746d656e745f646f6d61696e5f7631;
+
 // ============================================================
 // Denomination Constants (ZK-030)
 // ============================================================

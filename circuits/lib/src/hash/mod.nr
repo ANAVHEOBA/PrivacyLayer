@@ -12,10 +12,10 @@ pub mod nullifier;
 pub mod pair;
 pub mod zeroes;
 
-/// Compute commitment from nullifier, secret and pool_id.
-/// commitment = Hash(nullifier, secret, pool_id)
-pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field) -> Field {
-    commitment::compute_commitment(nullifier, secret, pool_id)
+/// Compute commitment from nullifier, secret, pool_id and denomination.
+/// commitment = Hash(DOMAIN, nullifier, secret, pool_id, denomination)
+pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field, denomination: Field) -> Field {
+    commitment::compute_commitment(nullifier, secret, pool_id, denomination)
 }
 
 /// Compute nullifier hash bound to a specific root.

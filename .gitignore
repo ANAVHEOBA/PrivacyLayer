@@ -1,5 +1,6 @@
 # Rust / Cargo
 target/
+**/target/
 Cargo.lock
 **/*.rs.bk
 *.pdb
@@ -50,6 +51,8 @@ secrets/
 coverage/
 .nyc_output/
 *.lcov
+test_snapshots/
+**/test_snapshots/
 
 # Misc
 *.bak

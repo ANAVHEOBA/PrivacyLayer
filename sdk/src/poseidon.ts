@@ -6,6 +6,7 @@ import {
   noteScalarToField,
   poolIdToField,
 } from './encoding';
+import { COMMITMENT_DOMAIN_SEP_HEX } from './zk_constants';
 
 function toBigIntInput(value: string, index: number): bigint {
   return hexToField(value, `poseidon input[${index}]`);
@@ -34,6 +35,7 @@ export function computeNoteCommitmentField(
   denomination: bigint = 0n
 ): string {
   return poseidonFieldHex([
+    COMMITMENT_DOMAIN_SEP_HEX,
     noteScalarToField(Buffer.from(nullifier)),
     noteScalarToField(Buffer.from(secret)),
     poolIdToField(poolId),

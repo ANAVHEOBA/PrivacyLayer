@@ -10,7 +10,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
 use crate::types::state::{
-    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
+    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, PoolId, Proof, PublicInputs,
     VerifyingKey,
 };
 
@@ -59,8 +59,10 @@ impl PrivacyPool {
         pool_id: PoolId,
         proof: Proof,
         pub_inputs: PublicInputs,
+        recipient: Address,
+        relayer_opt: Option<Address>,
     ) -> Result<bool, Error> {
-        withdraw::execute(env, pool_id, proof, pub_inputs)
+        withdraw::execute(env, pool_id, proof, pub_inputs, recipient, relayer_opt)
     }
 
     // ──────────────────────────────────────────────────────────
@@ -82,14 +84,14 @@ impl PrivacyPool {
         view::is_known_root(env, pool_id, root)
     }
 
+    /// Check if a nullifier has been spent in a specific pool.
+    pub fn is_spent(env: Env, pool_id: PoolId, nullifier_hash: BytesN<32>) -> bool {
+        view::is_spent(env, pool_id, nullifier_hash)
+    }
+
     /// Returns the total number of successful withdrawals.
     pub fn withdraw_count(env: Env) -> u64 {
         view::withdraw_count(env)
-    }
-
-    /// Check if a root is in the historical root buffer.
-    pub fn is_known_root(env: Env, root: BytesN<32>) -> bool {
-        view::is_known_root(env, root)
     }
 
     /// Returns the configuration for a specific pool.

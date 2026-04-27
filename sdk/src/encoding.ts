@@ -1,5 +1,5 @@
 import { createHash } from 'crypto';
-import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX } from './zk_constants';
+import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX, COMMITMENT_DOMAIN_SEP_HEX } from './zk_constants';
 import { StrKey } from '@stellar/stellar-base';
 import { WitnessValidationError } from './errors';
 

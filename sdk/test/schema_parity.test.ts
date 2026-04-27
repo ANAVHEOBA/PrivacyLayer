@@ -107,10 +107,10 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
       expect(publicInputsSchema).toContain('denomination');
     });
 
-    it('should exclude pool_id and denomination from contract verifier schema', () => {
-      // Contract verifier doesn't receive pool_id and denomination
-      expect(contractVerifierSchema).not.toContain('pool_id');
-      expect(contractVerifierSchema).not.toContain('denomination');
+    it('should include pool_id and denomination in contract verifier schema', () => {
+      // Contract verifier now receives pool_id and denomination
+      expect(contractVerifierSchema).toContain('pool_id');
+      expect(contractVerifierSchema).toContain('denomination');
     });
 
     it('should have contract verifier schema as a subset of full schema', () => {

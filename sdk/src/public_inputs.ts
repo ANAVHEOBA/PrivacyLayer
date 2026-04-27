@@ -30,7 +30,7 @@
  */
 
 import { createHash } from 'crypto';
-import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX } from './zk_constants';
+import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX, STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX } from './zk_constants';
 import { StrKey } from '@stellar/stellar-base';
 import { WitnessValidationError } from './errors';
 
@@ -172,6 +172,13 @@ export function encodeFee(fee: bigint): string {
   return fieldToHex(fee);
 }
 
+export function encodeRelayer(relayer: string): string {
+  if (relayer === STELLAR_ZERO_ACCOUNT) {
+    return ZERO_FIELD_HEX;
+  }
+  return encodeStellarAddress(relayer);
+}
+
 /**
  * Encodes denomination as a canonical field hex string.
  * Denominations are bigint values representing the pool's fixed denomination.
@@ -234,16 +241,18 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
 
 /**
  * Order of public inputs expected by the contract verifier.
- * Matches the order in contracts/privacy_pool/src/crypto/verifier.rs.
- * Note: pool_id and denomination are SDK-only validation inputs.
+ * Matches the order in contracts/privacy_pool/src/types/state.rs.
+ * Note: pool_id and denomination are now also verified by the contract.
  */
 export const CONTRACT_VERIFIER_INPUT_SCHEMA = [
+  'pool_id',
   'root',
   'nullifier_hash',
   'recipient',
   'amount',
   'relayer',
   'fee',
+  'denomination',
 ] as const;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
@@ -351,12 +360,14 @@ export function serializeContractVerifierInputs(
   source: WithdrawalPublicInputs
 ): SerializedContractVerifierInputs {
   const values: ContractVerifierInputs = {
+    pool_id: source.pool_id,
     root: source.root,
     nullifier_hash: source.nullifier_hash,
     recipient: source.recipient,
     amount: source.amount,
     relayer: source.relayer,
     fee: source.fee,
+    denomination: source.denomination,
   };
 
   const fields = CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => values[key]);

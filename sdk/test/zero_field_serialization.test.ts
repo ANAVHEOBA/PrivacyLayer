@@ -22,6 +22,7 @@ import {
   packWithdrawalPublicInputs,
   serializeContractVerifierInputs,
   WITHDRAWAL_PUBLIC_INPUT_SCHEMA,
+  CONTRACT_VERIFIER_INPUT_SCHEMA,
 } from '../src/public_inputs';
 import { FIELD_MODULUS, ZERO_FIELD_HEX, STELLAR_ZERO_ACCOUNT } from '../src/zk_constants';
 
@@ -115,11 +116,11 @@ describe('Serialized public inputs: no bare "0" strings at contract boundary (ZK
   });
 
   it('packed buffer for all-zero inputs is 256 bytes of zeros (except denomination)', () => {
-    const packed = packWithdrawalPublicInputs(zeroInputs);
+    const packed = serializeWithdrawalPublicInputs(zeroInputs);
     // 8 fields × 32 bytes = 256 bytes
-    expect(packed.length).toBe(256);
+    expect(packed.bytes.length).toBe(256);
     // bytes 0..192 cover pool_id, root, nullifier_hash, recipient, amount, relayer, fee — all zero
-    const head = packed.slice(0, 7 * 32);
+    const head = packed.bytes.slice(0, 7 * 32);
     expect(head).toEqual(Buffer.alloc(7 * 32, 0));
   });
 });
@@ -129,12 +130,14 @@ describe('Serialized public inputs: no bare "0" strings at contract boundary (ZK
 // ---------------------------------------------------------------------------
 describe('Contract verifier inputs zero round-trip (ZK-103)', () => {
   const inputs = {
+    pool_id: ZERO_HEX_64,
     root: ZERO_HEX_64,
     nullifier_hash: ZERO_HEX_64,
     recipient: ZERO_HEX_64,
-    amount: '0',
+    amount: ZERO_HEX_64,
     relayer: ZERO_HEX_64,
-    fee: '0',
+    fee: ZERO_HEX_64,
+    denomination: ZERO_HEX_64,
   };
 
   it('serializeContractVerifierInputs with zero fee/relayer produces all-hex output', () => {
@@ -146,7 +149,7 @@ describe('Contract verifier inputs zero round-trip (ZK-103)', () => {
 
   it('zero fee in contract verifier is 64 hex zeros', () => {
     const result = serializeContractVerifierInputs(inputs);
-    const feeIdx = result.schema.indexOf('fee');
+    const feeIdx = CONTRACT_VERIFIER_INPUT_SCHEMA.indexOf('fee');
     expect(result.fields[feeIdx]).toBe(ZERO_HEX_64);
   });
 });
@@ -160,7 +163,7 @@ describe('nullifierHash zero encoding (ZK-103)', () => {
     // We don't call it with literal zero (it domain-hashes inputs),
     // but the return type must always be 64-char hex.
     const result = encodeNullifierHash(
-      Buffer.alloc(31, 0),
+      ZERO_HEX_64,
       ZERO_HEX_64,
     );
     expect(result).toMatch(/^[0-9a-f]{64}$/);

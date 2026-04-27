@@ -2,14 +2,14 @@
 // Withdrawal Logic
 // ============================================================
 
-use soroban_sdk::{token, Address, Env};
+use soroban_sdk::{token, Address, BytesN, Env};
 
 use crate::crypto::verifier;
 use crate::storage::{analytics, config, nullifier};
 use crate::types::errors::Error;
 use crate::types::events::emit_withdraw;
 use crate::types::state::{PoolId, Proof, PublicInputs};
-use crate::utils::{address_decoder, validation};
+use crate::utils::{address_hasher, validation};
 
 /// Execute a withdrawal from a specific shielded pool using a ZK proof.
 pub fn execute(
@@ -17,12 +17,39 @@ pub fn execute(
     pool_id: PoolId,
     proof: Proof,
     pub_inputs: PublicInputs,
+    recipient: Address,
+    relayer_opt: Option<Address>,
 ) -> Result<bool, Error> {
     // Load and validate pool configuration
     let pool_config = config::load_pool_config(&env, &pool_id)?;
     validation::require_not_paused(&pool_config)?;
 
     let denomination_amount = pool_config.denomination.amount();
+
+    // Step 0: Verifiable address binding (ZK-072, ZK-073)
+    let recipient_field = address_hasher::address_to_field(&env, &recipient);
+    if recipient_field != pub_inputs.recipient {
+        return Err(Error::InvalidProof); // Recipient mismatch
+    }
+
+    match &relayer_opt {
+        Some(relayer_addr) => {
+            let relayer_field = address_hasher::address_to_field(&env, relayer_addr);
+            if relayer_field != pub_inputs.relayer {
+                return Err(Error::InvalidProof); // Relayer mismatch
+            }
+        }
+        None => {
+            if !address_hasher::is_zero_sentinel(&env, &pub_inputs.relayer) {
+                return Err(Error::InvalidProof); // Expected zero sentinel for relayer
+            }
+            // ZK-073: If no relayer, fee must be zero in public inputs
+            let zero = BytesN::from_array(&env, &[0u8; 32]);
+            if pub_inputs.fee != zero {
+                 return Err(Error::InvalidProof);
+            }
+        }
+    }
 
     // Step 1: Validate root is in pool history
     validation::require_known_root(&env, &pool_id, &pub_inputs.root)?;
@@ -42,10 +69,6 @@ pub fn execute(
 
     // Step 5: Mark nullifier as spent in this pool
     nullifier::mark_spent(&env, &pool_id, &pub_inputs.nullifier_hash);
-
-    // Step 6: Decode addresses
-    let recipient = address_decoder::decode_address(&env, &pub_inputs.recipient);
-    let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer);
 
     // Step 7: Transfer funds
     transfer_funds(

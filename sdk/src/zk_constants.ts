@@ -81,6 +81,16 @@ export const DEFAULT_DENOMINATION = DENOMINATION_100_XLM;
 export const NULLIFIER_DOMAIN_SEP_HEX =
   '000000000000000000000000006e756c6c69666965725f646f6d61696e5f7631';
 
+/**
+ * Domain separator for note commitments (ZK-011).
+ *
+ * ASCII bytes of "commitment_domain_v1" left-padded to 32 bytes, expressed as a
+ * 64-character hex string. Must exactly match COMMITMENT_DOMAIN_SEP in
+ * circuits/lib/src/constants.nr.
+ */
+export const COMMITMENT_DOMAIN_SEP_HEX =
+  '000000000000000000000000636f6d6d69746d656e745f646f6d61696e5f7631';
+
 export const NOTE_BACKUP_VERSION = 0x01;
 export const NOTE_BACKUP_PREFIX = 'privacylayer-note:';
 export const NOTE_BACKUP_AMOUNT_BYTE_LENGTH = 8;

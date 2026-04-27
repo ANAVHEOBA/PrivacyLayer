@@ -35,9 +35,9 @@ fn compute_vk_x(
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
-    // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
-    // [root, nullifier_hash, recipient, amount, relayer, fee]
-    if vk.gamma_abc_g1.len() != 7 {
+    // The VK must have exactly 9 IC points: IC[0] + 8 public inputs
+    // [pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination]
+    if vk.gamma_abc_g1.len() != 9 {
         return Err(Error::MalformedVerifyingKey);
     }
 
@@ -48,13 +48,15 @@ fn compute_vk_x(
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
     // Public inputs as 32-byte field elements → Fr scalars
-    let inputs: [&BytesN<32>; 6] = [
+    let inputs: [&BytesN<32>; 8] = [
+        &pub_inputs.pool_id,
         &pub_inputs.root,
         &pub_inputs.nullifier_hash,
         &pub_inputs.recipient,
         &pub_inputs.amount,
         &pub_inputs.relayer,
         &pub_inputs.fee,
+        &pub_inputs.denomination,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
