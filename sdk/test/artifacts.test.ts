@@ -12,6 +12,8 @@ import {
   getCircuitProvingKeysDir,
   getVerificationKeyPath,
   getProvingKeyPath,
+  getReleaseBundleDir,
+  getReleaseBundlePath,
   CIRCUIT_NAMES,
   getKnownCircuitPath,
   ZK_ARTIFACT_VERSION,
@@ -121,6 +123,23 @@ describe('Artifact Path Configuration (ZK-041)', () => {
     });
   });
 
+  describe('Release bundle paths', () => {
+    it('returns correct release bundle directory', () => {
+      const dir = getReleaseBundleDir();
+      expect(dir).toBe('artifacts/zk/v1/bundles');
+    });
+
+    it('returns correct release bundle path', () => {
+      const filePath = getReleaseBundlePath();
+      expect(filePath).toBe('artifacts/zk/v1/bundles/release-bundle.json');
+    });
+
+    it('supports custom version for release bundle path', () => {
+      const filePath = getReleaseBundlePath('2');
+      expect(filePath).toBe('artifacts/zk/v2/bundles/release-bundle.json');
+    });
+  });
+
   describe('Known circuit names', () => {
     it('defines all known circuit names', () => {
       expect(CIRCUIT_NAMES.COMMITMENT).toBe('commitment');
@@ -158,6 +177,8 @@ describe('Artifact Path Configuration (ZK-041)', () => {
       expect(ARTIFACT_LAYOUT.getCircuitProvingKeysDir).toBe(getCircuitProvingKeysDir);
       expect(ARTIFACT_LAYOUT.getVerificationKeyPath).toBe(getVerificationKeyPath);
       expect(ARTIFACT_LAYOUT.getProvingKeyPath).toBe(getProvingKeyPath);
+      expect(ARTIFACT_LAYOUT.getReleaseBundleDir).toBe(getReleaseBundleDir);
+      expect(ARTIFACT_LAYOUT.getReleaseBundlePath).toBe(getReleaseBundlePath);
       expect(ARTIFACT_LAYOUT.getKnownCircuitPath).toBe(getKnownCircuitPath);
     });
 

@@ -133,6 +133,17 @@ export function getProvingKeyPath(circuitName: string, version: string = ZK_ARTI
 }
 
 /**
+ * Get the release bundle directory for a specific version.
+ */
+export function getReleaseBundleDir(version: string = ZK_ARTIFACT_VERSION): string {
+  return join(getVersionedArtifactsDir(version), 'bundles');
+}
+
+/**
+ * Get the release bundle file path for a specific version.
+ */
+export function getReleaseBundlePath(version: string = ZK_ARTIFACT_VERSION): string {
+  return join(getReleaseBundleDir(version), 'release-bundle.json');
  * Filename for the verifier schema artifact.
  */
 export const VERIFIER_SCHEMA_FILENAME = 'verifier_schema.json';
@@ -180,6 +191,8 @@ export const ARTIFACT_LAYOUT = {
   getCircuitProvingKeysDir,
   getVerificationKeyPath,
   getProvingKeyPath,
+  getReleaseBundleDir,
+  getReleaseBundlePath,
   CIRCUIT_NAMES,
   getKnownCircuitPath,
   VERIFIER_SCHEMA_FILENAME,

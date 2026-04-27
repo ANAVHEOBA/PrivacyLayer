@@ -14,4 +14,5 @@ export * from './withdraw';
 export * from './deposit';
 export * from './merkle';
 export * from './redaction';
+export * from './release_bundle';
 export { isZeroAccountSentinel } from './zk_constants';
