@@ -4,7 +4,7 @@ import path from 'path';
 import { Note } from '../src/note';
 import { MerkleProof, ProofGenerator, VerifyingBackend } from '../src/proof';
 import { verifyWithdrawalProof, extractPublicInputs } from '../src/withdraw';
-import { WithdrawalPublicInputs } from '../src/encoding';
+import { WithdrawalPublicInputs, fieldToHex } from '../src/encoding';
 import { WitnessValidationError } from '../src/errors';
 
 class MockVerifyingBackend implements VerifyingBackend {
@@ -22,13 +22,13 @@ class MockVerifyingBackend implements VerifyingBackend {
 
 function makePublicInputs(overrides: Partial<WithdrawalPublicInputs> = {}): WithdrawalPublicInputs {
   return {
-    pool_id: '11'.repeat(32),
-    root: '22'.repeat(32),
-    nullifier_hash: '33'.repeat(32),
-    recipient: '44'.repeat(32),
-    amount: '100',
-    relayer: '55'.repeat(32),
-    fee: '0',
+    pool_id: '01'.repeat(32),
+    root: '02'.repeat(32),
+    nullifier_hash: '03'.repeat(32),
+    recipient: '04'.repeat(32),
+    amount: fieldToHex(1000000000n), // DEFAULT_DENOMINATION
+    relayer: '05'.repeat(32),
+    fee: fieldToHex(0n),
     ...overrides,
   };
 }
@@ -89,9 +89,9 @@ describe('Verification Harness', () => {
     const tampered = { ...good };
     const keys: (keyof WithdrawalPublicInputs)[] = ['pool_id', 'root', 'nullifier_hash', 'recipient', 'amount', 'relayer', 'fee'];
     tampered[keys[idx]!] =
-      keys[idx] === 'amount' ? '101'
-      : keys[idx] === 'fee' ? '1'
-      : '66'.repeat(32);
+      keys[idx] === 'amount' ? fieldToHex(1000000001n)
+      : keys[idx] === 'fee' ? fieldToHex(1n)
+      : '09'.repeat(32);
     const isValid = await verifyWithdrawalProof(proof, tampered, withdrawArtifact, backend);
     expect(isValid).toBe(false);
   });
@@ -113,7 +113,7 @@ describe('Verification Harness', () => {
       Buffer.from('01'.repeat(31), 'hex'),
       Buffer.from('02'.repeat(31), 'hex'),
       '03'.repeat(32),
-      1000n
+      1000000000n // DEFAULT_DENOMINATION
     );
     
     const merkleProof: MerkleProof = {

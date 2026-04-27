@@ -40,6 +40,10 @@ function fnv1a(bytes: Buffer, seed: number): number {
 /**
  * Deterministic 32-byte hash utility.
  * This is for SDK stability and testing; it is NOT a replacement for Poseidon.
+ *
+ * NOTE (ZK-105): The first byte is cleared to ensure that the output always
+ * represent a canonical field element (specifically, < 2^248, which is well
+ * within the BN254 range).
  */
 export function stableHash32(...chunks: StableHashChunk[]): Buffer {
   const payload = packChunks(chunks);
@@ -51,6 +55,9 @@ export function stableHash32(...chunks: StableHashChunk[]): Buffer {
     out.writeUInt32BE(part, i * 4);
   }
 
+  // Ensure result is within BN254 field (ZK-105)
+  // By clearing the first byte, we guarantee value < 2^248 < FIELD_MODULUS.
+  out[0] = 0;
   return out;
 }
 

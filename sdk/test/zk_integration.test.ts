@@ -48,19 +48,19 @@ class IntegrationVerifyingBackend implements VerifyingBackend {
 const FIXTURES = {
   valid: {
     seed: 'zk-valid-fixture',
-    poolId: '44'.repeat(32),
-    amount: 1000n,
+    poolId: '01'.repeat(32),
+    amount: 1000000000n, // DEFAULT_DENOMINATION
     recipient: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     relayer: 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5',
     fee: 5n
   },
   invalid: {
     seed: 'zk-invalid-fixture',
-    poolId: '55'.repeat(32),
-    amount: 500n,
+    poolId: '02'.repeat(32),
+    amount: 1000000000n, // DEFAULT_DENOMINATION
     recipient: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
     relayer: 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5',
-    fee: 501n
+    fee: 1000000001n // fee > amount
   }
 };
 

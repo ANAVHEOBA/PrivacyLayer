@@ -68,7 +68,7 @@ describe('BN254 encoding contract', () => {
       Buffer.from('01'.repeat(31), 'hex'),
       Buffer.from('02'.repeat(31), 'hex'),
       CANONICAL_POOL_ID,
-      1000n
+      1000000000n // DEFAULT_DENOMINATION
     );
 
     const merkleProof: MerkleProof = {
@@ -82,7 +82,7 @@ describe('BN254 encoding contract', () => {
     const witness = await ProofGenerator.prepareWitness(note, merkleProof, RECIPIENT);
 
     expect(witness.leaf_index).toBe(fieldToHex(7n));
-    expect(witness.amount).toBe(fieldToHex(1000n));
+    expect(witness.amount).toBe(fieldToHex(1000000000n));
     expect(witness.fee).toBe(fieldToHex(0n));
   });
 });

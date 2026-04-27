@@ -25,7 +25,7 @@ describe('ZK SDK Dependency Resolution', () => {
       expect(sdk).toHaveProperty('ProofGenerator');
       expect(sdk).toHaveProperty('WITHDRAWAL_PUBLIC_INPUT_SCHEMA');
       expect(sdk).toHaveProperty('Note');
-      expect(sdk).toHaveProperty('MerkleTree');
+      expect(sdk).toHaveProperty('LocalMerkleTree');
     });
   });
 

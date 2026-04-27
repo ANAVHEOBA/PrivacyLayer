@@ -14,13 +14,13 @@ import { GROTH16_PROOF_BYTE_LENGTH } from "../src/witness";
 import { MOCK_HASH_CONTEXT } from "../src/hash_mode";
 
 const RECIPIENT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
-const POOL_ID = "11".repeat(32);
+const POOL_ID = "01".repeat(32);
 
 function buildNote(index: number): Note {
   return Note.deriveDeterministic(
     `fixture-${index}`,
     POOL_ID,
-    1_000_000n + BigInt(index),
+    1_000_000_000n, // DEFAULT_DENOMINATION
   );
 }
 
@@ -66,6 +66,7 @@ describe("Offline merkle depth support", () => {
       0n,
       {
         merkleDepth: depth,
+        denomination: note.amount,
       },
     );
     expect(witness.hash_path).toHaveLength(depth);
@@ -95,6 +96,7 @@ describe("Offline merkle depth support", () => {
       generateWithdrawalProof(
         { note, merkleProof: proof, recipient: RECIPIENT },
         backend,
+        { merkleDepth: depth, denomination: note.amount },
         // HASH_MODE: mock — testOnlyAllowMockHash acknowledges SHA-256 stand-ins
         { merkleDepth: depth, testOnlyAllowMockHash: MOCK_HASH_CONTEXT },
       ),

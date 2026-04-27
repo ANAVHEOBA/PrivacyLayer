@@ -40,6 +40,7 @@ export interface WithdrawalProofGenerationOptions {
   cache?: ProofCache;
   cacheKey?: string;
   merkleDepth?: number;
+  denomination?: bigint;
   /**
    * ZK-106: Forward to `ProofGenerator.generate()` to allow a mock-hash witness
    * through the production guard.  Set to `true` ONLY in tests.
@@ -165,7 +166,10 @@ export async function generateWithdrawalProof(
     recipient,
     relayer,
     fee,
-    { merkleDepth: options.merkleDepth },
+    { 
+      merkleDepth: options.merkleDepth,
+      denomination: options.denomination,
+    },
   );
 
   const key =
@@ -181,6 +185,7 @@ export async function generateWithdrawalProof(
   const proofGenerator = new ProofGenerator(backend);
   const rawProof = await proofGenerator.generate(witness, {
     merkleDepth: options.merkleDepth,
+    denomination: options.denomination,
     testOnlyAllowMockHash: options.testOnlyAllowMockHash,
   });
 
