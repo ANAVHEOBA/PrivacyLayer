@@ -21,6 +21,7 @@ import {
 } from "./encoding";
 import { stableHash32, stableStringify } from "./stable";
 import { WitnessValidationError } from "./errors";
+import { assertCapability, isCapabilitySupported, ZkCapabilities, detectCapabilities } from "./capabilities";
 
 /**
  * WithdrawalRequest
@@ -116,6 +117,22 @@ export function buildWithdrawalPublicInputLayout(
 }
 
 /**
+ * Checks if the current runtime can generate withdrawal proofs.
+ *
+ * @returns true if proof generation is supported, false otherwise
+ */
+export function canGenerateWithdrawalProof(): boolean {
+  return isCapabilitySupported('prove');
+}
+
+/**
+ * Gets the current runtime capabilities relevant to withdrawal operations.
+ */
+export function getWithdrawalCapabilities(): ZkCapabilities {
+  return detectCapabilities();
+}
+
+/**
  * generateWithdrawalProof
  *
  * A stable API for generating a withdrawal proof across environments.
@@ -130,6 +147,9 @@ export async function generateWithdrawalProof(
   backend: ProvingBackend,
   options: WithdrawalProofGenerationOptions = {},
 ): Promise<Buffer> {
+  // Fail fast if the runtime doesn't support proving
+  assertCapability('prove');
+
   const { note, merkleProof, recipient, relayer, fee } = request;
 
   // 1. Prepare witness inputs for the circuit

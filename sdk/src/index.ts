@@ -1,5 +1,6 @@
 export * from './backends';
 export * from './benchmark';
+export * from './capabilities';
 export * from './encoding';
 export * from './errors';
 export * from './merkle';
