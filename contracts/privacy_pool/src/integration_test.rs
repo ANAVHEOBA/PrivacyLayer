@@ -17,7 +17,10 @@ use soroban_sdk::{
 
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
-    types::state::{Denomination, PerformanceMetricKind, Proof, PublicInputs, VerifyingKey},
+    types::state::{
+        derive_canonical_pool_id, derive_canonical_pool_id_for_fixture, Denomination,
+        PerformanceMetricKind, PoolId, Proof, PublicInputs, VerifyingKey,
+    },
     PrivacyPool, PrivacyPoolClient,
 };
 
@@ -49,7 +52,7 @@ fn setup() -> (
     StellarAssetClient::new(&env, &token_id).mint(&alice, &(200 * DENOM_AMOUNT));
     StellarAssetClient::new(&env, &token_id).mint(&bob, &(200 * DENOM_AMOUNT));
 
-    let pool_id = PoolId(BytesN::from_array(&env, &[7u8; 32]));
+    let pool_id = derive_canonical_pool_id(&env, &token_id, &Denomination::Xlm100);
 
     client.initialize(&admin);
     client.create_pool(&pool_id, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
@@ -75,7 +78,62 @@ fn dummy_vk(env: &Env) -> VerifyingKey {
 }
 
 fn make_pool_id(env: &Env, seed: u8) -> PoolId {
-    PoolId(BytesN::from_array(env, &[seed; 32]))
+    let token_identity = soroban_sdk::Bytes::from_slice(env, &[b'c', b'o', b'n', b't', b'r', b'a', b'c', b't', b':', seed]);
+    derive_canonical_pool_id_for_fixture(
+        env,
+        &token_identity,
+        &Denomination::Xlm100,
+        &env.ledger().network_id(),
+    )
+}
+
+#[test]
+fn test_canonical_pool_id_fixture_vectors_match_sdk() {
+    let env = Env::default();
+    let network_domain = BytesN::from_array(
+        &env,
+        &[
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+            0x11, 0x11, 0x11, 0x11,
+        ],
+    );
+
+    let xlm_identity = soroban_sdk::Bytes::from_slice(&env, b"native:xlm");
+    let contract_identity = soroban_sdk::Bytes::from_slice(
+        &env,
+        b"contract:cb7f6f5f7f6f8f7f9f7faf7fbf7fcf7fdf7fef7fff7f0f7f1f7f2f7f3f7f4f",
+    );
+
+    let xlm_pool = derive_canonical_pool_id_for_fixture(
+        &env,
+        &xlm_identity,
+        &Denomination::Xlm100,
+        &network_domain,
+    );
+    let token_pool = derive_canonical_pool_id_for_fixture(
+        &env,
+        &contract_identity,
+        &Denomination::Usdc100,
+        &network_domain,
+    );
+
+    assert_eq!(
+        xlm_pool.0.to_array(),
+        [
+            0x00, 0xa7, 0x72, 0xbf, 0x8f, 0x03, 0xf5, 0xa9, 0x95, 0x32, 0x7d, 0xd2, 0xee, 0x5d,
+            0x43, 0xf4, 0x69, 0xcb, 0xc2, 0x6a, 0x1f, 0xff, 0xd0, 0x9d, 0x5b, 0xd9, 0x22, 0xe4,
+            0x16, 0xdf, 0x46, 0x17,
+        ]
+    );
+    assert_eq!(
+        token_pool.0.to_array(),
+        [
+            0x00, 0x7b, 0xb1, 0x35, 0xca, 0x6e, 0x5e, 0xfd, 0x40, 0x6a, 0x99, 0x8a, 0xc6, 0x7f,
+            0xfa, 0x4f, 0xce, 0x7f, 0xc6, 0x5d, 0xc7, 0x4b, 0x64, 0x09, 0x55, 0xb9, 0x51, 0xad,
+            0x1c, 0xef, 0x2a, 0x99,
+        ]
+    );
 }
 
 fn make_commit(env: &Env, seed: u8) -> BytesN<32> {

@@ -7,7 +7,7 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, String, Vec};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
@@ -73,6 +73,51 @@ impl Denomination {
             Denomination::Usdc1000 =>    1_000_000_000, // 1000 USDC
         }
     }
+
+    /// Stable canonical bytes (big-endian i128) used by pool-id derivation.
+    pub fn canonical_bytes(&self) -> [u8; 16] {
+        self.amount().to_be_bytes()
+    }
+}
+
+const POOL_ID_DOMAIN_TAG: &[u8] = b"PrivacyLayerPoolId:v1";
+
+fn derive_pool_id_from_identity(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    let mut preimage = Bytes::from_slice(env, POOL_ID_DOMAIN_TAG);
+    preimage.append(&Bytes::from_slice(env, &network_domain.to_array()));
+    preimage.append(&Bytes::from_slice(env, &denomination.canonical_bytes()));
+
+    let token_len = (token_identity.len() as u16).to_be_bytes();
+    preimage.append(&Bytes::from_slice(env, &token_len));
+    preimage.append(token_identity);
+
+    let digest = env.crypto().sha256(&preimage);
+    let mut pool_bytes = digest.to_array();
+    pool_bytes[0] = 0;
+    PoolId(BytesN::from_array(env, &pool_bytes))
+}
+
+/// Derive canonical pool id from a token address, denomination, and current network domain.
+pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
+    let token_text: String = token.to_string();
+    let token_bytes = token_text.into_bytes();
+    let network_domain = env.ledger().network_id();
+    derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
+}
+
+#[cfg(test)]
+pub fn derive_canonical_pool_id_for_fixture(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    derive_pool_id_from_identity(env, token_identity, denomination, network_domain)
 }
 
 /// Global contract configuration.

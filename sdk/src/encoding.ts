@@ -36,6 +36,20 @@ function assertByteLength(buf: Buffer, expectedLength: number, label: string): v
   }
 }
 
+function bigintToFixedBytes(value: bigint, byteLength: number, label: string): Buffer {
+  const max = 1n << (BigInt(byteLength) * 8n);
+  if (value < 0n || value >= max) {
+    throw new RangeError(`${label} must fit in ${byteLength} bytes`);
+  }
+  const out = Buffer.alloc(byteLength);
+  let cursor = value;
+  for (let i = byteLength - 1; i >= 0; i--) {
+    out[i] = Number(cursor & 0xffn);
+    cursor >>= 8n;
+  }
+  return out;
+}
+
 export function hexToBytes(
   value: string,
   label: string = 'hex value',
@@ -51,6 +65,73 @@ export function hexToBytes(
 
 export function bytesToHex(value: Buffer | Uint8Array): string {
   return Buffer.from(value).toString('hex');
+}
+
+export type PoolTokenIdentity =
+  | { kind: 'native'; assetCode: string }
+  | { kind: 'contract'; contractId: string };
+
+const POOL_ID_DOMAIN_TAG = 'PrivacyLayerPoolId:v1';
+const NETWORK_DOMAIN_BYTES = 32;
+const DENOMINATION_BYTES = 16;
+const TOKEN_LENGTH_PREFIX_BYTES = 2;
+
+function poolTokenIdentityBytes(token: PoolTokenIdentity): Buffer {
+  if (token.kind === 'native') {
+    const code = token.assetCode.trim().toLowerCase();
+    if (!code) {
+      throw new Error('native assetCode must be non-empty');
+    }
+    return Buffer.from(`native:${code}`, 'utf8');
+  }
+  const contractId = token.contractId.trim().toLowerCase();
+  if (!contractId) {
+    throw new Error('contractId must be non-empty');
+  }
+  return Buffer.from(`contract:${contractId}`, 'utf8');
+}
+
+/**
+ * Derive a canonical 32-byte pool identifier from:
+ * - token identity (native asset code or contract identifier)
+ * - fixed denomination
+ * - network domain (32-byte hex string, e.g. Stellar network id)
+ *
+ * Formula (v1):
+ *   digest = SHA256(
+ *     "PrivacyLayerPoolId:v1" || network_domain(32) || denomination(16be) ||
+ *     token_len(2be) || token_identity_bytes
+ *   )
+ *   pool_id = 0x00 || digest[1..32]
+ *
+ * Leading zero keeps the pool identifier inside a strict 31-byte field range.
+ */
+export function deriveCanonicalPoolId(
+  token: PoolTokenIdentity,
+  denomination: bigint,
+  networkDomainHex: string
+): string {
+  const networkDomain = hexToBytes(networkDomainHex, 'networkDomainHex', NETWORK_DOMAIN_BYTES);
+  const tokenBytes = poolTokenIdentityBytes(token);
+  if (tokenBytes.length > 0xffff) {
+    throw new Error('token identity encoding exceeds 65535 bytes');
+  }
+
+  const tokenLength = bigintToFixedBytes(BigInt(tokenBytes.length), TOKEN_LENGTH_PREFIX_BYTES, 'token identity length');
+  const denominationBytes = bigintToFixedBytes(denomination, DENOMINATION_BYTES, 'denomination');
+
+  const digest = createHash('sha256')
+    .update(Buffer.from(POOL_ID_DOMAIN_TAG, 'utf8'))
+    .update(networkDomain)
+    .update(denominationBytes)
+    .update(tokenLength)
+    .update(tokenBytes)
+    .digest();
+
+  const poolId = Buffer.alloc(32);
+  poolId[0] = 0;
+  digest.copy(poolId, 1, 1, 32);
+  return poolId.toString('hex');
 }
 
 /**

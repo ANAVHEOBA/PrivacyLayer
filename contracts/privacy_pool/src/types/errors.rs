@@ -25,6 +25,8 @@ pub enum Error {
     TreeFull = 21,
     /// Pool with the given ID not found
     PoolNotFound = 22,
+    /// Pool ID does not match canonical derivation
+    InvalidPoolId = 23,
 
     // ── Deposit ────────────────────────────────────────
     /// Wrong deposit amount — must match the pool denomination

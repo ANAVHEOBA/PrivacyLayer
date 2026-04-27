@@ -15,8 +15,10 @@ import {
   syncCommitmentBatch,
 } from "./merkle";
 import {
+  PoolTokenIdentity,
   SerializedWithdrawalPublicInputs,
   WithdrawalPublicInputs,
+  deriveCanonicalPoolId,
   serializeWithdrawalPublicInputs,
 } from "./encoding";
 import { stableHash32, stableStringify } from "./stable";
@@ -39,6 +41,12 @@ export interface WithdrawalProofGenerationOptions {
   cache?: ProofCache;
   cacheKey?: string;
   merkleDepth?: number;
+}
+
+export interface CanonicalPoolContext {
+  token: PoolTokenIdentity;
+  denomination: bigint;
+  networkDomainHex: string;
 }
 
 interface WithdrawalCacheMaterial {
@@ -113,6 +121,20 @@ export function buildWithdrawalPublicInputLayout(
   publicInputs: WithdrawalPublicInputs | PreparedWitness,
 ): SerializedWithdrawalPublicInputs {
   return serializeWithdrawalPublicInputs(publicInputs);
+}
+
+/**
+ * Guardrail that ensures witness preparation uses the canonical pool-id formula.
+ */
+export function assertCanonicalNotePoolId(note: Note, context: CanonicalPoolContext): void {
+  const expected = deriveCanonicalPoolId(context.token, context.denomination, context.networkDomainHex);
+  if (note.poolId.toLowerCase() !== expected) {
+    throw new WitnessValidationError(
+      `note.poolId does not match canonical derivation; expected ${expected}`,
+      "POOL_ID",
+      "domain",
+    );
+  }
 }
 
 /**
