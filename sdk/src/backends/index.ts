@@ -17,3 +17,19 @@ export {
   assertManifestMatchesNoirArtifacts,
   createBarretenbergBackend,
 } from './noir';
+
+export {
+  ZkCapabilities,
+  RuntimeType,
+  CapabilityCheck,
+  UnsupportedRuntimeError,
+  detectRuntimeType,
+  detectCapabilities,
+  hasSecureRandomness,
+  canLoadArtifactsFromFilesystem,
+  canSupportWasmProving,
+  assertCapability,
+  isCapabilitySupported,
+  assertProvingBackendSupported,
+  assertWitnessFormattingSupported,
+} from '../capabilities';

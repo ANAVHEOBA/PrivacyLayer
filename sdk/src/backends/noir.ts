@@ -8,6 +8,7 @@
 import { createHash } from 'crypto';
 import { ProvingBackend } from '../proof';
 import { stableStringify } from '../stable';
+import { assertProvingBackendSupported, detectCapabilities, ZkCapabilities } from '../capabilities';
 
 export interface NoirArtifacts {
   /**
@@ -60,6 +61,13 @@ export interface NoirBackendConfig {
    * If not provided, one will be created automatically.
    */
   backend?: any; // BarretenbergBackend type when @noir/types is available
+
+  /**
+   * Whether to skip runtime capability checks on initialization.
+   * Set to true if you want to defer capability validation.
+   * @default false
+   */
+  skipCapabilityCheck?: boolean;
 }
 
 export interface ZkArtifactManifestFile {
@@ -170,10 +178,20 @@ export function assertManifestMatchesNoirArtifacts(
 export class NoirBackend implements ProvingBackend {
   private artifacts: NoirArtifacts;
   private backend: any; // BarretenbergBackend when imported
+  private capabilities: ZkCapabilities;
 
   constructor(config: NoirBackendConfig) {
     this.artifacts = config.artifacts;
     this.backend = config.backend;
+    
+    // Detect and store capabilities
+    this.capabilities = detectCapabilities();
+    
+    // Perform capability check unless explicitly skipped
+    if (!config.skipCapabilityCheck) {
+      this.assertProvingCapabilities();
+    }
+    
     if (config.manifest && config.circuitName) {
       assertManifestMatchesNoirArtifacts(
         config.manifest,
@@ -182,6 +200,21 @@ export class NoirBackend implements ProvingBackend {
         config.artifactPath
       );
     }
+  }
+
+  /**
+   * Asserts that the current runtime supports proving operations.
+   * Throws UnsupportedRuntimeError with actionable diagnostics if not.
+   */
+  private assertProvingCapabilities(): void {
+    assertProvingBackendSupported();
+  }
+
+  /**
+   * Returns the detected capabilities for this backend instance.
+   */
+  getCapabilities(): ZkCapabilities {
+    return this.capabilities;
   }
 
   /**
