@@ -7,7 +7,7 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN, Vec};
+use soroban_sdk::{contracttype, Address, BytesN, Env, Vec};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys

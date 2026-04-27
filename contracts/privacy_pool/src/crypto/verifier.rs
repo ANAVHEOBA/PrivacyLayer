@@ -181,9 +181,10 @@ mod tests {
         
         let mut last_pos = 0;
         for name in expected_order {
-            let pos = schema_json.find(&format!("\"name\": \"{}\"", name))
-                .expect(&format!("Field {} missing from schema", name));
-            assert!(pos > last_pos, "Field {} out of order in schema", name);
+            let search_str = concat!("\"name\": \"", stringify!(name), "\"");
+            let pos = schema_json.find(search_str)
+                .expect(concat!("Field ", stringify!(name), " missing from schema"));
+            assert!(pos > last_pos, concat!("Field ", stringify!(name), " out of order in schema"));
             last_pos = pos;
         }
     }

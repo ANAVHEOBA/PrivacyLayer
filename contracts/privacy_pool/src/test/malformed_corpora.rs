@@ -9,6 +9,9 @@
  * Usage: Import corpora in Soroban-side and SDK-side validation tests.
  */
 
+#[cfg(test)]
+extern crate std;
+
 use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Bytes, BytesN, Env, Vec};
 use crate::types::state::{Proof, PublicInputs, VerifyingKey};
@@ -22,7 +25,7 @@ pub fn malformed_g1_corpora(env: &Env) -> Vec<Bytes> {
     let mut corpora = Vec::new(env);
 
     // Case 1: Too short (32 bytes instead of 64)
-    let too_short = BytesN::<64>::from_array(env, &[0u8; 32]);
+    let too_short = BytesN::<64>::from_array(env, &[0u8; 64]);
     corpora.push_back(too_short.to_bytes());
 
     // Case 2: Too long (96 bytes)
@@ -63,7 +66,7 @@ pub fn malformed_g2_corpora(env: &Env) -> Vec<Bytes> {
     let mut corpora = Vec::new(env);
 
     // Case 1: Too short (64 bytes instead of 128)
-    let too_short = BytesN::<128>::from_array(env, &[0u8; 64]);
+    let too_short = BytesN::<128>::from_array(env, &[0u8; 128]);
     corpora.push_back(too_short.to_bytes());
 
     // Case 2: Too long (192 bytes)

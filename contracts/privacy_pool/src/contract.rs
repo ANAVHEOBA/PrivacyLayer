@@ -10,7 +10,7 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
 use crate::types::state::{
-    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
+    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, PoolId, Proof, PublicInputs,
     VerifyingKey,
 };
 
