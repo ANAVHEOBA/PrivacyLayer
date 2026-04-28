@@ -2,21 +2,14 @@ import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 
-import {
-  ZK_ARTIFACT_VERSION,
-  getBenchmarkBaselinesPath,
-  getManifestPath,
-  getReleaseBundleDir as getReleaseBundleDirPath,
-  getReleaseBundlePath,
-  getRotationEvidenceDir,
-} from './artifacts';
+import { ZK_ARTIFACT_VERSION, getManifestPath, getReleaseBundleDir as getReleaseBundleDirPath, getReleaseBundlePath } from './artifacts';
 import {
   ArtifactManifestError,
   ZkArtifactManifest,
   ZkArtifactManifestBackend,
   ZkArtifactManifestCircuit,
   ZkArtifactManifestFile,
-} from './types';
+} from './backends/noir';
 import { stableStringify } from './stable';
 
 export const ZK_RELEASE_BUNDLE_VERSION = 1;
@@ -42,11 +35,6 @@ export interface ZkReleaseBundleContractMetadata {
   verifier_key_storage: string;
 }
 
-export interface ZkReleaseBundleOperationalArtifacts {
-  benchmark_baselines_path: string;
-  rotation_evidence_dir: string;
-}
-
 export interface ZkReleaseBundle {
   version: number;
   artifact_version: string;
@@ -54,7 +42,6 @@ export interface ZkReleaseBundle {
   manifest: ZkArtifactManifest;
   verifier_schema: ZkReleaseBundleVerifierSchema;
   contract_metadata: ZkReleaseBundleContractMetadata;
-  operational_artifacts: ZkReleaseBundleOperationalArtifacts;
 }
 
 export interface ZkReleaseBundleTargetMetadata {
@@ -133,10 +120,6 @@ export function createReleaseBundle(manifest: ZkArtifactManifest, artifactVersio
       schema_version: verifierSchema.schema_version,
       verifier_key_storage: 'DataKey::VerifyingKey',
     },
-    operational_artifacts: {
-      benchmark_baselines_path: getBenchmarkBaselinesPath(artifactVersion),
-      rotation_evidence_dir: getRotationEvidenceDir(artifactVersion),
-    },
   };
 }
 
@@ -171,7 +154,7 @@ export function assertReleaseBundleCompatibleWithManifest(bundle: ZkReleaseBundl
   const expectedContractSchema = schema.public_input_schema.slice(1);
   const contractSchemaMatches =
     expectedContractSchema.length === schema.contract_public_input_schema.length &&
-    expectedContractSchema.every((field: string, index: number) => field === schema.contract_public_input_schema[index]);
+    expectedContractSchema.every((field, index) => field === schema.contract_public_input_schema[index]);
 
   if (!contractSchemaMatches) {
     throw new ArtifactManifestError(
@@ -221,7 +204,7 @@ export function compareReleaseBundleTargetMetadata(
     typeof target.schema_version === 'number' &&
     target.schema_version !== expected.schema_version
   ) {
-    mismatches.push({ field: 'schema_version', expected: expected.schema_version ?? 0, actual: target.schema_version as number });
+    mismatches.push({ field: 'schema_version', expected: expected.schema_version, actual: target.schema_version });
   }
 
   return mismatches;
