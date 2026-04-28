@@ -144,6 +144,9 @@ export function getReleaseBundleDir(version: string = ZK_ARTIFACT_VERSION): stri
  */
 export function getReleaseBundlePath(version: string = ZK_ARTIFACT_VERSION): string {
   return join(getReleaseBundleDir(version), 'release-bundle.json');
+}
+
+/**
  * Filename for the verifier schema artifact.
  */
 export const VERIFIER_SCHEMA_FILENAME = 'verifier_schema.json';
