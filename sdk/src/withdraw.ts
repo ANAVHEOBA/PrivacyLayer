@@ -15,8 +15,10 @@ import {
   syncCommitmentBatch,
 } from "./merkle";
 import {
+  PoolTokenIdentity,
   SerializedWithdrawalPublicInputs,
   WithdrawalPublicInputs,
+  deriveCanonicalPoolId,
   serializeWithdrawalPublicInputs,
 } from "./encoding";
 import { stableHash32, stableStringify } from "./stable";
@@ -47,6 +49,12 @@ export interface WithdrawalProofGenerationOptions {
    * See {@link WitnessPreparationOptions.testOnlyAllowMockHash}.
    */
   testOnlyAllowMockHash?: true;
+}
+
+export interface CanonicalPoolContext {
+  token: PoolTokenIdentity;
+  denomination: bigint;
+  networkDomainHex: string;
 }
 
 interface WithdrawalCacheMaterial {
@@ -124,19 +132,17 @@ export function buildWithdrawalPublicInputLayout(
 }
 
 /**
- * Checks if the current runtime can generate withdrawal proofs.
- *
- * @returns true if proof generation is supported, false otherwise
+ * Guardrail that ensures witness preparation uses the canonical pool-id formula.
  */
-export function canGenerateWithdrawalProof(): boolean {
-  return isCapabilitySupported('prove');
-}
-
-/**
- * Gets the current runtime capabilities relevant to withdrawal operations.
- */
-export function getWithdrawalCapabilities(): ZkCapabilities {
-  return detectCapabilities();
+export function assertCanonicalNotePoolId(note: Note, context: CanonicalPoolContext): void {
+  const expected = deriveCanonicalPoolId(context.token, context.denomination, context.networkDomainHex);
+  if (note.poolId.toLowerCase() !== expected) {
+    throw new WitnessValidationError(
+      `note.poolId does not match canonical derivation; expected ${expected}`,
+      "POOL_ID",
+      "domain",
+    );
+  }
 }
 
 /**
