@@ -1,4 +1,7 @@
 ### Summary
+
+Wave Issue Key: ZK-127
+
 This PR repairs the ZK artifact rebuild pipeline to strictly enforce the versioned layout contract and remove legacy unversioned artifacts. It ensures that compiled circuits, manifests, and commitment vectors all land in the `artifacts/zk/v{version}/` directory structure.
 
 ### Key Changes

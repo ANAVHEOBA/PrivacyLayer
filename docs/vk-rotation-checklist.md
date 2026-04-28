@@ -64,7 +64,20 @@ stellar contract invoke --id <CONTRACT_ID> -- set_paused --paused false
 
 ### 7. Record the rotation
 
-Append an entry to `docs/vk-rotation-log.md` (create if absent):
+Record the rotation through the preflight evidence bundle for the pool and local release bundle:
+
+```bash
+node scripts/zk_release_preflight.mjs \
+  --bundle-path artifacts/zk/v<VERSION>/bundles/release-bundle.json \
+  --target-metadata-json '{"circuit_id":"withdraw","manifest_sha256":"0x...","public_input_arity":6,"schema_version":1}' \
+  --rotation-record-path rotation.json \
+  --rotation-bundle-path artifacts/zk/v<VERSION>/bundles/rotation-evidence/<POOL_ID>/rotation-bundle.json \
+  --rotation-log-path artifacts/zk/v<VERSION>/bundles/rotation-evidence/<POOL_ID>/rotation-log.md
+```
+
+The rotation record should include the operator identity, old and new VK SHA-256 hashes, manifest hash, circuit id, schema version, and rollback context. The log is append-only and must stay tied to one pool.
+
+If you need a manual summary for an incident note, mirror the same fields in `docs/vk-rotation-log.md`:
 
 ```
 | Date       | Pool ID | Old VK SHA-256 | New VK SHA-256 | Circuit Version | Operator |

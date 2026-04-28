@@ -13,7 +13,7 @@ export async function sha256Hex(data: Uint8Array | Buffer | string): Promise<str
     globalThis.crypto.subtle
   ) {
     // Browser / Web Worker / Modern Node.js webcrypto
-    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', bytes);
+    const hashBuffer = await globalThis.crypto.subtle.digest('SHA-256', bytes as BufferSource);
     return '0x' + Array.from(new Uint8Array(hashBuffer))
       .map((b) => b.toString(16).padStart(2, '0'))
       .join('');

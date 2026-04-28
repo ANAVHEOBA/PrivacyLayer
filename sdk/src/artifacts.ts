@@ -23,7 +23,7 @@
  *           pk                    # Proving key
  */
 
-import { join } from 'path';
+import { posix as pathPosix } from 'path';
 import { Buffer } from 'buffer';
 import { NoirArtifacts, ZkArtifactManifest, ArtifactManifestError } from './types';
 import { sha256Hex } from './hash';
@@ -52,98 +52,135 @@ export const ZK_ARTIFACTS_BASE_DIR = 'artifacts/zk';
  * Get the versioned artifacts directory.
  */
 export function getVersionedArtifactsDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(ZK_ARTIFACTS_BASE_DIR, `v${version}`);
+  return pathPosix.join(ZK_ARTIFACTS_BASE_DIR, `v${version}`);
 }
 
 /**
  * Get the circuits directory for a specific version.
  */
 export function getCircuitsDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), 'circuits');
+  return pathPosix.join(getVersionedArtifactsDir(version), 'circuits');
 }
 
 /**
  * Get the circuit directory for a specific circuit and version.
  */
 export function getCircuitDir(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getCircuitsDir(version), circuitName);
+  return pathPosix.join(getCircuitsDir(version), circuitName);
 }
 
 /**
  * Get the compiled circuit JSON path for a specific circuit.
  */
 export function getCircuitPath(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getCircuitDir(circuitName, version), `${circuitName}.json`);
+  return pathPosix.join(getCircuitDir(circuitName, version), `${circuitName}.json`);
 }
 
 /**
  * Get the manifests directory for a specific version.
  */
 export function getManifestsDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), 'manifests');
+  return pathPosix.join(getVersionedArtifactsDir(version), 'manifests');
 }
 
 /**
  * Get the manifest file path for a specific version.
  */
 export function getManifestPath(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getManifestsDir(version), 'manifest.json');
+  return pathPosix.join(getManifestsDir(version), 'manifest.json');
 }
 
 /**
  * Get the fixtures directory for a specific version.
  */
 export function getFixturesDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), 'fixtures');
+  return pathPosix.join(getVersionedArtifactsDir(version), 'fixtures');
 }
 
 /**
  * Get the fixtures directory for a specific circuit.
  */
 export function getCircuitFixturesDir(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getFixturesDir(version), circuitName);
+  return pathPosix.join(getFixturesDir(version), circuitName);
 }
 
 /**
  * Get the proving keys directory for a specific version.
  */
 export function getProvingKeysDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), 'proving_keys');
+  return pathPosix.join(getVersionedArtifactsDir(version), 'proving_keys');
 }
 
 /**
  * Get the proving keys directory for a specific circuit.
  */
 export function getCircuitProvingKeysDir(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getProvingKeysDir(version), circuitName);
+  return pathPosix.join(getProvingKeysDir(version), circuitName);
 }
 
 /**
  * Get the verification key path for a specific circuit.
  */
 export function getVerificationKeyPath(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getCircuitProvingKeysDir(circuitName, version), 'vk');
+  return pathPosix.join(getCircuitProvingKeysDir(circuitName, version), 'vk');
 }
 
 /**
  * Get the proving key path for a specific circuit.
  */
 export function getProvingKeyPath(circuitName: string, version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getCircuitProvingKeysDir(circuitName, version), 'pk');
+  return pathPosix.join(getCircuitProvingKeysDir(circuitName, version), 'pk');
 }
 
 /**
  * Get the release bundle directory for a specific version.
  */
 export function getReleaseBundleDir(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), 'bundles');
+  return pathPosix.join(getVersionedArtifactsDir(version), 'bundles');
 }
 
 /**
  * Get the release bundle file path for a specific version.
  */
 export function getReleaseBundlePath(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getReleaseBundleDir(version), 'release-bundle.json');
+  return pathPosix.join(getReleaseBundleDir(version), 'release-bundle.json');
+}
+
+/**
+ * Get the benchmark baselines file path for a specific version.
+ */
+export function getBenchmarkBaselinesPath(version: string = ZK_ARTIFACT_VERSION): string {
+  return pathPosix.join(getReleaseBundleDir(version), 'benchmark-baselines.json');
+}
+
+/**
+ * Get the root directory for VK rotation evidence for a specific version.
+ */
+export function getRotationEvidenceDir(version: string = ZK_ARTIFACT_VERSION): string {
+  return pathPosix.join(getReleaseBundleDir(version), 'rotation-evidence');
+}
+
+/**
+ * Get the VK rotation evidence bundle path for a specific pool and version.
+ */
+export function getRotationEvidenceBundlePath(
+  poolId: string,
+  version: string = ZK_ARTIFACT_VERSION
+): string {
+  return pathPosix.join(getRotationEvidenceDir(version), poolId, 'rotation-bundle.json');
+}
+
+/**
+ * Get the human-readable VK rotation log path for a specific pool and version.
+ */
+export function getRotationEvidenceLogPath(
+  poolId: string,
+  version: string = ZK_ARTIFACT_VERSION
+): string {
+  return pathPosix.join(getRotationEvidenceDir(version), poolId, 'rotation-log.md');
+}
+
+/**
  * Filename for the verifier schema artifact.
  */
 export const VERIFIER_SCHEMA_FILENAME = 'verifier_schema.json';
@@ -152,7 +189,7 @@ export const VERIFIER_SCHEMA_FILENAME = 'verifier_schema.json';
  * Get the verifier schema path for a specific version.
  */
 export function getVerifierSchemaPath(version: string = ZK_ARTIFACT_VERSION): string {
-  return join(getVersionedArtifactsDir(version), VERIFIER_SCHEMA_FILENAME);
+  return pathPosix.join(getVersionedArtifactsDir(version), VERIFIER_SCHEMA_FILENAME);
 }
 
 /**
@@ -193,6 +230,10 @@ export const ARTIFACT_LAYOUT = {
   getProvingKeyPath,
   getReleaseBundleDir,
   getReleaseBundlePath,
+  getBenchmarkBaselinesPath,
+  getRotationEvidenceDir,
+  getRotationEvidenceBundlePath,
+  getRotationEvidenceLogPath,
   CIRCUIT_NAMES,
   getKnownCircuitPath,
   VERIFIER_SCHEMA_FILENAME,

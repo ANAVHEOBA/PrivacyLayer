@@ -21,6 +21,12 @@ describe('Release bundle helpers', () => {
     expect(bundle.verifier_schema.public_input_arity).toBe(7);
     expect(bundle.verifier_schema.contract_public_input_arity).toBe(6);
     expect(bundle.contract_metadata.target_circuit_id).toBe('withdraw');
+    expect(bundle.operational_artifacts.benchmark_baselines_path).toBe(
+      'artifacts/zk/v1/bundles/benchmark-baselines.json',
+    );
+    expect(bundle.operational_artifacts.rotation_evidence_dir).toBe(
+      'artifacts/zk/v1/bundles/rotation-evidence',
+    );
   });
 
   it('detects mismatched release metadata', () => {

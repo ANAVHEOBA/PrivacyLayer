@@ -112,7 +112,7 @@ export function fieldToHex(n: bigint): string {
  * Parse a hex string (with or without 0x prefix) into a bigint field element.
  * Reduces modulo the field prime so callers can pass raw hash digests.
  */
-export function hexToField(hex: string): bigint {
+export function hexToField(hex: string, _label: string = 'field'): bigint {
   const clean = hex.startsWith('0x') ? hex.slice(2) : hex;
   if (clean.length === 0) throw new Error('Empty hex string');
   const n = BigInt('0x' + clean) % FIELD_MODULUS;

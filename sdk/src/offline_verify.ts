@@ -36,9 +36,9 @@ import {
   NoirArtifacts,
   ZkArtifactManifest,
   ZkArtifactManifestCircuit,
-  assertManifestMatchesNoirArtifacts,
   ArtifactManifestError,
-} from './backends/noir';
+} from './types';
+import { assertManifestMatchesNoirArtifacts } from './backends/noir';
 
 // ---------------------------------------------------------------------------
 // Failure taxonomy
@@ -110,7 +110,7 @@ function assertSchemaCompatible(
 
   if (
     manifestSchema.length !== sdkSchema.length ||
-    manifestSchema.some((field, i) => field !== sdkSchema[i])
+    manifestSchema.some((field: string, i: number) => field !== sdkSchema[i])
   ) {
     throw new OfflineVerificationError(
       `Public-input schema mismatch for circuit "${circuitName}": ` +
@@ -187,7 +187,7 @@ export async function verifyWithManifest(
   // ------------------------------------------------------------------
   let manifestCircuit: ZkArtifactManifestCircuit;
   try {
-    manifestCircuit = assertManifestMatchesNoirArtifacts(
+    manifestCircuit = await assertManifestMatchesNoirArtifacts(
       manifest,
       circuitName,
       artifacts,
