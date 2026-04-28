@@ -11,6 +11,7 @@ import {
   GROTH16_PROOF_BYTE_LENGTH as ZK_GROTH16_PROOF_BYTE_LENGTH,
   ZERO_FIELD_HEX,
 } from "./zk_constants";
+import { validateProofStructure } from "./structural_guards";
 
 const FIELD_HEX = /^[0-9a-fA-F]{64}$/;
 
@@ -201,15 +202,19 @@ export function assertValidPreparedWithdrawalWitness(
 
 /**
  * Fails on malformed **formatted** raw proof bytes before the verifier runs.
+ * 
+ * ZK-075: Uses structural guards to validate proof shape before deserialization.
  */
 export function assertValidGroth16ProofBytes(
   proof: Uint8Array,
   label: string = "proof",
 ): void {
-  if (proof.length !== GROTH16_PROOF_BYTE_LENGTH) {
+  try {
+    validateProofStructure(proof);
+  } catch (e: any) {
     throw new WitnessValidationError(
-      `${label} must be ${GROTH16_PROOF_BYTE_LENGTH} bytes, got ${proof.length}`,
-      "PROOF_FORMAT",
+      `${label}: ${e.message}`,
+      e.code || "PROOF_FORMAT",
       "structure",
     );
   }
