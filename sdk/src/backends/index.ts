@@ -6,20 +6,17 @@
  */
 
 export {
+  ArtifactManifestError,
   NoirBackend,
   NoirBackendConfig,
-  assertManifestMatchesNoirArtifacts,
-  createBarretenbergBackend,
-} from './noir';
-
-export {
-  ArtifactManifestError,
   NoirArtifacts,
   ZkArtifactManifest,
   ZkArtifactManifestBackend,
   ZkArtifactManifestCircuit,
   ZkArtifactManifestFile,
-} from '../types';
+  assertManifestMatchesNoirArtifacts,
+  createBarretenbergBackend,
+} from './noir';
 
 export {
   ZkCapabilities,
