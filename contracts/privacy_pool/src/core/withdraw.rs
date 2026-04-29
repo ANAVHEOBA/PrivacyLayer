@@ -8,29 +8,40 @@ use crate::crypto::verifier;
 use crate::storage::{analytics, config, nullifier};
 use crate::types::errors::Error;
 use crate::types::events::emit_withdraw;
-use crate::types::state::{PoolId, Proof, PublicInputs};
+use crate::types::state::{PoolId, Proof, PublicInputsWithSchema, EXPECTED_WITHDRAW_SCHEMA_VERSION};
 use crate::utils::{address_decoder, validation};
+
+const EXPECTED_CIRCUIT_VERSION: &str = "1.0.0";
+const EXPECTED_MANIFEST_ID: &[u8; 32] = &[0; 32];
+
 
 /// Execute a withdrawal from a specific shielded pool using a ZK proof.
 pub fn execute(
     env: Env,
     pool_id: PoolId,
     proof: Proof,
-    pub_inputs: PublicInputs,
+    pub_inputs_with_schema: PublicInputsWithSchema,
 ) -> Result<bool, Error> {
     // Load and validate pool configuration
     let pool_config = config::load_pool_config(&env, &pool_id)?;
     validation::require_not_paused(&pool_config)?;
 
     let denomination_amount = pool_config.denomination.amount();
+    let pub_inputs = pub_inputs_with_schema.inputs;
 
-    // Step 1: Validate root is in pool history
+    // Step 1: Validate schema version
+    verifier::validate_schema_version(
+        &pub_inputs_with_schema.schema_version,
+        EXPECTED_WITHDRAW_SCHEMA_VERSION,
+    )?;
+
+    // Step 2: Validate root is in pool history
     validation::require_known_root(&env, &pool_id, &pub_inputs.root)?;
 
-    // Step 2: Check nullifier not already spent in this pool
+    // Step 3: Check nullifier not already spent in this pool
     validation::require_nullifier_unspent(&env, &pool_id, &pub_inputs.nullifier_hash)?;
 
-    // Step 2.5: Validate pool-id and denomination binding
+    // Step 3.5: Validate pool-id and denomination binding
     if pub_inputs.pool_id != pool_id.0 {
         return Err(Error::InvalidPoolId);
     }
@@ -38,12 +49,14 @@ pub fn execute(
         return Err(Error::InvalidDenomination);
     }
 
-    // Step 3: Validate and decode fee
+    // Step 4: Validate and decode fee
     let fee = validation::decode_and_validate_fee(&pub_inputs.fee, denomination_amount)?;
 
-    // Step 4: Verify Groth16 proof for this pool
+    // Step 5: Verify Groth16 proof for this pool
     let vk = config::load_verifying_key(&env, &pool_id)?;
-    let proof_valid = verifier::verify_proof(&env, &vk, &proof, &pub_inputs)?;
+    let manifest_id_bytes = BytesN::from_array(&env, EXPECTED_MANIFEST_ID);
+    let proof_valid =
+        verifier::verify_proof(&env, &vk, &proof, &pub_inputs, EXPECTED_CIRCUIT_VERSION, &manifest_id_bytes)?;
     if !proof_valid {
         return Err(Error::InvalidProof);
     }

@@ -42,6 +42,7 @@ export interface ZkArtifactManifestCircuit {
   checksum?: string; // Legacy field for compatibility
   name: string;
   backend: string;
+  circuit_version?: string;
   root_depth?: number;
   public_input_schema?: string[];
 }
@@ -53,6 +54,7 @@ export interface ZkArtifactManifestBackend {
 }
 
 export interface ZkArtifactManifest {
+  manifest_id?: string;
   version: number | string;
   backend: string | ZkArtifactManifestBackend;
   circuits: Record<string, ZkArtifactManifestCircuit>;
