@@ -45,14 +45,12 @@ pub enum Error {
     FeeExceedsAmount = 43,
     /// Relayer address is non-zero but fee is zero
     InvalidRelayerFee = 44,
-    /// Recipient address must be invoker for zero-relayer withdrawals
-    ZeroRelayerRecipientMismatch = 45,
     /// Recipient address is invalid
-    InvalidRecipient = 46,
+    InvalidRecipient = 45,
     /// Pool ID in public inputs does not match the pool being withdrawn from
-    InvalidPoolId = 47,
+    InvalidPoolId = 46,
     /// Denomination in public inputs does not match the pool denomination
-    InvalidDenomination = 48,
+    InvalidDenomination = 47,
 
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set
@@ -79,4 +77,10 @@ pub enum Error {
     InvalidSchemaVersion = 80,
     /// Proof schema version does not match expected version
     SchemaVersionMismatch = 81,
+
+    // ── Batch Verification ─────────────────────────────
+    /// The number of proofs does not match the number of public inputs in a batch
+    BatchLengthMismatch = 90,
+    /// Batch verification failed for the proof at the given index
+    BatchVerificationFailed(u32) = 91,
 }

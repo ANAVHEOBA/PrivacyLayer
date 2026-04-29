@@ -30,7 +30,7 @@ use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
 ///
 /// This is the linear combination of public inputs with the
 /// verifying key IC points (Groth16 "vk_x" calculation).
-fn compute_vk_x(
+pub fn compute_vk_x(
     env: &Env,
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
