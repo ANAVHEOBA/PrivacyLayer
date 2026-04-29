@@ -143,6 +143,7 @@ export function getReleaseBundleDir(version: string = ZK_ARTIFACT_VERSION): stri
  * Get the release bundle file path for a specific version.
  */
 export function getReleaseBundlePath(version: string = ZK_ARTIFACT_VERSION): string {
+  return join(getReleaseBundleDir(version), 'release-bundle.json');
   return pathPosix.join(getReleaseBundleDir(version), 'release-bundle.json');
 }
 

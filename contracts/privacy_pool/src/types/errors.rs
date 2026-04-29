@@ -71,4 +71,10 @@ pub enum Error {
     PointNotOnCurve = 70,
     /// BN254 pairing check failed unexpectedly
     PairingFailed = 71,
+
+    // ── Schema Versioning ──────────────────────────────
+    /// Schema version format is invalid
+    InvalidSchemaVersion = 80,
+    /// Proof schema version does not match expected version
+    SchemaVersionMismatch = 81,
 }

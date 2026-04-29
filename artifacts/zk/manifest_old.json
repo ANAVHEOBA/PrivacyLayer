@@ -23,8 +23,7 @@
         "amount",
         "relayer",
         "fee"
-      ],
-      "schema_version": "1.20680.19972"
+      ]
     },
     "commitment": {
       "circuit_id": "commitment",
@@ -33,18 +32,13 @@
       "bytecode_sha256": "0xdfbdca2108939b0184db56a381088d4698702988647507242598869290c5d5e0",
       "abi_sha256": "0xe084f973bddc1be32518abc050b9f03bcb06ffbef43034b653e9319485a4bb9d",
       "name": "commitment",
-      "backend": "nargo/noir",
-      "public_input_schema": [
-        "pool_id",
-        "commitment"
-      ],
-      "schema_version": "1.63027.29691"
+      "backend": "nargo/noir"
     }
   },
   "files": {
     "commitment_vectors": {
       "path": "commitment_vectors.json",
-      "sha256": "0xc62db444d6d857455cf39813149804d3df13eb2897c964aa068c3ee4f9c2e255",
+      "sha256": "0x4f68c123c9d40fb34d03019f4e72a5cee64e27e0fd1c4d2e9f0113de7fa54f3d",
       "version": 1
     }
   }

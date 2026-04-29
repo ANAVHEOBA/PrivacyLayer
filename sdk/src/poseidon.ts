@@ -81,7 +81,7 @@ function validateFieldElement(value: bigint, label: string): bigint {
  * @throws {SyntaxError} If the value is not valid hex
  */
 function toBigIntInput(value: string, index: number): bigint {
-  const field = hexToField(value, `poseidon input[${index}]`);
+  const field = hexToField(value);
   return validateFieldElement(field, `poseidon input[${index}]`);
 }
 

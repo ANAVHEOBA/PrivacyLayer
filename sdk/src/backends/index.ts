@@ -5,6 +5,9 @@
  * and proving systems.
  */
 
+// Re-export the ProvingBackend interface from proof module
+export type { ProvingBackend } from '../proof';
+
 export {
   NoirBackend,
   NoirBackendConfig,
@@ -20,6 +23,11 @@ export {
   ZkArtifactManifestCircuit,
   ZkArtifactManifestFile,
 } from '../types';
+
+export {
+  MockProvingBackend,
+  MockBackendConfig,
+} from './mock';
 
 export {
   ZkCapabilities,

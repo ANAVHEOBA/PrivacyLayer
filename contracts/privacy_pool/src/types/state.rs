@@ -223,6 +223,71 @@ pub struct Proof {
     pub c: BytesN<64>,
 }
 
+/// Schema version for public input validation.
+/// Uses semantic versioning format (major.minor.patch).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SchemaVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl SchemaVersion {
+    /// Creates a new schema version from components.
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self { major, minor, patch }
+    }
+    
+    /// Parses a schema version from a string (e.g., "1.2.3").
+    pub fn from_string(version: &str) -> Result<Self, &'static str> {
+        let parts: Vec<&str> = version.split('.').collect();
+        if parts.len() != 3 {
+            return Err("Invalid schema version format");
+        }
+        
+        let major = parts[0].parse::<u32>().map_err(|_| "Invalid major version")?;
+        let minor = parts[1].parse::<u32>().map_err(|_| "Invalid minor version")?;
+        let patch = parts[2].parse::<u32>().map_err(|_| "Invalid patch version")?;
+        
+        Ok(Self::new(major, minor, patch))
+    }
+    
+    /// Checks if this version is compatible with another version.
+    /// Compatible if major and minor versions match exactly.
+    pub fn is_compatible_with(&self, other: &SchemaVersion) -> bool {
+        self.major == other.major && self.minor == other.minor
+    }
+}
+
+/// Extended public inputs with schema version metadata.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PublicInputsWithSchema {
+    /// The public inputs to the proof
+    pub inputs: PublicInputs,
+    /// Schema version of the proof
+    pub schema_version: SchemaVersion,
+}
+
+/// Expected schema version for withdraw circuit.
+/// 
+/// **IMPORTANT**: Update this constant when the public input schema changes.
+/// The schema version is computed deterministically from the public_input_schema
+/// array in the manifest. When the circuit's public inputs change (field order,
+/// names, or count), regenerate the manifest using refresh_manifest.mjs and
+/// update this constant to match the new schema_version value.
+/// 
+/// Current schema (v1.20680.19972):
+/// - pool_id
+/// - root
+/// - nullifier_hash
+/// - recipient
+/// - amount
+/// - relayer
+/// - fee
+pub const EXPECTED_WITHDRAW_SCHEMA_VERSION: &str = "1.20680.19972";
+
 // ──────────────────────────────────────────────────────────────
 // Analytics Types
 // ──────────────────────────────────────────────────────────────

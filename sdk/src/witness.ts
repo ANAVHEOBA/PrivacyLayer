@@ -66,8 +66,8 @@ function assertAmountFeeFields(
     );
   }
   
-  const amount = hexToField(amountHex, amountLabel);
-  const fee = hexToField(feeHex, feeLabel);
+  const amount = hexToField(amountHex);
+  const fee = hexToField(feeHex);
   if (fee > amount) {
     throw new WitnessValidationError(
       "fee cannot exceed amount",
@@ -133,7 +133,7 @@ export function assertValidPreparedWithdrawalWitness(
   assertFieldHexString(witness.recipient, "recipient");
   assertFieldHexString(witness.relayer, "relayer");
   assertFieldHexString(witness.leaf_index, "leaf_index");
-  const leafIdx = hexToField(witness.leaf_index, "leaf_index");
+  const leafIdx = hexToField(witness.leaf_index);
   if (leafIdx > BigInt(maxLeafIndex)) {
     throw new WitnessValidationError(
       `leafIndex out of range for tree depth (max ${maxLeafIndex})`,
