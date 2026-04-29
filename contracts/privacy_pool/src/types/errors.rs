@@ -45,12 +45,14 @@ pub enum Error {
     FeeExceedsAmount = 43,
     /// Relayer address is non-zero but fee is zero
     InvalidRelayerFee = 44,
+    /// Recipient address must be invoker for zero-relayer withdrawals
+    ZeroRelayerRecipientMismatch = 45,
     /// Recipient address is invalid
-    InvalidRecipient = 45,
+    InvalidRecipient = 46,
     /// Pool ID in public inputs does not match the pool being withdrawn from
-    InvalidPoolId = 46,
+    InvalidPoolId = 47,
     /// Denomination in public inputs does not match the pool denomination
-    InvalidDenomination = 47,
+    InvalidDenomination = 48,
 
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set

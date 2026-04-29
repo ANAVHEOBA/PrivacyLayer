@@ -18,6 +18,7 @@ pub fn execute(
     proof: Proof,
     pub_inputs: PublicInputs,
 ) -> Result<bool, Error> {
+    let invoker_addr = env.invoker();
     // Load and validate pool configuration
     let pool_config = config::load_pool_config(&env, &pool_id)?;
     validation::require_not_paused(&pool_config)?;
@@ -54,6 +55,14 @@ pub fn execute(
     // Step 6: Decode addresses
     let recipient = address_decoder::decode_address(&env, &pub_inputs.recipient);
     let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer);
+
+    // ZK-073: If no relayer is specified (zero-relayer semantics),
+    // enforce that the recipient must be the transaction invoker.
+    if relayer_opt.is_none() {
+        if recipient != invoker_addr {
+            return Err(Error::ZeroRelayerRecipientMismatch);
+        }
+    }
 
     // Step 7: Transfer funds
     transfer_funds(

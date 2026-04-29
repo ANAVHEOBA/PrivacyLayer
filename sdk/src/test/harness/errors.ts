@@ -82,9 +82,10 @@ export enum ContractErrorCode {
   InvalidProof = 42,
   FeeExceedsAmount = 43,
   InvalidRelayerFee = 44,
-  InvalidRecipient = 45,
-  InvalidPoolId = 46,
-  InvalidDenomination = 47,
+  ZeroRelayerRecipientMismatch = 45,
+  InvalidRecipient = 46,
+  InvalidPoolId = 47,
+  InvalidDenomination = 48,
   
   // Verifying Key
   NoVerifyingKey = 50,
@@ -419,6 +420,24 @@ function classifyByErrorCode(
       };
     
     // Recipient errors
+    case ContractErrorCode.ZeroRelayerRecipientMismatch:
+      return {
+        category: ErrorCategory.RECIPIENT_ERROR,
+        originalMessage: error.message,
+        errorCode,
+        actionableMessage: 'Recipient address must be the transaction invoker for zero-relayer withdrawals.',
+        recommendations: [
+          'When not using a relayer, ensure the withdrawal recipient is your own address',
+          'Verify the recipient address matches the invoker address of the transaction',
+          `Recipient: ${context?.recipient?.slice(0, 16)}...`,
+        ],
+        context: {
+          errorCode,
+          recipient: context?.recipient,
+          relayer: context?.relayer,
+        },
+      };
+
     case ContractErrorCode.InvalidRecipient:
       return {
         category: ErrorCategory.RECIPIENT_ERROR,
