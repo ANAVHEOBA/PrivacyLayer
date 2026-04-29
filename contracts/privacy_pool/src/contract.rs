@@ -10,8 +10,8 @@ use soroban_sdk::{contract, contractimpl, Address, BytesN, Env};
 use crate::core::{admin, deposit, initialize, view, withdraw};
 use crate::types::errors::Error;
 use crate::types::state::{
-    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, PoolId, Proof, PublicInputs,
-    VerifyingKey,
+    AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, PoolId, Proof,
+    PublicInputsWithSchema, VerifyingKey,
 };
 
 #[contract]
@@ -58,7 +58,7 @@ impl PrivacyPool {
         env: Env,
         pool_id: PoolId,
         proof: Proof,
-        pub_inputs: PublicInputs,
+        pub_inputs: PublicInputsWithSchema,
     ) -> Result<bool, Error> {
         withdraw::execute(env, pool_id, proof, pub_inputs)
     }

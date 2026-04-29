@@ -181,6 +181,10 @@ pub struct VerifyingKey {
     /// G1 points for public input combination: [IC_0, IC_1, ..., IC_8]
     /// One per public input (pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination) + IC_0
     pub gamma_abc_g1: soroban_sdk::Vec<BytesN<64>>,
+    /// Circuit version identifier (e.g., "1.0.0")
+    pub circuit_version: String,
+    /// Manifest identifier (sha256 of the manifest)
+    pub manifest_id: BytesN<32>,
 }
 
 // ──────────────────────────────────────────────────────────────

@@ -91,7 +91,11 @@ pub fn verify_proof(
     vk: &VerifyingKey,
     proof: &Proof,
     pub_inputs: &PublicInputs,
+    expected_circuit_version: &str,
+    expected_manifest_id: &BytesN<32>,
 ) -> Result<bool, Error> {
+    // Step 0: Validate VK identity
+    validate_vk_identity(vk, expected_circuit_version, expected_manifest_id)?;
     let bn254 = env.crypto().bn254();
 
     // Step 1: Compute vk_x (linear combination of public inputs)
@@ -175,3 +179,33 @@ pub fn validate_schema_version(
     
     Ok(())
 }
+// ──────────────────────────────────────────────────────────────
+// Verifying Key Identity Validation
+// ──────────────────────────────────────────────────────────────
+
+/// Validates the circuit version and manifest ID of the verifying key.
+///
+/// # Arguments
+/// * `vk` - The verifying key to validate
+/// * `expected_circuit_version` - The expected circuit version string
+/// * `expected_manifest_id` - The expected manifest ID
+///
+/// # Returns
+/// * `Ok(())` if the identity matches
+/// * `Err(Error::CircuitVersionMismatch)` if the circuit version does not match
+/// * `Err(Error::ManifestIdMismatch)` if the manifest ID does not match
+pub fn validate_vk_identity(
+    vk: &VerifyingKey,
+    expected_circuit_version: &str,
+    expected_manifest_id: &BytesN<32>,
+) -> Result<(), Error> {
+    let vk_circuit_version = vk.circuit_version.to_string();
+    if vk_circuit_version != expected_circuit_version {
+        return Err(Error::CircuitVersionMismatch);
+    }
+    if vk.manifest_id != *expected_manifest_id {
+        return Err(Error::ManifestIdMismatch);
+    }
+    Ok(())
+}
+

@@ -77,4 +77,8 @@ pub enum Error {
     InvalidSchemaVersion = 80,
     /// Proof schema version does not match expected version
     SchemaVersionMismatch = 81,
+    /// Circuit version in the VK does not match the expected version
+    CircuitVersionMismatch = 82,
+    /// Manifest ID in the VK does not match the expected version
+    ManifestIdMismatch = 83,
 }
