@@ -39,6 +39,45 @@ import {
   ArtifactManifestError,
 } from './types';
 import { assertManifestMatchesNoirArtifacts } from './backends/noir';
+import { StructuralError } from './errors';
+
+// ZK-075: Structural guards for proof, VK, and public-input shapes
+// ---------------------------------------------------------------------------
+
+
+
+/**
+ * ZK-075: Structural-validity checks for proofs, VKs, and public inputs.
+ * A lightweight pre-filter that rejects misshapen objects before they
+ * can trigger a panic in the parsing or verification backend.
+ */
+function assertStructuralValidity(
+  proof: Uint8Array,
+  publicInputs: WithdrawalPublicInputs | PreparedWitness | string[],
+  artifacts: NoirArtifacts,
+): void {
+  // Proof shape: Non-empty Uint8Array, at least 192 bytes for Groth16.
+  if (!(proof instanceof Uint8Array) || proof.length < 192) {
+    throw new StructuralError(
+      'Proof must be a Uint8Array of at least 192 bytes',
+    );
+  }
+
+  // VK shape: Non-empty Uint8Array, at least 256 bytes for a BN254 VK.
+  const { vkey } = artifacts;
+  if (!(vkey instanceof Uint8Array) || vkey.length < 256) {
+    throw new StructuralError(
+      'Verification key must be a Uint8Array of at least 256 bytes',
+    );
+  }
+
+  // Public inputs: Must be a non-empty array-like structure.
+  if (!publicInputs || typeof publicInputs.length !== 'number' || publicInputs.length === 0) {
+    throw new StructuralError(
+      'Public inputs must be a non-empty array or array-like object',
+    );
+  }
+}
 
 // ---------------------------------------------------------------------------
 // Failure taxonomy
@@ -204,6 +243,22 @@ export async function verifyWithManifest(
       err,
     );
   }
+
+  // ------------------------------------------------------------------
+  // Step 1.5: Structural guards for proof, VK, and public-input shapes
+  // ------------------------------------------------------------------
+  try {
+    assertStructuralValidity(proof, publicInputs, artifacts);
+  } catch (err) {
+    // Re-wrap structural-validity failures as BAD_PROOF so callers
+    // only have to handle the three primary categories.
+    throw new OfflineVerificationError(
+      `Structural validity check failed: ${err instanceof Error ? err.message : String(err)}`,
+      'BAD_PROOF',
+      err,
+    );
+  }
+
 
   // ------------------------------------------------------------------
   // Step 2: Public-input schema check
