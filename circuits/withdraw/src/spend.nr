@@ -4,6 +4,12 @@
 // Encapsulates the essential spend logic separate from test
 // scaffolding and helper code. This module contains the core
 // constraints that form the foundation of the withdrawal proof.
+//
+// ZK-073: Relayer binding is unified through validation::fee.nr
+// which defines the canonical encoding contract:
+//   Mode 1: No relayer      → relayer == 0 && fee == 0
+//   Mode 2: Relayer + fee   → relayer != 0 && fee > 0
+//   Mode 3: Malformed       → REJECTED by circuit assertion
 // ============================================================
 
 use lib::hash;
@@ -17,7 +23,7 @@ use lib::validation;
 /// 2. Commitment is in the Merkle tree (ownership proof)
 /// 3. Nullifier hash prevents double-spend (ZK-035: pool-scoped)
 /// 4. Amount matches pool's fixed denomination (ZK-030)
-/// 5. Fee and relayer parameters are valid
+/// 5. Fee and relayer parameters are valid (ZK-073: unified binding)
 ///
 /// # Arguments
 /// - Private inputs: nullifier, secret, leaf_index, hash_path
@@ -50,9 +56,15 @@ pub fn verify_withdrawal_constraints(
     // Step 4: Validate amount matches pool denomination (ZK-030)
     validation::validate_denomination(amount, denomination);
 
-    // Step 5: Validate withdrawal parameters
+    // Step 5: Validate fee and relayer — ZK-073 unified binding contract
+    // R1: fee <= amount
+    // R2: fee == 0 → relayer == 0 (no relayer)
+    // R3: fee > 0  → relayer != 0 (relayer required)
     validation::validate_fee(fee, amount);
     validation::validate_relayer(relayer, fee);
+
+    // Step 5b: ZK-073 defense-in-depth — reject malformed relayer patterns
+    validation::validate_relayer_not_malformed(relayer);
 
     // Step 6: Bind recipient to proof (implicit in Groth16 via public inputs)
     let _ = recipient;
@@ -76,6 +88,74 @@ mod tests {
             nullifier_hash, recipient, DEFAULT_DENOMINATION, relayer, fee, DEFAULT_DENOMINATION
         );
     }
+
+    // ------------------------------------------------------------------
+    // ZK-073: Relayer binding regression tests
+    // ------------------------------------------------------------------
+
+    /// Mode 1: No relayer — fee=0, relayer=0 (canonical no-relayer case)
+    #[test]
+    fn test_spend_no_relayer_zero_fee() {
+        let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, _relayer, _fee) =
+            setup_valid_withdrawal();
+
+        verify_withdrawal_constraints(
+            nullifier, secret, pool_id, leaf_index, hash_path, root,
+            nullifier_hash, recipient, DEFAULT_DENOMINATION,
+            0, // relayer = 0 (no relayer)
+            0, // fee = 0
+            DEFAULT_DENOMINATION
+        );
+    }
+
+    /// Mode 2: Relayer + fee — relayer != 0, fee > 0
+    #[test]
+    fn test_spend_with_relayer_and_fee() {
+        let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, _relayer, _fee) =
+            setup_valid_withdrawal();
+
+        verify_withdrawal_constraints(
+            nullifier, secret, pool_id, leaf_index, hash_path, root,
+            nullifier_hash, recipient, DEFAULT_DENOMINATION,
+            0xc0ffee, // relayer != 0
+            5,        // fee > 0
+            DEFAULT_DENOMINATION
+        );
+    }
+
+    /// Mode 3 (rejected): fee=0 but relayer != 0 — absent relayer cleanly rejected
+    #[test(should_fail_with = "relayer must be zero address if fee is zero")]
+    fn test_spend_phantom_relayer_rejected() {
+        let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, _relayer, _fee) =
+            setup_valid_withdrawal();
+
+        verify_withdrawal_constraints(
+            nullifier, secret, pool_id, leaf_index, hash_path, root,
+            nullifier_hash, recipient, DEFAULT_DENOMINATION,
+            0xdeadbeef, // relayer != 0 but fee = 0 → REJECT
+            0,
+            DEFAULT_DENOMINATION
+        );
+    }
+
+    /// Mode 3 (rejected): fee > 0 but relayer = 0 — relayer mismatch
+    #[test(should_fail_with = "relayer must be non-zero address if fee is non-zero")]
+    fn test_spend_orphan_fee_rejected() {
+        let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, _relayer, _fee) =
+            setup_valid_withdrawal();
+
+        verify_withdrawal_constraints(
+            nullifier, secret, pool_id, leaf_index, hash_path, root,
+            nullifier_hash, recipient, DEFAULT_DENOMINATION,
+            0,  // relayer = 0 but fee > 0 → REJECT
+            42,
+            DEFAULT_DENOMINATION
+        );
+    }
+
+    // ------------------------------------------------------------------
+    // Existing constraint tests
+    // ------------------------------------------------------------------
 
     #[test(should_fail)]
     fn test_spend_constraints_wrong_commitment() {

@@ -1,6 +1,13 @@
 // ============================================================
 // Withdrawal Logic
 // ============================================================
+// ZK-073: Relayer binding is unified through address_decoder's
+// validate_relayer_fee_binding, which enforces the three-mode
+// contract:
+//   Mode 1: No relayer (relayer=0, fee=0)
+//   Mode 2: Relayer + fee (relayer≠0, fee>0)
+//   Mode 3: Malformed → REJECTED
+// ============================================================
 
 use soroban_sdk::{token, Address, Env};
 
@@ -51,9 +58,14 @@ pub fn execute(
     // Step 5: Mark nullifier as spent in this pool
     nullifier::mark_spent(&env, &pool_id, &pub_inputs.nullifier_hash);
 
-    // Step 6: Decode addresses
+    // Step 6: Decode addresses (ZK-073 unified relayer binding)
     let recipient = address_decoder::decode_address(&env, &pub_inputs.recipient);
-    let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer);
+    let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer)?;
+
+    // Step 6.5: ZK-073 — Validate relayer/fee binding at contract level
+    // This catches orphan fees (fee>0 but no relayer) and phantom relayers
+    // (relayer present but fee=0) that might bypass circuit checks.
+    address_decoder::validate_relayer_fee_binding(&relayer_opt, fee)?;
 
     // Step 7: Transfer funds
     transfer_funds(
@@ -80,33 +92,69 @@ pub fn execute(
     Ok(true)
 }
 
-/// Transfer funds to recipient and optionally to relayer.
+/// Transfer funds from the pool to recipient and optional relayer.
 fn transfer_funds(
     env: &Env,
-    token: &Address,
+    token_id: &Address,
     recipient: &Address,
-    relayer: Option<&Address>,
-    total_amount: i128,
+    relayer_opt: Option<&Address>,
+    amount: i128,
     fee: i128,
 ) {
-    let token_client = token::Client::new(env, token);
-    let net_amount = total_amount - fee;
+    let token_client = token::Client::new(env, token_id);
 
-    // Transfer to recipient
-    token_client.transfer(
-        &env.current_contract_address(),
-        recipient,
-        &net_amount,
-    );
+    // Transfer fee to relayer first (if present — ZK-073 Mode 2)
+    if let Some(relayer) = relayer_opt {
+        // fee > 0 is guaranteed by validate_relayer_fee_binding
+        token_client.transfer(&env::current_contract_address(), relayer, &fee);
+    }
+    // If no relayer (Mode 1), fee is guaranteed to be 0, so no fee transfer needed.
 
-    // Transfer fee to relayer if applicable
-    if let Some(relayer_addr) = relayer {
-        if fee > 0 {
-            token_client.transfer(
-                &env.current_contract_address(),
-                relayer_addr,
-                &fee,
-            );
-        }
+    // Transfer remaining amount to recipient
+    let recipient_amount = amount - fee;
+    token_client.transfer(&env::current_contract_address(), recipient, &recipient_amount);
+}
+
+// Re-export for convenience
+use soroban_sdk::env::current_contract_address;
+
+// ============================================================
+// Tests — ZK-073 relayer binding regression tests
+// ============================================================
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Test: Mode 1 binding validation (no relayer, fee=0) — passes
+    #[test]
+    fn test_relayer_fee_binding_no_relayer_zero_fee() {
+        let result = address_decoder::validate_relayer_fee_binding(&None, 0);
+        assert!(result.is_ok());
+    }
+
+    /// Test: Mode 1 violation — no relayer but fee > 0 (orphan fee)
+    #[test]
+    fn test_relayer_fee_binding_no_relayer_nonzero_fee_rejected() {
+        let result = address_decoder::validate_relayer_fee_binding(&None, 100);
+        assert_eq!(result, Err(Error::InvalidRelayerFee));
+    }
+
+    /// Test: Mode 2 violation — relayer present but fee = 0 (phantom relayer)
+    #[test]
+    fn test_relayer_fee_binding_relayer_zero_fee_rejected() {
+        let env = Env::default();
+        let addr = Address::generate(&env);
+        let result = address_decoder::validate_relayer_fee_binding(&Some(addr), 0);
+        assert_eq!(result, Err(Error::InvalidRelayerFee));
+    }
+
+    /// Test: Mode 2 binding validation (relayer + fee) — passes
+    #[test]
+    fn test_relayer_fee_binding_relayer_nonzero_fee() {
+        let env = Env::default();
+        let addr = Address::generate(&env);
+        let result = address_decoder::validate_relayer_fee_binding(&Some(addr), 50);
+        assert!(result.is_ok());
     }
 }

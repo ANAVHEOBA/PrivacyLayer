@@ -52,6 +52,10 @@ pub enum Error {
     /// Denomination in public inputs does not match the pool denomination
     InvalidDenomination = 47,
 
+    // ── Relayer (ZK-073) ───────────────────────────────
+    /// Relayer field contains a non-canonical encoding (ZK-073)
+    MalformedRelayer = 48,
+
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set
     NoVerifyingKey = 50,
