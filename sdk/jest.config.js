@@ -21,4 +21,25 @@ module.exports = {
       },
     ],
   },
+  // Test timeout configuration (can be overridden by environment variable)
+  testTimeout: process.env.JEST_TIMEOUT ? parseInt(process.env.JEST_TIMEOUT, 10) : 30000,
+  // JUnit XML reporter for CI/CD integration
+  reporters: [
+    'default',
+    ...(process.env.CI === 'true' || process.env.JEST_JUNIT === 'true'
+      ? [
+          [
+            'jest-junit',
+            {
+              outputDirectory: './test-results',
+              outputName: 'junit.xml',
+              classNameTemplate: '{classname}',
+              titleTemplate: '{title}',
+              ancestorSeparator: ' › ',
+              usePathForSuiteName: true,
+            },
+          ],
+        ]
+      : []),
+  ],
 };

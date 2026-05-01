@@ -64,6 +64,13 @@ The SDK normalizes 31-byte note scalars by left-padding into a single field
 element, rejects non-canonical field encodings before witness generation, and
 serializes withdrawal public inputs in the exact Noir verifier order.
 
+Pool identifiers are canonically derived (not hand-picked) from token identity,
+denomination, and network domain using:
+
+`pool_id = 0x00 || SHA256("PrivacyLayerPoolId:v1" || network_domain || denomination_be16 || token_len_be2 || token_identity_bytes)[1..32]`
+
+This formula is implemented in both SDK and contract code paths.
+
 ---
 
 ## Repository Structure
@@ -266,3 +273,4 @@ MIT — see [`LICENSE`](LICENSE)
 - [CAP-0075: Poseidon Hash](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
 - [Noir Language Docs](https://noir-lang.org/docs)
 - [Soroban SDK Docs](https://docs.rs/soroban-sdk)
+fixed this branch and more

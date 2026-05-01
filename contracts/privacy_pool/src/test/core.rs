@@ -92,7 +92,16 @@ fn dummy_vk(env: &Env) -> VerifyingKey {
     let mut abc = Vec::new(env);
     // IC[0] + 8 public inputs = 9 points
     for _ in 0..9 { abc.push_back(g1.clone()); }
-    VerifyingKey { alpha_g1: g1, beta_g2: g2.clone(), gamma_g2: g2.clone(), delta_g2: g2, gamma_abc_g1: abc }
+    VerifyingKey {
+        alpha_g1: g1,
+        beta_g2: g2.clone(),
+        gamma_g2: g2.clone(),
+        delta_g2: g2,
+        gamma_abc_g1: abc,
+        circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+        public_input_count: 8,
+        manifest_hash: BytesN::from_array(env, &[0u8; 32]),
+    }
 }
 
 fn commitment(env: &Env, seed: u8) -> BytesN<32> {

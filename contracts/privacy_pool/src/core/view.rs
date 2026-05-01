@@ -42,6 +42,11 @@ pub fn get_pool_config(env: Env, pool_id: PoolId) -> Result<PoolConfig, Error> {
     config::load_pool_config(&env, &pool_id)
 }
 
+/// Returns the verifying key for a specific pool (ZK-074).
+pub fn get_verifying_key(env: Env, pool_id: PoolId) -> Result<crate::types::state::VerifyingKey, Error> {
+    config::load_verifying_key(&env, &pool_id)
+}
+
 /// Returns the global contract configuration.
 pub fn get_global_config(env: Env) -> Result<crate::types::state::Config, Error> {
     config::load_global_config(&env)

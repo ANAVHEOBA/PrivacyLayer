@@ -18,7 +18,8 @@ use soroban_sdk::{
 use crate::{
     crypto::merkle::ROOT_HISTORY_SIZE,
     types::state::{
-        Denomination, PerformanceMetricKind, PoolId, Proof, PublicInputs, VerifyingKey,
+        derive_canonical_pool_id, derive_canonical_pool_id_for_fixture, Denomination,
+        PerformanceMetricKind, PoolId, Proof, PublicInputs, VerifyingKey,
     },
     PrivacyPool, PrivacyPoolClient,
 };
@@ -51,7 +52,7 @@ fn setup() -> (
     StellarAssetClient::new(&env, &token_id).mint(&alice, &(200 * DENOM_AMOUNT));
     StellarAssetClient::new(&env, &token_id).mint(&bob, &(200 * DENOM_AMOUNT));
 
-    let pool_id = PoolId(BytesN::from_array(&env, &[7u8; 32]));
+    let pool_id = derive_canonical_pool_id(&env, &token_id, &Denomination::Xlm100);
 
     client.initialize(&admin);
     client.create_pool(&pool_id, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
@@ -73,11 +74,69 @@ fn dummy_vk(env: &Env) -> VerifyingKey {
         gamma_g2: g2.clone(),
         delta_g2: g2,
         gamma_abc_g1: abc,
+        circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+        public_input_count: 8,
+        manifest_hash: BytesN::from_array(env, &[0u8; 32]),
     }
 }
 
 fn make_pool_id(env: &Env, seed: u8) -> PoolId {
-    PoolId(BytesN::from_array(env, &[seed; 32]))
+    let token_identity = soroban_sdk::Bytes::from_slice(env, &[b'c', b'o', b'n', b't', b'r', b'a', b'c', b't', b':', seed]);
+    derive_canonical_pool_id_for_fixture(
+        env,
+        &token_identity,
+        &Denomination::Xlm100,
+        &env.ledger().network_id(),
+    )
+}
+
+#[test]
+fn test_canonical_pool_id_fixture_vectors_match_sdk() {
+    let env = Env::default();
+    let network_domain = BytesN::from_array(
+        &env,
+        &[
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+            0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x11,
+            0x11, 0x11, 0x11, 0x11,
+        ],
+    );
+
+    let xlm_identity = soroban_sdk::Bytes::from_slice(&env, b"native:xlm");
+    let contract_identity = soroban_sdk::Bytes::from_slice(
+        &env,
+        b"contract:cb7f6f5f7f6f8f7f9f7faf7fbf7fcf7fdf7fef7fff7f0f7f1f7f2f7f3f7f4f",
+    );
+
+    let xlm_pool = derive_canonical_pool_id_for_fixture(
+        &env,
+        &xlm_identity,
+        &Denomination::Xlm100,
+        &network_domain,
+    );
+    let token_pool = derive_canonical_pool_id_for_fixture(
+        &env,
+        &contract_identity,
+        &Denomination::Usdc100,
+        &network_domain,
+    );
+
+    assert_eq!(
+        xlm_pool.0.to_array(),
+        [
+            0x00, 0xa7, 0x72, 0xbf, 0x8f, 0x03, 0xf5, 0xa9, 0x95, 0x32, 0x7d, 0xd2, 0xee, 0x5d,
+            0x43, 0xf4, 0x69, 0xcb, 0xc2, 0x6a, 0x1f, 0xff, 0xd0, 0x9d, 0x5b, 0xd9, 0x22, 0xe4,
+            0x16, 0xdf, 0x46, 0x17,
+        ]
+    );
+    assert_eq!(
+        token_pool.0.to_array(),
+        [
+            0x00, 0x7b, 0xb1, 0x35, 0xca, 0x6e, 0x5e, 0xfd, 0x40, 0x6a, 0x99, 0x8a, 0xc6, 0x7f,
+            0xfa, 0x4f, 0xce, 0x7f, 0xc6, 0x5d, 0xc7, 0x4b, 0x64, 0x09, 0x55, 0xb9, 0x51, 0xad,
+            0x1c, 0xef, 0x2a, 0x99,
+        ]
+    );
 }
 
 fn make_commit(env: &Env, seed: u8) -> BytesN<32> {
@@ -336,3 +395,147 @@ fn test_e2e_withdraw_accepts_correct_pool_id_and_denomination() {
     assert!(result.is_err());
     // Should fail with InvalidProof, not InvalidPoolId or InvalidDenomination
 }
+
+// ──────────────────────────────────────────────────────────────
+// VK Metadata Validation Tests (ZK-074)
+// ──────────────────────────────────────────────────────────────
+
+#[test]
+fn test_e2e_vk_circuit_id_mismatch_rejected() {
+    let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
+
+    // Create a VK with wrong circuit_id
+    let mut wrong_vk = dummy_vk(&env);
+    wrong_vk.circuit_id = soroban_sdk::String::from_str(&env, "commitment");
+
+    // Update the VK for this pool
+    client.set_verifying_key(&admin, &pool_id, &wrong_vk);
+
+    // Deposit into pool
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+
+    // Try to withdraw with mismatched circuit_id
+    let pub_inputs = PublicInputs {
+        pool_id: pool_id.0.clone(),
+        root,
+        nullifier_hash: make_nullifier_hash(&env, 1),
+        recipient: field(&env, 0xCC),
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+        denomination: field(&env, 100),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    assert!(result.is_err());
+    // Should fail with CircuitIdMismatch before expensive pairing operations
+}
+
+#[test]
+fn test_e2e_vk_public_input_count_mismatch_rejected() {
+    let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
+
+    // Create a VK with wrong public_input_count
+    let mut wrong_vk = dummy_vk(&env);
+    wrong_vk.public_input_count = 7; // Wrong count (should be 8)
+
+    // Update the VK for this pool
+    client.set_verifying_key(&admin, &pool_id, &wrong_vk);
+
+    // Deposit into pool
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+
+    // Try to withdraw with mismatched public input count
+    let pub_inputs = PublicInputs {
+        pool_id: pool_id.0.clone(),
+        root,
+        nullifier_hash: make_nullifier_hash(&env, 1),
+        recipient: field(&env, 0xCC),
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+        denomination: field(&env, 100),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    assert!(result.is_err());
+    // Should fail with PublicInputCountMismatch before expensive pairing operations
+}
+
+#[test]
+fn test_e2e_vk_gamma_abc_length_mismatch_rejected() {
+    let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
+
+    // Create a VK with mismatched gamma_abc_g1 length
+    let g1 = BytesN::from_array(&env, &[0u8; 64]);
+    let g2 = BytesN::from_array(&env, &[0u8; 128]);
+    let mut abc = Vec::new(&env);
+    // Only 7 IC points instead of 9 (public_input_count + 1)
+    for _ in 0..7 {
+        abc.push_back(g1.clone());
+    }
+
+    let wrong_vk = VerifyingKey {
+        alpha_g1: g1,
+        beta_g2: g2.clone(),
+        gamma_g2: g2.clone(),
+        delta_g2: g2,
+        gamma_abc_g1: abc,
+        circuit_id: soroban_sdk::String::from_str(&env, "withdraw"),
+        public_input_count: 8, // Claims 8 inputs but only has 6 IC points (7 - 1)
+        manifest_hash: BytesN::from_array(&env, &[0u8; 32]),
+    };
+
+    // Update the VK for this pool
+    client.set_verifying_key(&admin, &pool_id, &wrong_vk);
+
+    // Deposit into pool
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+
+    // Try to withdraw with mismatched gamma_abc_g1 length
+    let pub_inputs = PublicInputs {
+        pool_id: pool_id.0.clone(),
+        root,
+        nullifier_hash: make_nullifier_hash(&env, 1),
+        recipient: field(&env, 0xCC),
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+        denomination: field(&env, 100),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    assert!(result.is_err());
+    // Should fail with MalformedVerifyingKey due to length mismatch
+}
+
+#[test]
+fn test_e2e_vk_metadata_allows_upgrade_auditability() {
+    let (env, client, _token_id, admin, _alice, _bob, pool_id) = setup();
+
+    // Create VK with specific manifest hash (simulating v1)
+    let manifest_v1 = BytesN::from_array(&env, &[0x01; 32]);
+    let mut vk_v1 = dummy_vk(&env);
+    vk_v1.manifest_hash = manifest_v1.clone();
+
+    client.set_verifying_key(&admin, &pool_id, &vk_v1);
+
+    // Retrieve and verify VK metadata
+    let stored_vk = client.get_verifying_key(&pool_id);
+    assert_eq!(stored_vk.circuit_id.to_string(), "withdraw");
+    assert_eq!(stored_vk.public_input_count, 8);
+    assert_eq!(stored_vk.manifest_hash, manifest_v1);
+
+    // Simulate upgrade to v2
+    let manifest_v2 = BytesN::from_array(&env, &[0x02; 32]);
+    let mut vk_v2 = dummy_vk(&env);
+    vk_v2.manifest_hash = manifest_v2.clone();
+
+    client.set_verifying_key(&admin, &pool_id, &vk_v2);
+
+    // Verify upgrade is auditable
+    let stored_vk_v2 = client.get_verifying_key(&pool_id);
+    assert_eq!(stored_vk_v2.manifest_hash, manifest_v2);
+    assert_ne!(stored_vk_v2.manifest_hash, manifest_v1);
+}
+

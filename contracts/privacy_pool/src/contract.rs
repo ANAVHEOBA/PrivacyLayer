@@ -97,6 +97,11 @@ impl PrivacyPool {
         view::get_pool_config(env, pool_id)
     }
 
+    /// Returns the verifying key for a specific pool (ZK-074).
+    pub fn get_verifying_key(env: Env, pool_id: PoolId) -> Result<VerifyingKey, Error> {
+        view::get_verifying_key(env, pool_id)
+    }
+
     /// Returns the global contract configuration.
     pub fn get_global_config(env: Env) -> Result<crate::types::state::Config, Error> {
         view::get_global_config(env)

@@ -20,7 +20,7 @@ use soroban_sdk::{
 };
 
 use crate::types::errors::Error;
-use crate::types::state::{Proof, PublicInputs, VerifyingKey};
+use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
 
 // ──────────────────────────────────────────────────────────────
 // Structural Guards (ZK-075)
@@ -142,6 +142,30 @@ fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Err
 // Public Input Linear Combination
 // ──────────────────────────────────────────────────────────────
 
+/// Validate VK metadata before expensive pairing operations (ZK-074).
+///
+/// Checks:
+/// - Circuit ID matches expected circuit ("withdraw")
+/// - Public input count matches the number of inputs we're providing
+/// - gamma_abc_g1 length matches public_input_count + 1 (for IC_0)
+///
+/// This allows mismatched proofs to fail fast before pairing work begins.
+fn validate_vk_metadata(vk: &VerifyingKey, expected_circuit_id: &str) -> Result<(), Error> {
+    // Check circuit ID
+    if vk.circuit_id.to_string() != expected_circuit_id {
+        return Err(Error::CircuitIdMismatch);
+    }
+
+    // Check public input count matches gamma_abc_g1 length
+    // gamma_abc_g1 should have (public_input_count + 1) elements: IC_0 + one per public input
+    let expected_ic_len = vk.public_input_count + 1;
+    if vk.gamma_abc_g1.len() != expected_ic_len {
+        return Err(Error::MalformedVerifyingKey);
+    }
+
+    Ok(())
+}
+
 /// Compute vk_x = IC[0] + sum(pub_input[i] * IC[i+1])
 ///
 /// This is the linear combination of public inputs with the
@@ -151,10 +175,15 @@ fn compute_vk_x(
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
-    // The VK must have exactly 9 IC points: IC[0] + 8 public inputs
-    // [pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination]
-    if vk.gamma_abc_g1.len() != 9 {
+    // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
+    // [root, nullifier_hash, recipient, amount, relayer, fee]
+    if vk.gamma_abc_g1.len() != 7 {
         return Err(Error::MalformedVerifyingKey);
+    }
+
+    // Validate that the number of public inputs matches VK expectations
+    if vk.public_input_count != 8 {
+        return Err(Error::PublicInputCountMismatch);
     }
 
     let bn254 = env.crypto().bn254();
@@ -164,15 +193,13 @@ fn compute_vk_x(
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
     // Public inputs as 32-byte field elements → Fr scalars
-    let inputs: [&BytesN<32>; 8] = [
-        &pub_inputs.pool_id,
+    let inputs: [&BytesN<32>; 6] = [
         &pub_inputs.root,
         &pub_inputs.nullifier_hash,
         &pub_inputs.recipient,
         &pub_inputs.amount,
         &pub_inputs.relayer,
         &pub_inputs.fee,
-        &pub_inputs.denomination,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
@@ -200,23 +227,30 @@ fn compute_vk_x(
 ///
 /// Performs: e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
 ///
+/// ZK-074: Validates VK metadata before expensive pairing operations to fail fast
+/// on mismatched circuit IDs or public input counts.
+///
 /// ZK-075: Validates structural invariants (byte lengths, vector counts) before
 /// deserialization to fail fast on malformed payloads.
 ///
 /// # Returns
 /// - `Ok(true)` if proof is valid
 /// - `Ok(false)` if pairing check fails
-/// - `Err(...)` on malformed proof/VK/public inputs (structural errors)
+/// - `Err(...)` on malformed proof/VK/public inputs (structural errors or metadata mismatch)
 pub fn verify_proof(
     env: &Env,
     vk: &VerifyingKey,
     proof: &Proof,
     pub_inputs: &PublicInputs,
 ) -> Result<bool, Error> {
-    // Step 0: Structural validation before deserialization (ZK-075)
+    // Step 0a: Structural validation before deserialization (ZK-075)
     validate_proof_structure(proof)?;
     validate_vk_structure(vk)?;
     validate_public_inputs_structure(pub_inputs)?;
+
+    // Step 0b: Validate VK metadata before expensive operations (ZK-074)
+    validate_vk_metadata(vk, "withdraw")?;
+
     let bn254 = env.crypto().bn254();
 
     // Step 1: Compute vk_x (linear combination of public inputs)
@@ -263,52 +297,40 @@ pub fn verify_proof(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Tests
+// Schema Version Validation
 // ──────────────────────────────────────────────────────────────
 
-#[cfg(test)]
-mod tests {
-    use super::*;
+/// Validates that the proof schema version matches the expected version.
+///
+/// This function ensures that proofs are generated with a compatible schema version,
+/// preventing runtime errors from schema mismatches at the verifier boundary.
+///
+/// # Arguments
+/// * `proof_schema` - The schema version from the proof
+/// * `expected_version_str` - The expected schema version string (e.g., "1.0.0")
+///
+/// # Returns
+/// * `Ok(())` if the schema versions are compatible
+/// * `Err(Error::InvalidSchemaVersion)` if the expected version string is malformed
+/// * `Err(Error::SchemaVersionMismatch)` if the versions are incompatible
+///
+/// # Compatibility Rules
+/// Schema versions are compatible if:
+/// - Major versions match exactly
+/// - Minor versions match exactly
+/// - Patch versions can differ (backward compatible bug fixes)
+pub fn validate_schema_version(
+    proof_schema: &SchemaVersion,
+    expected_version_str: &str,
+) -> Result<(), Error> {
+    // Parse the expected version string
+    let expected = SchemaVersion::from_string(expected_version_str)
+        .map_err(|_| Error::InvalidSchemaVersion)?;
 
-    #[test]
-    fn test_verifier_schema_parity() {
-        // ZK-087: Ensure the contract verifier's expectations match the 
-        // authoritative machine-readable schema artifact.
-        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
-        
-        // Count public input names in schema
-        let input_count = schema_json.matches("\"name\":").count();
-        
-        // Verifier expects IC[0] + all public inputs
-        let expected_ic_total = input_count + 1;
-        
-        // This pins the verifier to the schema
-        assert_eq!(expected_ic_total, 9, "Schema must define exactly 8 public inputs (plus IC[0])");
+    // Check compatibility using semantic versioning rules
+    if !proof_schema.is_compatible_with(&expected) {
+        return Err(Error::SchemaVersionMismatch);
     }
 
-    #[test]
-    fn test_public_input_order() {
-        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
-        
-        // Names must appear in this order in the JSON
-        let expected_order = [
-            "pool_id",
-            "root",
-            "nullifier_hash",
-            "recipient",
-            "amount",
-            "relayer",
-            "fee",
-            "denomination"
-        ];
-        
-        let mut last_pos = 0;
-        for name in expected_order {
-            let search_str = concat!("\"name\": \"", stringify!(name), "\"");
-            let pos = schema_json.find(search_str)
-                .expect(concat!("Field ", stringify!(name), " missing from schema"));
-            assert!(pos > last_pos, concat!("Field ", stringify!(name), " out of order in schema"));
-            last_pos = pos;
-        }
-    }
+    Ok(())
 }

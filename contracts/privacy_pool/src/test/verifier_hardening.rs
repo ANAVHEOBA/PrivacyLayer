@@ -263,5 +263,8 @@ fn create_dummy_vk(env: &Env) -> crate::types::state::VerifyingKey {
         gamma_g2: BytesN::<128>::from_array(env, &[0xCC; 128]),
         delta_g2: BytesN::<128>::from_array(env, &[0xDD; 128]),
         gamma_abc_g1: ic,
+        circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+        public_input_count: 8,
+        manifest_hash: BytesN::from_array(env, &[0u8; 32]),
     }
 }

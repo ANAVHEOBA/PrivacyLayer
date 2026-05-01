@@ -25,6 +25,8 @@ pub enum Error {
     TreeFull = 21,
     /// Pool with the given ID not found
     PoolNotFound = 22,
+    /// Pool ID does not match canonical derivation
+    InvalidPoolId = 23,
 
     // ── Deposit ────────────────────────────────────────
     /// Wrong deposit amount — must match the pool denomination
@@ -55,18 +57,22 @@ pub enum Error {
     NoVerifyingKey = 50,
     /// Verifying key is malformed (wrong byte length)
     MalformedVerifyingKey = 51,
+    /// Circuit ID mismatch between VK and expected circuit
+    CircuitIdMismatch = 52,
+    /// Public input count mismatch between proof and VK
+    PublicInputCountMismatch = 53,
     /// VK alpha_g1 has wrong byte length (expected 64)
-    VkAlphaG1WrongLength = 52,
+    VkAlphaG1WrongLength = 54,
     /// VK beta_g2 has wrong byte length (expected 128)
-    VkBetaG2WrongLength = 53,
+    VkBetaG2WrongLength = 55,
     /// VK gamma_g2 has wrong byte length (expected 128)
-    VkGammaG2WrongLength = 54,
+    VkGammaG2WrongLength = 56,
     /// VK delta_g2 has wrong byte length (expected 128)
-    VkDeltaG2WrongLength = 55,
+    VkDeltaG2WrongLength = 57,
     /// VK gamma_abc_g1 vector has wrong length (expected 9 for 8 public inputs)
-    VkIcVectorWrongLength = 56,
+    VkIcVectorWrongLength = 58,
     /// VK gamma_abc_g1 contains a point with wrong byte length (expected 64)
-    VkIcPointWrongLength = 57,
+    VkIcPointWrongLength = 59,
 
     // ── Proof Format ──────────────────────────────────
     /// Proof point A has wrong length (expected 64)
@@ -85,4 +91,10 @@ pub enum Error {
     PointNotOnCurve = 70,
     /// BN254 pairing check failed unexpectedly
     PairingFailed = 71,
+
+    // ── Schema Versioning ──────────────────────────────
+    /// Schema version format is invalid
+    InvalidSchemaVersion = 80,
+    /// Proof schema version does not match expected version
+    SchemaVersionMismatch = 81,
 }
