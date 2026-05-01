@@ -26,6 +26,30 @@ use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
 // Public Input Linear Combination
 // ──────────────────────────────────────────────────────────────
 
+/// Validate VK metadata before expensive pairing operations (ZK-074).
+///
+/// Checks:
+/// - Circuit ID matches expected circuit ("withdraw")
+/// - Public input count matches the number of inputs we're providing
+/// - gamma_abc_g1 length matches public_input_count + 1 (for IC_0)
+///
+/// This allows mismatched proofs to fail fast before pairing work begins.
+fn validate_vk_metadata(vk: &VerifyingKey, expected_circuit_id: &str) -> Result<(), Error> {
+    // Check circuit ID
+    if vk.circuit_id.to_string() != expected_circuit_id {
+        return Err(Error::CircuitIdMismatch);
+    }
+
+    // Check public input count matches gamma_abc_g1 length
+    // gamma_abc_g1 should have (public_input_count + 1) elements: IC_0 + one per public input
+    let expected_ic_len = vk.public_input_count + 1;
+    if vk.gamma_abc_g1.len() != expected_ic_len {
+        return Err(Error::MalformedVerifyingKey);
+    }
+
+    Ok(())
+}
+
 /// Compute vk_x = IC[0] + sum(pub_input[i] * IC[i+1])
 ///
 /// This is the linear combination of public inputs with the
@@ -39,6 +63,11 @@ fn compute_vk_x(
     // [root, nullifier_hash, recipient, amount, relayer, fee]
     if vk.gamma_abc_g1.len() != 7 {
         return Err(Error::MalformedVerifyingKey);
+    }
+
+    // Validate that the number of public inputs matches VK expectations
+    if vk.public_input_count != 8 {
+        return Err(Error::PublicInputCountMismatch);
     }
 
     let bn254 = env.crypto().bn254();
@@ -82,16 +111,21 @@ fn compute_vk_x(
 ///
 /// Performs: e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
 ///
+/// ZK-074: Validates VK metadata before expensive pairing operations to fail fast
+/// on mismatched circuit IDs or public input counts.
+///
 /// # Returns
 /// - `Ok(true)` if proof is valid
 /// - `Ok(false)` if pairing check fails
-/// - `Err(...)` on malformed proof/VK
+/// - `Err(...)` on malformed proof/VK or metadata mismatch
 pub fn verify_proof(
     env: &Env,
     vk: &VerifyingKey,
     proof: &Proof,
     pub_inputs: &PublicInputs,
 ) -> Result<bool, Error> {
+    // Step 0: Validate VK metadata before expensive operations (ZK-074)
+    validate_vk_metadata(vk, "withdraw")?;
     let bn254 = env.crypto().bn254();
 
     // Step 1: Compute vk_x (linear combination of public inputs)

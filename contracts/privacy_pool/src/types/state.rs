@@ -167,6 +167,11 @@ pub struct TreeState {
 ///   gamma_abc  : 9 * 64 bytes (one G1 point per public input + 1)
 ///
 /// Total: 64 + 128 + 128 + 128 + (9 * 64) = 1024 bytes
+///
+/// Metadata (ZK-074):
+///   circuit_id       : Identifies which circuit this VK corresponds to (e.g., "withdraw")
+///   public_input_count : Number of public inputs expected (for arity validation)
+///   manifest_hash    : SHA-256 hash of the manifest this VK was built from (for auditability)
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct VerifyingKey {
@@ -181,6 +186,12 @@ pub struct VerifyingKey {
     /// G1 points for public input combination: [IC_0, IC_1, ..., IC_8]
     /// One per public input (pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination) + IC_0
     pub gamma_abc_g1: soroban_sdk::Vec<BytesN<64>>,
+    /// Circuit identifier (e.g., "withdraw") — identifies which circuit build this VK corresponds to
+    pub circuit_id: soroban_sdk::String,
+    /// Number of public inputs this VK expects (excludes IC_0)
+    pub public_input_count: u32,
+    /// SHA-256 hash of the manifest this VK was derived from (for upgrade auditability)
+    pub manifest_hash: BytesN<32>,
 }
 
 // ──────────────────────────────────────────────────────────────

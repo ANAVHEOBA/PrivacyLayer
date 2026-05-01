@@ -57,6 +57,10 @@ pub enum Error {
     NoVerifyingKey = 50,
     /// Verifying key is malformed (wrong byte length)
     MalformedVerifyingKey = 51,
+    /// Circuit ID mismatch between VK and expected circuit
+    CircuitIdMismatch = 52,
+    /// Public input count mismatch between proof and VK
+    PublicInputCountMismatch = 53,
 
     // ── Proof Format ──────────────────────────────────
     /// Proof point A has wrong length

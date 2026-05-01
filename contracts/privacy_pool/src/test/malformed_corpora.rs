@@ -132,6 +132,9 @@ pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
             gamma_g2: gamma_g2.clone(),
             delta_g2: delta_g2.clone(),
             gamma_abc_g1: ic_too_few,
+            circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+            public_input_count: 8,
+            manifest_hash: BytesN::from_array(env, &[0u8; 32]),
         },
         expected_error_category: ErrorCategory::Structural,
     });
@@ -150,6 +153,9 @@ pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
             gamma_g2: gamma_g2.clone(),
             delta_g2: delta_g2.clone(),
             gamma_abc_g1: ic_too_many,
+            circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+            public_input_count: 8,
+            manifest_hash: BytesN::from_array(env, &[0u8; 32]),
         },
         expected_error_category: ErrorCategory::Structural,
     });
@@ -164,6 +170,9 @@ pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
             gamma_g2: gamma_g2.clone(),
             delta_g2: delta_g2.clone(),
             gamma_abc_g1: ic_empty,
+            circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+            public_input_count: 8,
+            manifest_hash: BytesN::from_array(env, &[0u8; 32]),
         },
         expected_error_category: ErrorCategory::Structural,
     });
@@ -177,6 +186,9 @@ pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
             gamma_g2: gamma_g2.clone(),
             delta_g2: delta_g2.clone(),
             gamma_abc_g1: valid_ic_vector(env),
+            circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+            public_input_count: 8,
+            manifest_hash: BytesN::from_array(env, &[0u8; 32]),
         },
         expected_error_category: ErrorCategory::Cryptographic,
     });
@@ -190,6 +202,9 @@ pub fn malformed_vk_corpora(env: &Env) -> std::vec::Vec<MalformedVKTestCase> {
             gamma_g2: gamma_g2.clone(),
             delta_g2: delta_g2.clone(),
             gamma_abc_g1: valid_ic_vector(env),
+            circuit_id: soroban_sdk::String::from_str(env, "withdraw"),
+            public_input_count: 8,
+            manifest_hash: BytesN::from_array(env, &[0u8; 32]),
         },
         expected_error_category: ErrorCategory::Cryptographic,
     });

@@ -44,6 +44,7 @@ export interface ZkArtifactManifestCircuit {
   backend: string;
   root_depth?: number;
   public_input_schema?: string[];
+  public_input_count?: number; // ZK-074: Number of public inputs for VK validation
 }
 
 export interface ZkArtifactManifestBackend {

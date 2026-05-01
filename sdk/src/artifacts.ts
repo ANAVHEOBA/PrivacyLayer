@@ -272,6 +272,15 @@ export class BrowserArtifactLoader {
   }
 
   /**
+   * Computes the SHA-256 hash of a manifest for VK metadata (ZK-074).
+   * This hash is used to track which artifact set a VK corresponds to.
+   */
+  async computeManifestHash(manifest: ZkArtifactManifest): Promise<string> {
+    const manifestJson = JSON.stringify(manifest);
+    return await sha256Hex(manifestJson);
+  }
+
+  /**
    * Loads and validates artifacts for a specific circuit and version.
    */
   async loadArtifacts(

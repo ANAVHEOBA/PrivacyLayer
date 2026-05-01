@@ -22,7 +22,8 @@
         "recipient",
         "amount",
         "relayer",
-        "fee"
+        "fee",
+        "denomination"
       ],
       "schema_version": "1.20680.19972"
     },
