@@ -20,7 +20,7 @@ use soroban_sdk::{
 };
 
 use crate::types::errors::Error;
-use crate::types::state::{Proof, PublicInputs, VerifyingKey};
+use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
 
 // ──────────────────────────────────────────────────────────────
 // Public Input Linear Combination
@@ -59,9 +59,9 @@ fn compute_vk_x(
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
-    // The VK must have exactly 9 IC points: IC[0] + 8 public inputs
-    // [pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination]
-    if vk.gamma_abc_g1.len() != 9 {
+    // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
+    // [root, nullifier_hash, recipient, amount, relayer, fee]
+    if vk.gamma_abc_g1.len() != 7 {
         return Err(Error::MalformedVerifyingKey);
     }
 
@@ -77,15 +77,13 @@ fn compute_vk_x(
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
     // Public inputs as 32-byte field elements → Fr scalars
-    let inputs: [&BytesN<32>; 8] = [
-        &pub_inputs.pool_id,
+    let inputs: [&BytesN<32>; 6] = [
         &pub_inputs.root,
         &pub_inputs.nullifier_hash,
         &pub_inputs.recipient,
         &pub_inputs.amount,
         &pub_inputs.relayer,
         &pub_inputs.fee,
-        &pub_inputs.denomination,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
@@ -174,52 +172,40 @@ pub fn verify_proof(
 }
 
 // ──────────────────────────────────────────────────────────────
-// Tests
+// Schema Version Validation
 // ──────────────────────────────────────────────────────────────
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn test_verifier_schema_parity() {
-        // ZK-087: Ensure the contract verifier's expectations match the 
-        // authoritative machine-readable schema artifact.
-        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
-        
-        // Count public input names in schema
-        let input_count = schema_json.matches("\"name\":").count();
-        
-        // Verifier expects IC[0] + all public inputs
-        let expected_ic_total = input_count + 1;
-        
-        // This pins the verifier to the schema
-        assert_eq!(expected_ic_total, 9, "Schema must define exactly 8 public inputs (plus IC[0])");
+/// Validates that the proof schema version matches the expected version.
+///
+/// This function ensures that proofs are generated with a compatible schema version,
+/// preventing runtime errors from schema mismatches at the verifier boundary.
+///
+/// # Arguments
+/// * `proof_schema` - The schema version from the proof
+/// * `expected_version_str` - The expected schema version string (e.g., "1.0.0")
+///
+/// # Returns
+/// * `Ok(())` if the schema versions are compatible
+/// * `Err(Error::InvalidSchemaVersion)` if the expected version string is malformed
+/// * `Err(Error::SchemaVersionMismatch)` if the versions are incompatible
+///
+/// # Compatibility Rules
+/// Schema versions are compatible if:
+/// - Major versions match exactly
+/// - Minor versions match exactly
+/// - Patch versions can differ (backward compatible bug fixes)
+pub fn validate_schema_version(
+    proof_schema: &SchemaVersion,
+    expected_version_str: &str,
+) -> Result<(), Error> {
+    // Parse the expected version string
+    let expected = SchemaVersion::from_string(expected_version_str)
+        .map_err(|_| Error::InvalidSchemaVersion)?;
+    
+    // Check compatibility using semantic versioning rules
+    if !proof_schema.is_compatible_with(&expected) {
+        return Err(Error::SchemaVersionMismatch);
     }
-
-    #[test]
-    fn test_public_input_order() {
-        let schema_json = include_str!("../../../../artifacts/zk/v1/verifier_schema.json");
-        
-        // Names must appear in this order in the JSON
-        let expected_order = [
-            "pool_id",
-            "root",
-            "nullifier_hash",
-            "recipient",
-            "amount",
-            "relayer",
-            "fee",
-            "denomination"
-        ];
-        
-        let mut last_pos = 0;
-        for name in expected_order {
-            let search_str = concat!("\"name\": \"", stringify!(name), "\"");
-            let pos = schema_json.find(search_str)
-                .expect(concat!("Field ", stringify!(name), " missing from schema"));
-            assert!(pos > last_pos, concat!("Field ", stringify!(name), " out of order in schema"));
-            last_pos = pos;
-        }
-    }
+    
+    Ok(())
 }

@@ -8,12 +8,18 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const repoRoot = path.resolve(__dirname, '..');
 
 // ZK-041: Accept version parameter for versioned artifact layout
+const zkVersion = process.argv[2] || '2';
+const artifactsDir = path.join(repoRoot, 'artifacts', 'zk');
+const manifestPath = path.join(artifactsDir, 'manifest.json');
 const zkVersion = process.argv[2] || '1';
 const artifactsDir = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`);
 const versionedManifestPath = path.join(artifactsDir, 'manifests', 'manifest.json');
 const legacyManifestPath = path.join(repoRoot, 'artifacts', 'zk', 'manifest.json');
 const releaseBundlePath = path.join(artifactsDir, 'bundles', 'release-bundle.json');
+const benchmarkBaselinesPath = path.join(artifactsDir, 'bundles', 'benchmark-baselines.json');
+const rotationEvidenceDir = path.join(artifactsDir, 'bundles', 'rotation-evidence');
 const PRODUCTION_MERKLE_ROOT_DEPTH = 20;
+const CIRCUIT_ORDER = ['withdraw', 'commitment'];
 const WITHDRAW_PUBLIC_INPUT_SCHEMA = [
   'pool_id',
   'root',
@@ -23,7 +29,10 @@ const WITHDRAW_PUBLIC_INPUT_SCHEMA = [
   'relayer',
   'fee',
 ];
-const CONTRACT_PUBLIC_INPUT_SCHEMA = WITHDRAW_PUBLIC_INPUT_SCHEMA.slice(1);
+const COMMITMENT_PUBLIC_INPUT_SCHEMA = [
+  'pool_id',
+  'commitment',
+];
 const EXTRA_FILES = {
   commitment_vectors: {
     path: 'commitment_vectors.json',
@@ -33,6 +42,51 @@ const EXTRA_FILES = {
 
 function sha256Hex(data) {
   return '0x' + createHash('sha256').update(data).digest('hex');
+}
+
+/**
+ * Computes a deterministic schema version from a public input schema array.
+ * 
+ * Algorithm:
+ * 1. Serialize the schema array using stable JSON serialization (sorted keys, no whitespace)
+ * 2. Compute SHA-256 hash of the serialized schema
+ * 3. Derive semantic version from hash:
+ *    - Major version: 1 (fixed for initial release)
+ *    - Minor version: First 4 hex digits of hash as decimal (0-65535)
+ *    - Patch version: Next 4 hex digits of hash as decimal (0-65535)
+ * 
+ * This ensures:
+ * - Identical schemas produce identical versions
+ * - Different schemas produce different versions with high probability
+ * - Version format is human-readable semantic versioning
+ * 
+ * @param {string[]} publicInputSchema - Ordered array of public input field names
+ * @returns {string} Semantic version string (e.g., "1.2345.6789")
+ */
+function computeSchemaVersion(publicInputSchema) {
+  if (!Array.isArray(publicInputSchema) || publicInputSchema.length === 0) {
+    throw new Error('publicInputSchema must be a non-empty array');
+  }
+
+  // Validate that all elements are strings
+  for (const field of publicInputSchema) {
+    if (typeof field !== 'string') {
+      throw new Error(`Invalid schema field: expected string, got ${typeof field}`);
+    }
+  }
+
+  // Use stable serialization to ensure deterministic hashing
+  const serialized = stableStringify(publicInputSchema);
+  
+  // Compute SHA-256 hash (without 0x prefix for parsing)
+  const hash = createHash('sha256').update(serialized).digest('hex');
+  
+  // Derive semantic version from hash
+  const major = 1; // Fixed for initial release
+  const minor = parseInt(hash.substring(0, 4), 16); // First 4 hex digits (0-65535)
+  const patch = parseInt(hash.substring(4, 8), 16); // Next 4 hex digits (0-65535)
+  
+  return `${major}.${minor}.${patch}`;
 }
 
 function stableStringify(value) {
@@ -68,37 +122,48 @@ function commandOutput(command, args = ['--version']) {
   return result.stdout;
 }
 
-function detectBackendVersions() {
-  try {
-    return {
-      nargo_version: commandOutput('nargo', ['--version']).trim(),
-      noirc_version: commandOutput('noirc', ['--version']).trim(),
-    };
-  } catch {
-    return {
-      nargo_version: 'unknown',
-      noirc_version: 'unknown',
-    };
-  }
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
-function normalizeBackend(backend) {
-  const versions = detectBackendVersions();
-  if (backend && typeof backend === 'object') {
-    return {
-      name: backend.name ?? 'nargo/noir',
-      nargo_version: backend.nargo_version ?? versions.nargo_version,
-      noirc_version: backend.noirc_version ?? versions.noirc_version,
-    };
+function buildCircuitEntry(name) {
+  const filePath = path.join(artifactsDir, `${name}.json`);
+  if (!fs.existsSync(filePath)) {
+    throw new Error(`Missing artifact file: ${path.relative(repoRoot, filePath)}`);
   }
 
-  return {
-    name: typeof backend === 'string' && backend.length > 0 ? backend : 'nargo/noir',
-    nargo_version: versions.nargo_version,
-    noirc_version: versions.noirc_version,
+  const raw = fs.readFileSync(filePath);
+  const artifact = JSON.parse(raw.toString('utf8'));
+  const entry = {
+    circuit_id: name,
+    path: `${name}.json`,
+    artifact_sha256: sha256Hex(raw),
+    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
+    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
+    name: artifact.name ?? name,
+    backend: 'nargo/noir',
   };
+
+  // Add circuit-specific fields
+  if (name === 'withdraw') {
+    entry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
+    entry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
+    // Compute schema version for circuits with public input schema
+    entry.schema_version = computeSchemaVersion(WITHDRAW_PUBLIC_INPUT_SCHEMA);
+  } else if (name === 'commitment') {
+    entry.public_input_schema = COMMITMENT_PUBLIC_INPUT_SCHEMA;
+    // Compute schema version for circuits with public input schema
+    entry.schema_version = computeSchemaVersion(COMMITMENT_PUBLIC_INPUT_SCHEMA);
+  }
+
+  return entry;
+function readJson(filePath) {
+  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
 }
 
+function ensureDirectory(filePath) {
+  fs.mkdirSync(path.dirname(filePath), { recursive: true });
+}
 
 function buildExtraFileEntries() {
   return Object.fromEntries(
@@ -118,6 +183,103 @@ function buildExtraFileEntries() {
       ];
     })
   );
+}
+
+function main() {
+  console.log(`Refreshing ZK manifest for version ${zkVersion}...`);
+
+  // Load existing manifest to detect migration scenarios
+  let existingManifest = null;
+  if (fs.existsSync(manifestPath)) {
+    try {
+      existingManifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+    } catch (error) {
+      console.warn('Warning: Could not parse existing manifest. Treating as new manifest.');
+    }
+  }
+
+  // Try to get backend versions, but don't fail if tools aren't available
+  let backendInfo;
+  try {
+    const nargoVersion = commandOutput('nargo', ['--version']);
+    const noircVersion = commandOutput('noirc', ['--version']);
+    backendInfo = {
+      name: 'nargo/noir',
+      nargo_version: nargoVersion.trim(),
+      noirc_version: noircVersion.trim(),
+    };
+  } catch (error) {
+    console.warn('Warning: Could not detect nargo/noirc versions. Using existing backend info from manifest.');
+    // Try to preserve existing backend info if manifest exists
+    if (existingManifest) {
+      backendInfo = existingManifest.backend || { name: 'nargo/noir' };
+    } else {
+      backendInfo = { name: 'nargo/noir' };
+    }
+  }
+
+  const manifest = {
+    version: parseInt(zkVersion, 10),
+    backend: backendInfo,
+    circuits: Object.fromEntries(
+      CIRCUIT_ORDER.map((name) => [name, buildCircuitEntry(name)])
+    ),
+    files: buildExtraFileEntries(),
+  };
+
+  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
+  console.log(`Manifest updated at ${manifestPath}`);
+  
+  // Detect migration: circuits that now have schema_version but didn't before
+  const migratedCircuits = [];
+  const allCircuitsWithSchema = [];
+  
+  for (const [name, entry] of Object.entries(manifest.circuits)) {
+    if (entry.schema_version) {
+      allCircuitsWithSchema.push({ name, version: entry.schema_version });
+      
+      // Check if this circuit had schema_version in the old manifest
+      const oldEntry = existingManifest?.circuits?.[name];
+      if (oldEntry && oldEntry.public_input_schema && !oldEntry.schema_version) {
+        migratedCircuits.push({ name, version: entry.schema_version });
+      }
+    }
+  }
+  
+  // Output summary
+  if (allCircuitsWithSchema.length > 0) {
+    console.log('\nSchema versions computed:');
+    for (const { name, version } of allCircuitsWithSchema) {
+      console.log(`  ${name}: ${version}`);
+    }
+  }
+  
+  // Output migration summary if any circuits were migrated
+  if (migratedCircuits.length > 0) {
+    console.log('\nMigration summary:');
+    console.log(`Added schema_version to ${migratedCircuits.length} existing circuit(s):`);
+    for (const { name, version } of migratedCircuits) {
+      console.log(`  ${name}: ${version} (migrated from no schema_version)`);
+    }
+  }
+function loadManifest() {
+  if (fs.existsSync(versionedManifestPath)) {
+    return readJson(versionedManifestPath);
+  }
+
+  if (fs.existsSync(legacyManifestPath)) {
+    return readJson(legacyManifestPath);
+  }
+
+  return {
+    version: Number.parseInt(zkVersion, 10),
+    backend: {
+      name: 'nargo/noir',
+      nargo_version: 'unknown',
+      noirc_version: 'unknown',
+    },
+    circuits: {},
+  };
 }
 
 function buildReleaseBundle(manifest) {
@@ -150,6 +312,13 @@ function buildReleaseBundle(manifest) {
       schema_version: 1,
       verifier_key_storage: 'DataKey::VerifyingKey',
     },
+    operational_artifacts: {
+      benchmark_baselines_path: path.relative(repoRoot, benchmarkBaselinesPath).replace(/\\/g, '/'),
+      rotation_evidence_dir: path.relative(repoRoot, rotationEvidenceDir).replace(/\\/g, '/'),
+    },
+  };
+}
+
 function computeChecksums(raw, artifact) {
   return {
     artifact_sha256: sha256Hex(raw),
@@ -158,69 +327,50 @@ function computeChecksums(raw, artifact) {
   };
 }
 
+function refreshCircuit(manifest, name) {
+  const filePath = path.join(artifactsDir, 'circuits', name, `${name}.json`);
+  const circuitFile = `circuits/${name}/${name}.json`;
+
+  if (!fs.existsSync(filePath)) {
+    console.warn(`Warning: Missing artifact for ${name} at ${filePath}`);
+    return;
+  }
+
+  const raw = fs.readFileSync(filePath);
+  const artifact = JSON.parse(raw.toString('utf8'));
+  const checksums = computeChecksums(raw, artifact);
+  const circuitEntry = manifest.circuits[name] ?? (manifest.circuits[name] = {});
+
+  circuitEntry.circuit_id = name;
+  circuitEntry.path = circuitFile;
+  circuitEntry.artifact_sha256 = checksums.artifact_sha256;
+  circuitEntry.bytecode_sha256 = checksums.bytecode_sha256;
+  circuitEntry.abi_sha256 = checksums.abi_sha256;
+  circuitEntry.name = artifact.name ?? name;
+  circuitEntry.backend = manifest.backend.name;
+
+  if (name === 'withdraw') {
+    circuitEntry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
+    circuitEntry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
+  }
+}
+
 function main() {
   console.log(`Refreshing ZK manifest for version ${zkVersion}...`);
 
-  if (!fs.existsSync(path.dirname(versionedManifestPath))) {
-    fs.mkdirSync(path.dirname(versionedManifestPath), { recursive: true });
-  }
-  if (!fs.existsSync(path.dirname(releaseBundlePath))) {
-    fs.mkdirSync(path.dirname(releaseBundlePath), { recursive: true });
-  }
+  ensureDirectory(versionedManifestPath);
+  ensureDirectory(releaseBundlePath);
+  fs.mkdirSync(rotationEvidenceDir, { recursive: true });
 
-  let manifest;
-  if (fs.existsSync(versionedManifestPath)) {
-    manifest = JSON.parse(fs.readFileSync(versionedManifestPath, 'utf8'));
-  } else if (fs.existsSync(legacyManifestPath)) {
-    manifest = JSON.parse(fs.readFileSync(legacyManifestPath, 'utf8'));
-  } else {
-    throw new Error('No manifest found to refresh. Run the rebuild pipeline first.');
-    manifest = {
-      version: zkVersion,
-      backend: {
-        name: 'nargo/noir',
-        nargo_version: 'unknown',
-        noirc_version: 'unknown'
-      },
-      circuits: {},
-    };
-  }
-
+  const manifest = loadManifest();
   manifest.version = Number.parseInt(zkVersion, 10);
   manifest.backend = normalizeBackend(manifest.backend);
 
-  const circuits = ['withdraw', 'commitment', 'merkle'];
-
-  for (const name of circuits) {
-    const filePath = path.join(artifactsDir, 'circuits', name, `${name}.json`);
-    // ZK-041: Look for circuits in versioned directory structure
-    const circuitFile = `circuits/${name}/${name}.json`;
-    const filePath = path.join(artifactsDir, circuitFile);
-    
-    if (!fs.existsSync(filePath)) {
-      console.warn(`Warning: Missing artifact for ${name} at ${filePath}`);
-      continue;
-    }
-
-    const raw = fs.readFileSync(filePath);
-    const artifact = JSON.parse(raw.toString('utf8'));
-    const circuitEntry = manifest.circuits[name] ?? (manifest.circuits[name] = {});
-    circuitEntry.circuit_id = name;
-    circuitEntry.path = `circuits/${name}/${name}.json`;
-    circuitEntry.artifact_sha256 = sha256Hex(raw);
-    circuitEntry.bytecode_sha256 = sha256Hex(String(artifact.bytecode ?? ''));
-    circuitEntry.abi_sha256 = sha256Hex(stableStringify(artifact.abi ?? null));
-    circuitEntry.name = artifact.name ?? name;
-    circuitEntry.backend = 'nargo/noir';
-
-    if (name === 'withdraw') {
-      circuitEntry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-      circuitEntry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
-    }
+  for (const name of ['withdraw', 'commitment', 'merkle']) {
+    refreshCircuit(manifest, name);
   }
 
-  const extraFiles = buildExtraFileEntries();
-  manifest.files = extraFiles;
+  manifest.files = buildExtraFileEntries();
 
   const manifestText = JSON.stringify(manifest, null, 2) + '\n';
   const releaseBundle = buildReleaseBundle(manifest);
@@ -233,42 +383,6 @@ function main() {
   console.log(`Manifest updated at ${versionedManifestPath}`);
   console.log(`Legacy manifest updated at ${legacyManifestPath}`);
   console.log(`Release bundle updated at ${releaseBundlePath}`);
-    const checksums = computeChecksums(raw, artifact);
-
-    if (!manifest.circuits[name]) {
-      manifest.circuits[name] = {
-        circuit_id: name,
-        name: artifact.name ?? name,
-        backend: 'nargo/noir'
-      };
-    }
-    
-    // ZK-041/ZK-085: Update path and checksums
-    manifest.circuits[name].path = circuitFile;
-    manifest.circuits[name].artifact_sha256 = checksums.artifact_sha256;
-    manifest.circuits[name].bytecode_sha256 = checksums.bytecode_sha256;
-    manifest.circuits[name].abi_sha256 = checksums.abi_sha256;
-    
-    // Production artifact depth and schema (ZK-087)
-    if (name === 'withdraw') {
-      manifest.circuits[name].root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-      
-      const verifierSchemaPath = path.join(artifactsDir, 'verifier_schema.json');
-      if (fs.existsSync(verifierSchemaPath)) {
-        const schema = JSON.parse(fs.readFileSync(verifierSchemaPath, 'utf8'));
-        manifest.circuits[name].public_input_schema = schema.public_inputs.map(i => i.name);
-      } else {
-        manifest.circuits[name].public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
-      }
-    }
-  }
-
-  // Update extra files
-  manifest.files = buildExtraFileEntries();
-
-  // Idempotent write
-  fs.writeFileSync(manifestPath, JSON.stringify(manifest, null, 2) + '\n');
-  console.log(`Manifest updated at ${manifestPath}`);
 }
 
 main();

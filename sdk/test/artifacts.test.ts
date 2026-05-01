@@ -14,6 +14,10 @@ import {
   getProvingKeyPath,
   getReleaseBundleDir,
   getReleaseBundlePath,
+  getBenchmarkBaselinesPath,
+  getRotationEvidenceDir,
+  getRotationEvidenceBundlePath,
+  getRotationEvidenceLogPath,
   CIRCUIT_NAMES,
   getKnownCircuitPath,
   ZK_ARTIFACT_VERSION,
@@ -138,6 +142,21 @@ describe('Artifact Path Configuration (ZK-041)', () => {
       const filePath = getReleaseBundlePath('2');
       expect(filePath).toBe('artifacts/zk/v2/bundles/release-bundle.json');
     });
+
+    it('returns correct benchmark baseline path', () => {
+      const filePath = getBenchmarkBaselinesPath();
+      expect(filePath).toBe('artifacts/zk/v1/bundles/benchmark-baselines.json');
+    });
+
+    it('returns correct rotation evidence paths', () => {
+      expect(getRotationEvidenceDir()).toBe('artifacts/zk/v1/bundles/rotation-evidence');
+      expect(getRotationEvidenceBundlePath('pool-1')).toBe(
+        'artifacts/zk/v1/bundles/rotation-evidence/pool-1/rotation-bundle.json',
+      );
+      expect(getRotationEvidenceLogPath('pool-1')).toBe(
+        'artifacts/zk/v1/bundles/rotation-evidence/pool-1/rotation-log.md',
+      );
+    });
   });
 
   describe('Known circuit names', () => {
@@ -179,6 +198,10 @@ describe('Artifact Path Configuration (ZK-041)', () => {
       expect(ARTIFACT_LAYOUT.getProvingKeyPath).toBe(getProvingKeyPath);
       expect(ARTIFACT_LAYOUT.getReleaseBundleDir).toBe(getReleaseBundleDir);
       expect(ARTIFACT_LAYOUT.getReleaseBundlePath).toBe(getReleaseBundlePath);
+      expect(ARTIFACT_LAYOUT.getBenchmarkBaselinesPath).toBe(getBenchmarkBaselinesPath);
+      expect(ARTIFACT_LAYOUT.getRotationEvidenceDir).toBe(getRotationEvidenceDir);
+      expect(ARTIFACT_LAYOUT.getRotationEvidenceBundlePath).toBe(getRotationEvidenceBundlePath);
+      expect(ARTIFACT_LAYOUT.getRotationEvidenceLogPath).toBe(getRotationEvidenceLogPath);
       expect(ARTIFACT_LAYOUT.getKnownCircuitPath).toBe(getKnownCircuitPath);
     });
 

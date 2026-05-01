@@ -25,6 +25,8 @@ pub enum Error {
     TreeFull = 21,
     /// Pool with the given ID not found
     PoolNotFound = 22,
+    /// Pool ID does not match canonical derivation
+    InvalidPoolId = 23,
 
     // ── Deposit ────────────────────────────────────────
     /// Wrong deposit amount — must match the pool denomination
@@ -73,4 +75,10 @@ pub enum Error {
     PointNotOnCurve = 70,
     /// BN254 pairing check failed unexpectedly
     PairingFailed = 71,
+
+    // ── Schema Versioning ──────────────────────────────
+    /// Schema version format is invalid
+    InvalidSchemaVersion = 80,
+    /// Proof schema version does not match expected version
+    SchemaVersionMismatch = 81,
 }

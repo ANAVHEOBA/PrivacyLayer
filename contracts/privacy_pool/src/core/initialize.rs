@@ -7,7 +7,7 @@ use soroban_sdk::{Address, Env};
 use crate::crypto::merkle;
 use crate::storage::{analytics, config};
 use crate::types::errors::Error;
-use crate::types::state::{Config, Denomination, PoolConfig, PoolId, VerifyingKey};
+use crate::types::state::{derive_canonical_pool_id, Config, Denomination, PoolConfig, PoolId, VerifyingKey};
 
 /// Initialize the global privacy pool contract.
 pub fn initialize(env: Env, admin: Address) -> Result<(), Error> {
@@ -36,6 +36,12 @@ pub fn create_pool(
     // Check if pool already exists
     if config::load_pool_config(&env, &pool_id).is_ok() {
         return Err(Error::AlreadyInitialized);
+    }
+
+    // Canonical pool-id lock: operators must use deterministic derivation.
+    let expected_pool_id = derive_canonical_pool_id(&env, &token, &denomination);
+    if pool_id != expected_pool_id {
+        return Err(Error::InvalidPoolId);
     }
 
     let pool_config = PoolConfig {

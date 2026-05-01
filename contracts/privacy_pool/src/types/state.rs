@@ -7,7 +7,7 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN, Env, Vec};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, String, Vec};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
@@ -76,13 +76,50 @@ impl Denomination {
         }
     }
 
-    /// Encodes the denomination amount as a 32-byte big-endian field element.
-    pub fn encode_as_field(&self, env: &Env) -> BytesN<32> {
-        let mut bytes = [0u8; 32];
-        let amount_be = self.amount().to_be_bytes();
-        bytes[16..32].copy_from_slice(&amount_be); // i128 is 16 bytes
-        BytesN::from_array(env, &bytes)
+    /// Stable canonical bytes (big-endian i128) used by pool-id derivation.
+    pub fn canonical_bytes(&self) -> [u8; 16] {
+        self.amount().to_be_bytes()
     }
+}
+
+const POOL_ID_DOMAIN_TAG: &[u8] = b"PrivacyLayerPoolId:v1";
+
+fn derive_pool_id_from_identity(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    let mut preimage = Bytes::from_slice(env, POOL_ID_DOMAIN_TAG);
+    preimage.append(&Bytes::from_slice(env, &network_domain.to_array()));
+    preimage.append(&Bytes::from_slice(env, &denomination.canonical_bytes()));
+
+    let token_len = (token_identity.len() as u16).to_be_bytes();
+    preimage.append(&Bytes::from_slice(env, &token_len));
+    preimage.append(token_identity);
+
+    let digest = env.crypto().sha256(&preimage);
+    let mut pool_bytes = digest.to_array();
+    pool_bytes[0] = 0;
+    PoolId(BytesN::from_array(env, &pool_bytes))
+}
+
+/// Derive canonical pool id from a token address, denomination, and current network domain.
+pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
+    let token_text: String = token.to_string();
+    let token_bytes = token_text.into_bytes();
+    let network_domain = env.ledger().network_id();
+    derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
+}
+
+#[cfg(test)]
+pub fn derive_canonical_pool_id_for_fixture(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    derive_pool_id_from_identity(env, token_identity, denomination, network_domain)
 }
 
 /// Global contract configuration.
@@ -196,6 +233,71 @@ pub struct Proof {
     /// G1 point: C (64 bytes, uncompressed)
     pub c: BytesN<64>,
 }
+
+/// Schema version for public input validation.
+/// Uses semantic versioning format (major.minor.patch).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SchemaVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl SchemaVersion {
+    /// Creates a new schema version from components.
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self { major, minor, patch }
+    }
+    
+    /// Parses a schema version from a string (e.g., "1.2.3").
+    pub fn from_string(version: &str) -> Result<Self, &'static str> {
+        let parts: Vec<&str> = version.split('.').collect();
+        if parts.len() != 3 {
+            return Err("Invalid schema version format");
+        }
+        
+        let major = parts[0].parse::<u32>().map_err(|_| "Invalid major version")?;
+        let minor = parts[1].parse::<u32>().map_err(|_| "Invalid minor version")?;
+        let patch = parts[2].parse::<u32>().map_err(|_| "Invalid patch version")?;
+        
+        Ok(Self::new(major, minor, patch))
+    }
+    
+    /// Checks if this version is compatible with another version.
+    /// Compatible if major and minor versions match exactly.
+    pub fn is_compatible_with(&self, other: &SchemaVersion) -> bool {
+        self.major == other.major && self.minor == other.minor
+    }
+}
+
+/// Extended public inputs with schema version metadata.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PublicInputsWithSchema {
+    /// The public inputs to the proof
+    pub inputs: PublicInputs,
+    /// Schema version of the proof
+    pub schema_version: SchemaVersion,
+}
+
+/// Expected schema version for withdraw circuit.
+/// 
+/// **IMPORTANT**: Update this constant when the public input schema changes.
+/// The schema version is computed deterministically from the public_input_schema
+/// array in the manifest. When the circuit's public inputs change (field order,
+/// names, or count), regenerate the manifest using refresh_manifest.mjs and
+/// update this constant to match the new schema_version value.
+/// 
+/// Current schema (v1.20680.19972):
+/// - pool_id
+/// - root
+/// - nullifier_hash
+/// - recipient
+/// - amount
+/// - relayer
+/// - fee
+pub const EXPECTED_WITHDRAW_SCHEMA_VERSION: &str = "1.20680.19972";
 
 // ──────────────────────────────────────────────────────────────
 // Analytics Types

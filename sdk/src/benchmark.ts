@@ -27,21 +27,67 @@ export interface ProofMetrics {
   // Environment context
   environment: 'node' | 'browser';
   backendName: string;
+  artifactVersion: string;
+  scenario: BenchmarkScenario;
   timestamp: string;
+}
+
+/**
+ * Benchmark scenarios captured for release rehearsal.
+ */
+export type BenchmarkScenario = 'cold-start' | 'warm-start' | 'throughput' | 'memory';
+
+export type BenchmarkRuntime = 'node' | 'browser';
+
+export interface BenchmarkSummary {
+  mean: number;
+  stdDev: number;
+  min: number;
+  max: number;
+}
+
+export interface BenchmarkThresholds {
+  witnessPreparationMs: number;
+  proofGenerationMs: number;
+  totalMs: number;
+  memoryUsedMB: number;
+  peakMemoryMB: number;
+  proofSizeBytes: number;
+  proofsPerSecond: number;
 }
 
 /**
  * Benchmark baseline for regression detection.
  */
 export interface BenchmarkBaseline {
-  version: string;
+  artifactVersion: string;
+  backendName: string;
+  runtime: BenchmarkRuntime;
+  scenario: BenchmarkScenario;
   timestamp: string;
   environment: 'node' | 'browser';
   metrics: {
-    proofGenerationMs: { mean: number; stdDev: number };
-    memoryUsedMB: { mean: number; stdDev: number };
-    proofSizeBytes: number;
+    witnessPreparationMs: BenchmarkSummary;
+    proofGenerationMs: BenchmarkSummary;
+    totalMs: BenchmarkSummary;
+    memoryUsedMB: BenchmarkSummary;
+    peakMemoryMB: BenchmarkSummary;
+    proofSizeBytes: BenchmarkSummary;
+    proofsPerSecond: BenchmarkSummary;
   };
+  thresholds: BenchmarkThresholds;
+}
+
+export interface BenchmarkArchive {
+  schemaVersion: number;
+  generatedAt: string;
+  baselines: Record<string, BenchmarkBaseline>;
+}
+
+export interface BenchmarkRegressionReport {
+  hasRegression: boolean;
+  report: string;
+  changes: Record<string, number>;
 }
 
 /**
@@ -50,7 +96,9 @@ export interface BenchmarkBaseline {
 export class ProofBenchmark {
   constructor(
     private backend: ProvingBackend,
-    private backendName: string = 'unknown'
+    private backendName: string = 'unknown',
+    private artifactVersion: string = '1',
+    private runtime: BenchmarkRuntime = this.getEnvironment()
   ) {}
 
   /**
@@ -98,6 +146,8 @@ export class ProofBenchmark {
       proofSizeBytes: proof.length,
       environment: this.getEnvironment(),
       backendName: this.backendName,
+      artifactVersion: this.artifactVersion,
+      scenario: 'warm-start',
       timestamp: new Date().toISOString(),
     };
   }
@@ -111,7 +161,8 @@ export class ProofBenchmark {
    */
   async benchmarkIterations(
     request: WithdrawalRequest,
-    iterations: number = 3
+    iterations: number = 3,
+    scenario: BenchmarkScenario = 'warm-start'
   ): Promise<{
     metrics: ProofMetrics[];
     baseline: BenchmarkBaseline;
@@ -125,36 +176,45 @@ export class ProofBenchmark {
     for (let i = 0; i < iterations; i++) {
       console.log(`  Iteration ${i + 1}/${iterations}...`);
       const result = await this.benchmarkWithdrawal(request);
+      result.scenario = scenario;
       metrics.push(result);
     }
 
-    const baseline = this.computeBaseline(metrics);
+    const baseline = this.computeBaseline(metrics, scenario);
     return { metrics, baseline };
   }
 
   /**
    * Compute statistical baseline from benchmark results.
    */
-  private computeBaseline(metrics: ProofMetrics[]): BenchmarkBaseline {
+  private computeBaseline(metrics: ProofMetrics[], scenario: BenchmarkScenario): BenchmarkBaseline {
     const proofTimes = metrics.map((m) => m.proofGenerationMs);
+    const witnessTimes = metrics.map((m) => m.witnessPreparationMs);
+    const totalTimes = metrics.map((m) => m.totalMs);
     const memoryUsage = metrics.map((m) => m.memoryUsedMB);
+    const peakMemoryUsage = metrics.map((m) => m.peakMemoryMB);
     const proofSizes = metrics.map((m) => m.proofSizeBytes);
+    const throughput = metrics.map((m) => this.proofsPerSecond(m.proofGenerationMs));
 
     return {
-      version: '1.0.0',
+      artifactVersion: this.artifactVersion,
+      backendName: this.backendName,
+      runtime: this.runtime,
+      scenario,
       timestamp: new Date().toISOString(),
       environment: metrics[0].environment,
       metrics: {
+        witnessPreparationMs: this.summary(witnessTimes),
         proofGenerationMs: {
-          mean: this.mean(proofTimes),
-          stdDev: this.stdDev(proofTimes),
+          ...this.summary(proofTimes),
         },
-        memoryUsedMB: {
-          mean: this.mean(memoryUsage),
-          stdDev: this.stdDev(memoryUsage),
-        },
-        proofSizeBytes: proofSizes[0], // Should be consistent across runs
+        totalMs: this.summary(totalTimes),
+        memoryUsedMB: this.summary(memoryUsage),
+        peakMemoryMB: this.summary(peakMemoryUsage),
+        proofSizeBytes: this.summary(proofSizes),
+        proofsPerSecond: this.summary(throughput),
       },
+      thresholds: this.defaultThresholds(),
     };
   }
 
@@ -169,42 +229,78 @@ export class ProofBenchmark {
   static detectRegression(
     current: BenchmarkBaseline,
     previous: BenchmarkBaseline,
-    threshold: number = 0.1
-  ): {
-    hasRegression: boolean;
-    proofGenerationChange: number;
-    memoryChange: number;
-    report: string;
-  } {
-    const proofChange =
-      (current.metrics.proofGenerationMs.mean - previous.metrics.proofGenerationMs.mean) /
-      previous.metrics.proofGenerationMs.mean;
-    const memoryChange =
-      (current.metrics.memoryUsedMB.mean - previous.metrics.memoryUsedMB.mean) /
-      previous.metrics.memoryUsedMB.mean;
+    thresholds: Partial<BenchmarkThresholds> = {}
+  ): BenchmarkRegressionReport {
+    const resolvedThresholds = { ...current.thresholds, ...thresholds };
+    const changes: Record<string, number> = {};
 
-    const hasRegression = Math.abs(proofChange) > threshold || Math.abs(memoryChange) > threshold;
+    const proofGenerationChange = ProofBenchmark.relativeChange(
+      current.metrics.proofGenerationMs.mean,
+      previous.metrics.proofGenerationMs.mean
+    );
+    const memoryChange = ProofBenchmark.relativeChange(current.metrics.memoryUsedMB.mean, previous.metrics.memoryUsedMB.mean);
+    const totalChange = ProofBenchmark.relativeChange(current.metrics.totalMs.mean, previous.metrics.totalMs.mean);
+    const peakMemoryChange = ProofBenchmark.relativeChange(current.metrics.peakMemoryMB.mean, previous.metrics.peakMemoryMB.mean);
+    const proofSizeChange = ProofBenchmark.relativeChange(current.metrics.proofSizeBytes.mean, previous.metrics.proofSizeBytes.mean);
+    const throughputChange = ProofBenchmark.relativeChange(current.metrics.proofsPerSecond.mean, previous.metrics.proofsPerSecond.mean);
+    const witnessChange = ProofBenchmark.relativeChange(
+      current.metrics.witnessPreparationMs.mean,
+      previous.metrics.witnessPreparationMs.mean
+    );
+
+    changes.proofGenerationMs = proofGenerationChange;
+    changes.memoryUsedMB = memoryChange;
+    changes.totalMs = totalChange;
+    changes.peakMemoryMB = peakMemoryChange;
+    changes.proofSizeBytes = proofSizeChange;
+    changes.proofsPerSecond = throughputChange;
+    changes.witnessPreparationMs = witnessChange;
+
+    const hasRegression =
+      proofGenerationChange > resolvedThresholds.proofGenerationMs ||
+      memoryChange > resolvedThresholds.memoryUsedMB ||
+      totalChange > resolvedThresholds.totalMs ||
+      peakMemoryChange > resolvedThresholds.peakMemoryMB ||
+      proofSizeChange > resolvedThresholds.proofSizeBytes ||
+      witnessChange > resolvedThresholds.witnessPreparationMs ||
+      throughputChange < -resolvedThresholds.proofsPerSecond;
 
     const report = [
-      `Performance Regression Report (${current.environment})`,
+      `Performance Regression Report (${current.backendName}, ${current.runtime}, ${current.scenario})`,
       '========================================',
-      `Proof Generation Time: ${(proofChange * 100).toFixed(2)}% ${proofChange > 0 ? 'slower' : 'faster'}`,
+      `Artifact Version: ${current.artifactVersion}`,
+      `Proof Generation Time: ${(proofGenerationChange * 100).toFixed(2)}% ${proofGenerationChange > 0 ? 'slower' : 'faster'}`,
       `  Previous: ${previous.metrics.proofGenerationMs.mean.toFixed(2)}ms`,
       `  Current:  ${current.metrics.proofGenerationMs.mean.toFixed(2)}ms`,
+      '',
+      `Witness Preparation: ${(witnessChange * 100).toFixed(2)}% ${witnessChange > 0 ? 'slower' : 'faster'}`,
+      `  Previous: ${previous.metrics.witnessPreparationMs.mean.toFixed(2)}ms`,
+      `  Current:  ${current.metrics.witnessPreparationMs.mean.toFixed(2)}ms`,
+      '',
+      `Total Time: ${(totalChange * 100).toFixed(2)}% ${totalChange > 0 ? 'slower' : 'faster'}`,
+      `  Previous: ${previous.metrics.totalMs.mean.toFixed(2)}ms`,
+      `  Current:  ${current.metrics.totalMs.mean.toFixed(2)}ms`,
+      '',
+      `Throughput: ${(throughputChange * 100).toFixed(2)}% ${throughputChange > 0 ? 'faster' : 'slower'}`,
+      `  Previous: ${previous.metrics.proofsPerSecond.mean.toFixed(2)} proofs/s`,
+      `  Current:  ${current.metrics.proofsPerSecond.mean.toFixed(2)} proofs/s`,
       '',
       `Memory Usage: ${(memoryChange * 100).toFixed(2)}% ${memoryChange > 0 ? 'higher' : 'lower'}`,
       `  Previous: ${previous.metrics.memoryUsedMB.mean.toFixed(2)}MB`,
       `  Current:  ${current.metrics.memoryUsedMB.mean.toFixed(2)}MB`,
       '',
+      `Peak Memory: ${(peakMemoryChange * 100).toFixed(2)}% ${peakMemoryChange > 0 ? 'higher' : 'lower'}`,
+      `  Previous: ${previous.metrics.peakMemoryMB.mean.toFixed(2)}MB`,
+      `  Current:  ${current.metrics.peakMemoryMB.mean.toFixed(2)}MB`,
+      '',
+      `Proof Size: ${(proofSizeChange * 100).toFixed(2)}% ${proofSizeChange > 0 ? 'larger' : 'smaller'}`,
+      `  Previous: ${previous.metrics.proofSizeBytes.mean.toFixed(2)} bytes`,
+      `  Current:  ${current.metrics.proofSizeBytes.mean.toFixed(2)} bytes`,
+      '',
       `Regression Detected: ${hasRegression ? 'YES' : 'NO'}`,
     ].join('\n');
 
-    return {
-      hasRegression,
-      proofGenerationChange: proofChange,
-      memoryChange,
-      report,
-    };
+    return { hasRegression, report, changes };
   }
 
   /**
@@ -215,6 +311,8 @@ export class ProofBenchmark {
       `Benchmark Report (${metrics[0].backendName})`,
       '========================================',
       `Environment: ${metrics[0].environment}`,
+      `Artifact Version: ${metrics[0].artifactVersion}`,
+      `Scenario: ${metrics[0].scenario}`,
       `Runs: ${metrics.length}`,
       '',
       'Timing Metrics:',
@@ -231,6 +329,18 @@ export class ProofBenchmark {
     ];
 
     return lines.join('\n');
+  }
+
+  static benchmarkKey(baseline: BenchmarkBaseline): string {
+    return [baseline.artifactVersion, baseline.backendName, baseline.runtime, baseline.scenario].join('::');
+  }
+
+  static createArchive(baselines: BenchmarkBaseline[]): BenchmarkArchive {
+    return {
+      schemaVersion: 1,
+      generatedAt: new Date().toISOString(),
+      baselines: Object.fromEntries(baselines.map((baseline) => [ProofBenchmark.benchmarkKey(baseline), baseline])),
+    };
   }
 
   // Helper methods
@@ -258,5 +368,50 @@ export class ProofBenchmark {
     const avg = this.mean(values);
     const squareDiffs = values.map((v) => Math.pow(v - avg, 2));
     return Math.sqrt(this.mean(squareDiffs));
+  }
+
+  private min(values: number[]): number {
+    return Math.min(...values);
+  }
+
+  private max(values: number[]): number {
+    return Math.max(...values);
+  }
+
+  private summary(values: number[]): BenchmarkSummary {
+    return {
+      mean: this.mean(values),
+      stdDev: this.stdDev(values),
+      min: this.min(values),
+      max: this.max(values),
+    };
+  }
+
+  private proofsPerSecond(proofGenerationMs: number): number {
+    if (proofGenerationMs <= 0) {
+      return 0;
+    }
+
+    return 1000 / proofGenerationMs;
+  }
+
+  private defaultThresholds(): BenchmarkThresholds {
+    return {
+      witnessPreparationMs: 0.1,
+      proofGenerationMs: 0.1,
+      totalMs: 0.1,
+      memoryUsedMB: 0.1,
+      peakMemoryMB: 0.1,
+      proofSizeBytes: 0,
+      proofsPerSecond: 0.1,
+    };
+  }
+
+  private static relativeChange(current: number, previous: number): number {
+    if (previous === 0) {
+      return current === 0 ? 0 : 1;
+    }
+
+    return (current - previous) / previous;
   }
 }

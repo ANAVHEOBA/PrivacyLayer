@@ -5,18 +5,29 @@
  * and proving systems.
  */
 
+// Re-export the ProvingBackend interface from proof module
+export type { ProvingBackend } from '../proof';
+
 export {
-  ArtifactManifestError,
   NoirBackend,
   NoirBackendConfig,
+  assertManifestMatchesNoirArtifacts,
+  createBarretenbergBackend,
+} from './noir';
+
+export {
+  ArtifactManifestError,
   NoirArtifacts,
   ZkArtifactManifest,
   ZkArtifactManifestBackend,
   ZkArtifactManifestCircuit,
   ZkArtifactManifestFile,
-  assertManifestMatchesNoirArtifacts,
-  createBarretenbergBackend,
-} from './noir';
+} from '../types';
+
+export {
+  MockProvingBackend,
+  MockBackendConfig,
+} from './mock';
 
 export {
   ZkCapabilities,

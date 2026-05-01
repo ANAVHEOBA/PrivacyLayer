@@ -1,0 +1,175 @@
+name: Harness Tests
+
+on:
+  pull_request:
+    paths:
+      - 'sdk/src/test/harness/**'
+      - 'sdk/src/proof.ts'
+      - 'sdk/src/withdraw.ts'
+      - 'sdk/src/public_inputs.ts'
+      - 'sdk/src/backends/**'
+      - 'artifacts/zk/**'
+      - '.github/workflows/harness-tests.yml'
+  push:
+    branches:
+      - main
+    paths:
+      - 'sdk/src/test/harness/**'
+      - 'sdk/src/proof.ts'
+      - 'sdk/src/withdraw.ts'
+      - 'sdk/src/public_inputs.ts'
+      - 'sdk/src/backends/**'
+      - 'artifacts/zk/**'
+  workflow_dispatch:
+    inputs:
+      backend_type:
+        description: 'Backend type (mock or real)'
+        required: false
+        default: 'mock'
+        type: choice
+        options:
+          - mock
+          - real
+
+permissions:
+  contents: read
+  checks: write
+
+jobs:
+  # Fast feedback with mock backend (< 5 seconds)
+  fast-tests:
+    name: Fast Tests (Mock Backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Run fast harness tests
+        working-directory: sdk
+        env:
+          BACKEND_TYPE: mock
+          TIMEOUT_MS: 5000
+          JEST_TIMEOUT: 10000
+          CI: true
+        run: npm run test:harness:ci
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-fast
+          path: sdk/test-results/junit.xml
+          retention-days: 7
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdk/test-results/junit.xml
+          check_name: Fast Tests Results
+          comment_mode: off
+
+  # Comprehensive tests with real backend (< 60 seconds)
+  comprehensive-tests:
+    name: Comprehensive Tests (Real Backend)
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    # Only run comprehensive tests on main branch, manual dispatch, or when explicitly requested
+    if: |
+      github.event_name == 'push' ||
+      github.event_name == 'workflow_dispatch' ||
+      contains(github.event.pull_request.labels.*.name, 'comprehensive-tests')
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install Noir toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Noir installation
+        run: nargo --version
+
+      - name: Install dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Verify circuit artifacts exist
+        run: |
+          if [ ! -f "artifacts/zk/manifest.json" ]; then
+            echo "Error: Circuit artifacts not found at artifacts/zk/manifest.json"
+            exit 1
+          fi
+          echo "Circuit artifacts found"
+
+      - name: Run comprehensive harness tests
+        working-directory: sdk
+        env:
+          BACKEND_TYPE: ${{ github.event.inputs.backend_type || 'real' }}
+          CIRCUIT_ARTIFACTS_PATH: ../artifacts/zk
+          TIMEOUT_MS: 60000
+          JEST_TIMEOUT: 120000
+          CI: true
+        run: npm run test:harness:ci:comprehensive
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: test-results-comprehensive
+          path: sdk/test-results/junit.xml
+          retention-days: 7
+
+      - name: Publish test results
+        if: always()
+        uses: EnricoMi/publish-unit-test-result-action@v2
+        with:
+          files: sdk/test-results/junit.xml
+          check_name: Comprehensive Tests Results
+          comment_mode: off
+
+  # Summary job that depends on both test jobs
+  test-summary:
+    name: Test Summary
+    runs-on: ubuntu-latest
+    needs: [fast-tests, comprehensive-tests]
+    if: always()
+    steps:
+      - name: Check test results
+        run: |
+          if [ "${{ needs.fast-tests.result }}" != "success" ]; then
+            echo "Fast tests failed"
+            exit 1
+          fi
+          
+          # Comprehensive tests are optional, only fail if they ran and failed
+          if [ "${{ needs.comprehensive-tests.result }}" == "failure" ]; then
+            echo "Comprehensive tests failed"
+            exit 1
+          fi
+          
+          echo "All tests passed or were skipped"
