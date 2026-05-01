@@ -7,29 +7,40 @@
 // Storage keys use the DataKey enum pattern recommended by soroban-sdk.
 // ============================================================
 
-use soroban_sdk::{contracttype, Address, BytesN};
+use soroban_sdk::{contracttype, Address, Bytes, BytesN, Env, String, Vec};
 
 // ──────────────────────────────────────────────────────────────
 // Storage Keys
 // ──────────────────────────────────────────────────────────────
+
+/// Unique identifier for a pool (typically hash of token address and denomination).
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct PoolId(pub BytesN<32>);
 
 /// Primary storage key enum for the contract.
 /// Each variant maps to a distinct key in persistent storage.
 #[contracttype]
 #[derive(Clone, Debug, PartialEq)]
 pub enum DataKey {
-    /// Contract configuration (admin, denomination, etc.)
+    /// Contract configuration (admin, etc.) - GLOBAL
     Config,
-    /// Current Merkle tree state (root index, next leaf index)
-    TreeState,
-    /// Historical Merkle roots — DataKey::Root(index) → BytesN<32>
-    Root(u32),
-    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(level) → BytesN<32>
-    FilledSubtree(u32),
-    /// Spent nullifier hashes — DataKey::Nullifier(hash) → bool
-    Nullifier(BytesN<32>),
-    /// Verification key for the Groth16 proof system
-    VerifyingKey,
+    /// Pool configuration for a specific pool — DataKey::PoolConfig(pool_id) → PoolConfig
+    PoolConfig(PoolId),
+    /// Current Merkle tree state (root index, next leaf index) per pool
+    TreeState(PoolId),
+    /// Historical Merkle roots — DataKey::Root(pool_id, index) → BytesN<32>
+    Root(PoolId, u32),
+    /// Merkle tree filled subtree hashes at each level — DataKey::FilledSubtree(pool_id, level) → BytesN<32>
+    FilledSubtree(PoolId, u32),
+    /// Spent nullifier hashes — DataKey::Nullifier(pool_id, hash) → bool
+    Nullifier(PoolId, BytesN<32>),
+    /// Verification key for the Groth16 proof system per pool
+    VerifyingKey(PoolId),
+    /// Aggregate analytics counters (no user-identifiable data) - GLOBAL
+    AnalyticsState,
+    /// Fixed-size hourly analytics buckets for trend charts - GLOBAL
+    AnalyticsBucket(u32),
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -64,14 +75,65 @@ impl Denomination {
             Denomination::Usdc1000 =>    1_000_000_000, // 1000 USDC
         }
     }
+
+    /// Stable canonical bytes (big-endian i128) used by pool-id derivation.
+    pub fn canonical_bytes(&self) -> [u8; 16] {
+        self.amount().to_be_bytes()
+    }
 }
 
-/// Pool configuration — set at initialization, immutable.
+const POOL_ID_DOMAIN_TAG: &[u8] = b"PrivacyLayerPoolId:v1";
+
+fn derive_pool_id_from_identity(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    let mut preimage = Bytes::from_slice(env, POOL_ID_DOMAIN_TAG);
+    preimage.append(&Bytes::from_slice(env, &network_domain.to_array()));
+    preimage.append(&Bytes::from_slice(env, &denomination.canonical_bytes()));
+
+    let token_len = (token_identity.len() as u16).to_be_bytes();
+    preimage.append(&Bytes::from_slice(env, &token_len));
+    preimage.append(token_identity);
+
+    let digest = env.crypto().sha256(&preimage);
+    let mut pool_bytes = digest.to_array();
+    pool_bytes[0] = 0;
+    PoolId(BytesN::from_array(env, &pool_bytes))
+}
+
+/// Derive canonical pool id from a token address, denomination, and current network domain.
+pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
+    let token_text: String = token.to_string();
+    let token_bytes = token_text.into_bytes();
+    let network_domain = env.ledger().network_id();
+    derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
+}
+
+#[cfg(test)]
+pub fn derive_canonical_pool_id_for_fixture(
+    env: &Env,
+    token_identity: &Bytes,
+    denomination: &Denomination,
+    network_domain: &BytesN<32>,
+) -> PoolId {
+    derive_pool_id_from_identity(env, token_identity, denomination, network_domain)
+}
+
+/// Global contract configuration.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct Config {
+    /// Global administrator (can create pools, pause the contract)
+    pub admin: Address,
+}
+
+/// Pool configuration — specific to each token/denomination pair.
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct PoolConfig {
-    /// Pool administrator (can pause, update verifying key)
-    pub admin: Address,
     /// Token contract address (XLM native or USDC)
     pub token: Address,
     /// Fixed deposit denomination enforced by the pool
@@ -80,7 +142,7 @@ pub struct PoolConfig {
     pub tree_depth: u32,
     /// Maximum number of historical roots to keep
     pub root_history_size: u32,
-    /// Whether deposits/withdrawals are paused
+    /// Whether this specific pool is paused
     pub paused: bool,
 }
 
@@ -97,14 +159,14 @@ pub struct TreeState {
 /// Groth16 verifying key — stored on-chain and used to verify withdrawal proofs.
 /// Encoded as raw bytes (G1/G2 points on BN254, uncompressed).
 ///
-/// Structure (Groth16 VK for 6 public inputs):
+/// Structure (Groth16 VK for 8 public inputs):
 ///   alpha_g1   : 64 bytes (G1 point)
 ///   beta_g2    : 128 bytes (G2 point)
 ///   gamma_g2   : 128 bytes (G2 point)
 ///   delta_g2   : 128 bytes (G2 point)
-///   gamma_abc  : 7 * 64 bytes (one G1 point per public input + 1)
+///   gamma_abc  : 9 * 64 bytes (one G1 point per public input + 1)
 ///
-/// Total: 64 + 128 + 128 + 128 + (7 * 64) = 896 bytes
+/// Total: 64 + 128 + 128 + 128 + (9 * 64) = 1024 bytes
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct VerifyingKey {
@@ -116,8 +178,8 @@ pub struct VerifyingKey {
     pub gamma_g2: BytesN<128>,
     /// G2 point: delta
     pub delta_g2: BytesN<128>,
-    /// G1 points for public input combination: [IC_0, IC_1, ..., IC_6]
-    /// One per public input (root, nullifier_hash, recipient, amount, relayer, fee) + IC_0
+    /// G1 points for public input combination: [IC_0, IC_1, ..., IC_8]
+    /// One per public input (pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination) + IC_0
     pub gamma_abc_g1: soroban_sdk::Vec<BytesN<64>>,
 }
 
@@ -131,18 +193,22 @@ pub struct VerifyingKey {
 #[contracttype]
 #[derive(Clone, Debug)]
 pub struct PublicInputs {
+    /// unique identifier for the shielded pool
+    pub pool_id: BytesN<32>,
     /// Root of the Merkle tree at deposit time (must be a known historical root)
     pub root: BytesN<32>,
     /// Poseidon2(nullifier, root) — prevents double-spend
     pub nullifier_hash: BytesN<32>,
     /// Stellar address of the withdrawal recipient (as field element)
     pub recipient: BytesN<32>,
-    /// Denomination amount being withdrawn
+    /// Amount being withdrawn (as field element)
     pub amount: BytesN<32>,
     /// Relayer address (zero if none)
     pub relayer: BytesN<32>,
     /// Relayer fee (zero if none)
     pub fee: BytesN<32>,
+    /// Fixed denomination of the pool
+    pub denomination: BytesN<32>,
 }
 
 /// Groth16 proof — three elliptic curve points on BN254.
@@ -155,4 +221,131 @@ pub struct Proof {
     pub b: BytesN<128>,
     /// G1 point: C (64 bytes, uncompressed)
     pub c: BytesN<64>,
+}
+
+/// Schema version for public input validation.
+/// Uses semantic versioning format (major.minor.patch).
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct SchemaVersion {
+    pub major: u32,
+    pub minor: u32,
+    pub patch: u32,
+}
+
+impl SchemaVersion {
+    /// Creates a new schema version from components.
+    pub fn new(major: u32, minor: u32, patch: u32) -> Self {
+        Self { major, minor, patch }
+    }
+    
+    /// Parses a schema version from a string (e.g., "1.2.3").
+    pub fn from_string(version: &str) -> Result<Self, &'static str> {
+        let parts: Vec<&str> = version.split('.').collect();
+        if parts.len() != 3 {
+            return Err("Invalid schema version format");
+        }
+        
+        let major = parts[0].parse::<u32>().map_err(|_| "Invalid major version")?;
+        let minor = parts[1].parse::<u32>().map_err(|_| "Invalid minor version")?;
+        let patch = parts[2].parse::<u32>().map_err(|_| "Invalid patch version")?;
+        
+        Ok(Self::new(major, minor, patch))
+    }
+    
+    /// Checks if this version is compatible with another version.
+    /// Compatible if major and minor versions match exactly.
+    pub fn is_compatible_with(&self, other: &SchemaVersion) -> bool {
+        self.major == other.major && self.minor == other.minor
+    }
+}
+
+/// Extended public inputs with schema version metadata.
+#[contracttype]
+#[derive(Clone, Debug)]
+pub struct PublicInputsWithSchema {
+    /// The public inputs to the proof
+    pub inputs: PublicInputs,
+    /// Schema version of the proof
+    pub schema_version: SchemaVersion,
+}
+
+/// Expected schema version for withdraw circuit.
+/// 
+/// **IMPORTANT**: Update this constant when the public input schema changes.
+/// The schema version is computed deterministically from the public_input_schema
+/// array in the manifest. When the circuit's public inputs change (field order,
+/// names, or count), regenerate the manifest using refresh_manifest.mjs and
+/// update this constant to match the new schema_version value.
+/// 
+/// Current schema (v1.20680.19972):
+/// - pool_id
+/// - root
+/// - nullifier_hash
+/// - recipient
+/// - amount
+/// - relayer
+/// - fee
+pub const EXPECTED_WITHDRAW_SCHEMA_VERSION: &str = "1.20680.19972";
+
+// ──────────────────────────────────────────────────────────────
+// Analytics Types
+// ──────────────────────────────────────────────────────────────
+
+/// Performance metric category.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub enum PerformanceMetricKind {
+    PageLoad,
+    Deposit,
+    Withdraw,
+}
+
+/// Aggregate performance totals used to compute averages.
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct PerformanceTotals {
+    pub page_load_total_ms: u64,
+    pub page_load_samples: u64,
+    pub deposit_total_ms: u64,
+    pub deposit_samples: u64,
+    pub withdraw_total_ms: u64,
+    pub withdraw_samples: u64,
+}
+
+/// Global aggregate analytics state (privacy-preserving).
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AnalyticsState {
+    pub page_views: u64,
+    pub successful_deposits: u64,
+    pub successful_withdrawals: u64,
+    pub error_count: u64,
+    pub performance: PerformanceTotals,
+}
+
+/// One hourly aggregate bucket for historical trends.
+#[contracttype]
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct AnalyticsBucket {
+    pub hour_epoch: u64,
+    pub page_views: u32,
+    pub deposits: u32,
+    pub withdrawals: u32,
+    pub errors: u32,
+}
+
+/// Public analytics view returned by the contract.
+#[contracttype]
+#[derive(Clone, Debug, PartialEq)]
+pub struct AnalyticsSnapshot {
+    pub page_views: u64,
+    pub deposit_count: u32,
+    pub withdrawal_count: u64,
+    pub error_count: u64,
+    pub error_rate_bps: u32,
+    pub avg_page_load_ms: u32,
+    pub avg_deposit_ms: u32,
+    pub avg_withdraw_ms: u32,
+    pub hourly_trend: Vec<AnalyticsBucket>,
 }

@@ -2,33 +2,46 @@
 // Hash Utilities
 // ============================================================
 // Centralized hash functions used across all circuits.
-// Using Pedersen hash (BN254-friendly) as Poseidon is not yet
-// in Noir 1.0 stdlib.
+//
+// The top-level API stays stable for downstream circuits while the
+// implementation lives in focused submodules.
 // ============================================================
 
-use std::hash::pedersen_hash;
+pub mod commitment;
+pub mod nullifier;
+pub mod pair;
+pub mod zeroes;
 
-/// Compute commitment from nullifier and secret.
-/// commitment = Hash(nullifier, secret)
-pub fn compute_commitment(nullifier: Field, secret: Field) -> Field {
-    pedersen_hash([nullifier, secret])
+/// Compute commitment from nullifier, secret and pool_id.
+/// commitment = Hash(nullifier, secret, pool_id)
+pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field) -> Field {
+    commitment::compute_commitment(nullifier, secret, pool_id)
 }
 
 /// Compute nullifier hash bound to a specific root.
 /// nullifier_hash = Hash(nullifier, root)
 /// This prevents replay attacks across different pool states.
 pub fn compute_nullifier_hash(nullifier: Field, root: Field) -> Field {
-    pedersen_hash([nullifier, root])
+    nullifier::compute_nullifier_hash(nullifier, root)
 }
 
 /// Compute parent hash in Merkle tree.
 /// parent = Hash(left, right)
 pub fn hash_pair(left: Field, right: Field) -> Field {
-    pedersen_hash([left, right])
+    pair::hash_pair(left, right)
 }
 
-/// Compute zero-value leaf hash.
-/// Used to fill empty positions in the tree.
+/// Canonical zero leaf: H(0, 0).
 pub fn zero_leaf() -> Field {
-    pedersen_hash([0, 0])
+    zeroes::zero_leaf()
+}
+
+/// Canonical zero node at the given Merkle level.
+pub fn zero_node_at_level(level: u32) -> Field {
+    zeroes::zero_node_at_level(level)
+}
+
+/// Canonical zero-sibling path for a sparse single-leaf tree.
+pub fn zero_sibling_path() -> [Field; 20] {
+    zeroes::zero_sibling_path()
 }

@@ -1,0 +1,176 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>PrivacyLayer Public Analytics</title>
+  <style>
+    :root {
+      --bg: #f6f4ef;
+      --panel: #fffdfa;
+      --text: #1f2937;
+      --muted: #6b7280;
+      --accent: #0f766e;
+      --accent-soft: #ccfbf1;
+      --border: #d6d3d1;
+      --error: #b91c1c;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      font-family: "IBM Plex Sans", "Segoe UI", sans-serif;
+      color: var(--text);
+      background:
+        radial-gradient(circle at 10% 10%, #fef3c7 0%, transparent 35%),
+        radial-gradient(circle at 90% 90%, #bfdbfe 0%, transparent 30%),
+        var(--bg);
+      min-height: 100vh;
+      padding: 24px;
+    }
+    .wrap { max-width: 1080px; margin: 0 auto; }
+    h1 { margin: 0 0 8px; font-size: 2rem; }
+    .sub { margin: 0 0 20px; color: var(--muted); }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+      gap: 12px;
+      margin-bottom: 20px;
+    }
+    .card {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 14px;
+      box-shadow: 0 3px 8px rgba(0,0,0,0.04);
+    }
+    .label { font-size: 0.85rem; color: var(--muted); margin-bottom: 6px; }
+    .value { font-size: 1.5rem; font-weight: 700; }
+    .ok { color: var(--accent); }
+    .warn { color: var(--error); }
+    .panel {
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 12px;
+      padding: 16px;
+      margin-bottom: 16px;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.95rem;
+    }
+    th, td {
+      padding: 8px;
+      border-bottom: 1px solid var(--border);
+      text-align: right;
+    }
+    th:first-child, td:first-child { text-align: left; }
+    .note {
+      padding: 10px;
+      border-radius: 10px;
+      background: var(--accent-soft);
+      font-size: 0.9rem;
+    }
+    @media (max-width: 640px) {
+      body { padding: 12px; }
+      h1 { font-size: 1.5rem; }
+      .value { font-size: 1.3rem; }
+    }
+  </style>
+</head>
+<body>
+  <main class="wrap">
+    <h1>PrivacyLayer Public Analytics</h1>
+    <p class="sub">Aggregate-only metrics. No cookies, no user IDs, no IP logging.</p>
+
+    <section class="grid" id="cards"></section>
+
+    <section class="panel">
+      <h2>Hourly Trend (Last 24h)</h2>
+      <table>
+        <thead>
+          <tr>
+            <th>Hour (UTC)</th>
+            <th>Views</th>
+            <th>Deposits</th>
+            <th>Withdrawals</th>
+            <th>Errors</th>
+          </tr>
+        </thead>
+        <tbody id="trend"></tbody>
+      </table>
+    </section>
+
+    <section class="note" id="privacy-note"></section>
+  </main>
+
+  <script>
+    const FALLBACK = {
+      page_views: 0,
+      deposit_count: 0,
+      withdrawal_count: 0,
+      error_count: 0,
+      error_rate_bps: 0,
+      avg_page_load_ms: 0,
+      avg_deposit_ms: 0,
+      avg_withdraw_ms: 0,
+      hourly_trend: []
+    };
+
+    function fmtPctBps(bps) {
+      return (bps / 100).toFixed(2) + "%";
+    }
+
+    function render(data) {
+      const cards = [
+        ["Page Views", data.page_views],
+        ["Deposits", data.deposit_count],
+        ["Withdrawals", data.withdrawal_count],
+        ["Errors", data.error_count],
+        ["Error Rate", fmtPctBps(data.error_rate_bps)],
+        ["Avg Page Load (ms)", data.avg_page_load_ms],
+        ["Avg Deposit (ms)", data.avg_deposit_ms],
+        ["Avg Withdraw (ms)", data.avg_withdraw_ms],
+      ];
+
+      document.getElementById("cards").innerHTML = cards.map(([label, value]) => `
+        <article class="card">
+          <div class="label">${label}</div>
+          <div class="value ${label.includes("Error") ? "warn" : "ok"}">${value}</div>
+        </article>
+      `).join("");
+
+      const rows = (data.hourly_trend || []).map(bucket => {
+        const ts = new Date(bucket.hour_epoch * 3600 * 1000).toISOString().slice(0, 13) + ":00";
+        return `
+          <tr>
+            <td>${ts}</td>
+            <td>${bucket.page_views}</td>
+            <td>${bucket.deposits}</td>
+            <td>${bucket.withdrawals}</td>
+            <td>${bucket.errors}</td>
+          </tr>
+        `;
+      }).join("");
+
+      document.getElementById("trend").innerHTML = rows || `<tr><td colspan="5">No trend data yet.</td></tr>`;
+
+      document.getElementById("privacy-note").textContent =
+        "Privacy model: aggregate counters only. This dashboard intentionally excludes wallet addresses, IP addresses, cookies, and session identifiers.";
+    }
+
+    async function loadData() {
+      try {
+        const res = await fetch("./analytics-snapshot.json", { cache: "no-store" });
+        const data = res.ok ? await res.json() : FALLBACK;
+        render({ ...FALLBACK, ...data });
+      } catch (_) {
+        render(FALLBACK);
+      }
+    }
+
+    loadData();
+    setInterval(loadData, 5000);
+  </script>
+</body>
+</html>

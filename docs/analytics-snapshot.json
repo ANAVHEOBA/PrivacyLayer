@@ -1,0 +1,11 @@
+{
+  "page_views": 0,
+  "deposit_count": 0,
+  "withdrawal_count": 0,
+  "error_count": 0,
+  "error_rate_bps": 0,
+  "avg_page_load_ms": 0,
+  "avg_deposit_ms": 0,
+  "avg_withdraw_ms": 0,
+  "hourly_trend": []
+}

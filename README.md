@@ -54,10 +54,22 @@ User                   PrivacyLayer SDK               Soroban Contract
 
 | Step | Operation | Protocol 25 Primitive |
 |------|-----------|----------------------|
-| Deposit | `commitment = Poseidon(nullifier ∥ secret)` | `poseidon2_hash` host fn |
+| Deposit | `commitment = Poseidon(nullifier ∥ secret ∥ poolId)` | `poseidon2_hash` host fn |
 | Store | Insert commitment into on-chain Merkle tree | Soroban storage |
 | Withdraw (prove) | ZK proof: know preimage of a commitment in the tree | Noir circuit (BN254) |
 | Withdraw (verify) | Groth16 pairing check on-chain | `bn254_pairing` host fn |
+
+Witness and verifier boundaries use canonical 32-byte BN254 field hex strings.
+The SDK normalizes 31-byte note scalars by left-padding into a single field
+element, rejects non-canonical field encodings before witness generation, and
+serializes withdrawal public inputs in the exact Noir verifier order.
+
+Pool identifiers are canonically derived (not hand-picked) from token identity,
+denomination, and network domain using:
+
+`pool_id = 0x00 || SHA256("PrivacyLayerPoolId:v1" || network_domain || denomination_be16 || token_len_be2 || token_identity_bytes)[1..32]`
+
+This formula is implemented in both SDK and contract code paths.
 
 ---
 
@@ -142,17 +154,28 @@ noirup
 ### Build Circuits
 
 ```bash
-cd circuits/commitment
-nargo build       # Compile commitment circuit
-nargo test        # Run circuit tests
+cd circuits
+nargo compile --package commitment
+nargo test --package commitment
 
-cd ../withdraw
-nargo build       # Compile withdrawal circuit
-nargo test
+nargo compile --package withdraw
+nargo test --package withdraw
 
-cd ../merkle
-nargo build       # Compile merkle library
+nargo compile --package merkle
 ```
+
+### Rebuild ZK Artifacts
+
+```bash
+./scripts/rebuild-zk.sh --update-baselines
+```
+
+This regenerates:
+
+- `artifacts/zk/v1/circuits/commitment/commitment.json`
+- `artifacts/zk/v1/circuits/withdraw/withdraw.json`
+- `artifacts/zk/v1/manifests/manifest.json`
+- `artifacts/zk/v1/commitment_vectors.json`
 
 ### Build Contracts
 
@@ -166,9 +189,34 @@ cargo test        # Run unit and integration tests
 
 ✅ Circuits: Commitment, withdrawal, and merkle circuits implemented  
 ✅ Contracts: Full privacy pool contract with deposit/withdraw/admin functions  
+✅ Analytics: Privacy-preserving aggregate analytics + public dashboard scaffold  
 🚧 SDK: TypeScript client SDK (planned)  
 🚧 Frontend: Next.js dApp (planned)  
 🚧 Scripts: Deployment automation (planned)
+
+## Privacy-Preserving Analytics
+
+The contract includes aggregate analytics primitives designed for privacy:
+
+- No cookies
+- No user tracking
+- No IP logging
+- Aggregate counters only
+- Fixed-size hourly trend buckets (no per-user event history)
+
+### Available Metrics
+
+- Page views (`record_page_view`)
+- Deposit count (aggregate, via `deposit_count` and `analytics_snapshot`)
+- Withdrawal count (aggregate, via `withdraw_count`)
+- Error count/rate (`record_error`, `analytics_snapshot.error_rate_bps`)
+- Performance aggregates (`record_performance` + average durations)
+
+### Public Dashboard
+
+- Static dashboard: `docs/public-stats-dashboard.html`
+- Data source: `docs/analytics-snapshot.json` (shape compatible with `analytics_snapshot`)
+- Dashboard is intentionally aggregate-only and excludes identifiable fields
 
 ---
 
@@ -225,3 +273,4 @@ MIT — see [`LICENSE`](LICENSE)
 - [CAP-0075: Poseidon Hash](https://github.com/stellar/stellar-protocol/blob/master/core/cap-0075.md)
 - [Noir Language Docs](https://noir-lang.org/docs)
 - [Soroban SDK Docs](https://docs.rs/soroban-sdk)
+fixed this branch and more

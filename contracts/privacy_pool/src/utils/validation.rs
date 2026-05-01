@@ -9,7 +9,7 @@ use soroban_sdk::{Address, BytesN, Env};
 use crate::crypto::merkle;
 use crate::storage::nullifier;
 use crate::types::errors::Error;
-use crate::types::state::PoolConfig;
+use crate::types::state::{Config, PoolConfig, PoolId};
 
 /// Validate that the pool is not paused.
 pub fn require_not_paused(config: &PoolConfig) -> Result<(), Error> {
@@ -20,8 +20,8 @@ pub fn require_not_paused(config: &PoolConfig) -> Result<(), Error> {
     }
 }
 
-/// Validate that the caller is the admin.
-pub fn require_admin(caller: &Address, config: &PoolConfig) -> Result<(), Error> {
+/// Validate that the caller is the global admin.
+pub fn require_admin(caller: &Address, config: &Config) -> Result<(), Error> {
     if caller != &config.admin {
         Err(Error::UnauthorizedAdmin)
     } else {
@@ -39,18 +39,18 @@ pub fn require_non_zero_commitment(env: &Env, commitment: &BytesN<32>) -> Result
     }
 }
 
-/// Validate that the root is in the historical root buffer.
-pub fn require_known_root(env: &Env, root: &BytesN<32>) -> Result<(), Error> {
-    if !merkle::is_known_root(env, root) {
+/// Validate that the root is in the historical root buffer of a specific pool.
+pub fn require_known_root(env: &Env, pool_id: &PoolId, root: &BytesN<32>) -> Result<(), Error> {
+    if !merkle::is_known_root(env, pool_id, root) {
         Err(Error::UnknownRoot)
     } else {
         Ok(())
     }
 }
 
-/// Validate that the nullifier has not been spent.
-pub fn require_nullifier_unspent(env: &Env, nullifier_hash: &BytesN<32>) -> Result<(), Error> {
-    if nullifier::is_spent(env, nullifier_hash) {
+/// Validate that the nullifier has not been spent in a specific pool.
+pub fn require_nullifier_unspent(env: &Env, pool_id: &PoolId, nullifier_hash: &BytesN<32>) -> Result<(), Error> {
+    if nullifier::is_spent(env, pool_id, nullifier_hash) {
         Err(Error::NullifierAlreadySpent)
     } else {
         Ok(())

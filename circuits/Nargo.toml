@@ -1,6 +1,9 @@
 [workspace]
+# Production withdrawal artifacts in this workspace are fixed to depth-20.
+# Offline miniature-depth trees are supported in SDK/tooling only.
 members = [
     "commitment",
+    "lib",
     "merkle",
     "withdraw",
 ]

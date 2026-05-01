@@ -4,7 +4,7 @@ resolver = "2"
 
 [workspace.dependencies]
 soroban-sdk = { version = "25.3.0" }
-soroban-poseidon = { git = "https://github.com/stellar/rs-soroban-poseidon" }
+soroban-poseidon = { git = "https://github.com/stellar/rs-soroban-poseidon", rev = "024fc7a" }
 
 [profile.release]
 opt-level = "z"

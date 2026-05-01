@@ -1,0 +1,130 @@
+name: ZK Ticket Validation
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+    paths:
+      - '.github/**'
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'ops/github/waves/**'
+      - 'scripts/**'
+  workflow_dispatch:
+    inputs:
+      issue_key:
+        description: 'ZK issue key to validate, e.g. ZK-001'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-issue-key:
+    runs-on: ubuntu-latest
+    outputs:
+      issue_key: ${{ steps.resolve.outputs.issue_key }}
+    steps:
+      - name: Resolve issue key
+        id: resolve
+        shell: bash
+        env:
+          PR_TITLE: ${{ github.event.pull_request.title || '' }}
+          PR_BODY: ${{ github.event.pull_request.body || '' }}
+          MANUAL_ISSUE_KEY: ${{ github.event.inputs.issue_key || '' }}
+        run: |
+          set -euo pipefail
+
+          if [[ -n "${MANUAL_ISSUE_KEY}" ]]; then
+            ISSUE_KEY="${MANUAL_ISSUE_KEY}"
+          else
+            CONTENT="${PR_TITLE}"$'\n'"${PR_BODY}"
+            ISSUE_KEY="$(printf '%s\n' "${CONTENT}" | grep -Eo 'ZK-[0-9]{3}' | head -n1 || true)"
+          fi
+
+          if [[ -z "${ISSUE_KEY}" ]]; then
+            echo "No ZK issue key found. Add a line like 'Wave Issue Key: ZK-001' to the PR body or title."
+            exit 1
+          fi
+
+          echo "issue_key=${ISSUE_KEY}" >> "${GITHUB_OUTPUT}"
+          echo "Resolved issue key: ${ISSUE_KEY}"
+
+  validate-ticket:
+    needs: resolve-issue-key
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install Noir toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install SDK dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Capture changed files
+        id: changed
+        if: github.event_name == 'pull_request'
+        shell: bash
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          set -euo pipefail
+          git diff --name-only "${BASE_SHA}" "${HEAD_SHA}" > /tmp/zk-ticket-changed-files.txt
+
+      - name: Print derived checks
+        shell: bash
+        env:
+          ISSUE_KEY: ${{ needs.resolve-issue-key.outputs.issue_key }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            EXTRA_ARGS+=(--changed-files-path /tmp/zk-ticket-changed-files.txt)
+          fi
+
+          node scripts/zk_ticket_check.mjs \
+            --issue-key "${ISSUE_KEY}" \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Run derived checks
+        shell: bash
+        env:
+          ISSUE_KEY: ${{ needs.resolve-issue-key.outputs.issue_key }}
+          EVENT_NAME: ${{ github.event_name }}
+        run: |
+          set -euo pipefail
+          EXTRA_ARGS=()
+          if [[ "${EVENT_NAME}" == "pull_request" ]]; then
+            EXTRA_ARGS+=(--changed-files-path /tmp/zk-ticket-changed-files.txt)
+          fi
+
+          node scripts/zk_ticket_check.mjs \
+            --issue-key "${ISSUE_KEY}" \
+            --run \
+            "${EXTRA_ARGS[@]}"
+
+      - name: Circuit ACIR constraint baselines
+        shell: bash
+        run: node scripts/check_circuit_constraints.mjs
+
+      - name: Run SDK Jest
+        working-directory: sdk
+        run: npm test

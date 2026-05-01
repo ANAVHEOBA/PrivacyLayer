@@ -17,7 +17,7 @@ use soroban_sdk::{crypto::BnScalar, vec, BytesN, Env, U256};
 use soroban_poseidon::poseidon2_hash;
 
 use crate::types::errors::Error;
-use crate::types::state::{DataKey, TreeState};
+use crate::types::state::{DataKey, PoolId, TreeState};
 
 /// Tree depth — 20 levels = 2^20 = 1,048,576 leaves
 pub const TREE_DEPTH: u32 = 20;
@@ -29,26 +29,16 @@ pub const ROOT_HISTORY_SIZE: u32 = 30;
 // ──────────────────────────────────────────────────────────────
 
 /// Compute Poseidon2(left, right) using the soroban-poseidon crate.
-///
-/// Uses t=3 (rate=2, capacity=1) which matches Noir's Poseidon2
-/// with 2 inputs. Operates on BN254 field scalars (BnScalar = Fr).
-///
-/// The soroban-poseidon crate calls the Protocol 25 host functions
-/// under the hood for field arithmetic on BN254.
 pub fn poseidon2_hash_pair(env: &Env, left: &BytesN<32>, right: &BytesN<32>) -> BytesN<32> {
-    // Convert BytesN<32> → U256 (BN254 field elements)
     let left_bytes = left.to_array();
     let right_bytes = right.to_array();
     let left_u256 = U256::from_be_bytes(env, &soroban_sdk::Bytes::from_array(env, &left_bytes));
     let right_u256 = U256::from_be_bytes(env, &soroban_sdk::Bytes::from_array(env, &right_bytes));
 
-    // Poseidon2 with t=3 (2 inputs → rate=2, capacity=1)
     let inputs = vec![env, left_u256, right_u256];
     let result: U256 = poseidon2_hash::<3, BnScalar>(env, &inputs);
 
-    // Convert U256 back to BytesN<32>
     let result_bytes = result.to_be_bytes();
-    // Convert Bytes to [u8; 32] by copying into a fixed array
     let mut result_array = [0u8; 32];
     for i in 0..32 {
         result_array[i] = result_bytes.get(i as u32).unwrap_or(0);
@@ -57,11 +47,6 @@ pub fn poseidon2_hash_pair(env: &Env, left: &BytesN<32>, right: &BytesN<32>) -> 
 }
 
 /// Compute the zero value at a given tree level on-the-fly.
-///
-/// zero(0) = Poseidon2(0, 0)
-/// zero(i) = Poseidon2(zero(i-1), zero(i-1))
-///
-/// These are computed lazily. In production, pre-compute and cache.
 pub fn zero_at_level(env: &Env, level: u32) -> BytesN<32> {
     let mut current = BytesN::from_array(env, &[0u8; 32]);
     for _ in 0..=level {
@@ -74,60 +59,51 @@ pub fn zero_at_level(env: &Env, level: u32) -> BytesN<32> {
 // Storage Accessors
 // ──────────────────────────────────────────────────────────────
 
-pub fn get_tree_state(env: &Env) -> TreeState {
+pub fn get_tree_state(env: &Env, pool_id: &PoolId) -> TreeState {
     env.storage()
         .persistent()
-        .get(&DataKey::TreeState)
+        .get(&DataKey::TreeState(pool_id.clone()))
         .unwrap_or_default()
 }
 
-pub fn save_tree_state(env: &Env, state: &TreeState) {
+pub fn save_tree_state(env: &Env, pool_id: &PoolId, state: &TreeState) {
     env.storage()
         .persistent()
-        .set(&DataKey::TreeState, state);
+        .set(&DataKey::TreeState(pool_id.clone()), state);
 }
 
-pub fn get_root(env: &Env, index: u32) -> Option<BytesN<32>> {
+pub fn get_root(env: &Env, pool_id: &PoolId, index: u32) -> Option<BytesN<32>> {
     env.storage()
         .persistent()
-        .get(&DataKey::Root(index % ROOT_HISTORY_SIZE))
+        .get(&DataKey::Root(pool_id.clone(), index % ROOT_HISTORY_SIZE))
 }
 
-pub fn save_root(env: &Env, index: u32, root: BytesN<32>) {
+pub fn save_root(env: &Env, pool_id: &PoolId, index: u32, root: BytesN<32>) {
     env.storage()
         .persistent()
-        .set(&DataKey::Root(index % ROOT_HISTORY_SIZE), &root);
+        .set(&DataKey::Root(pool_id.clone(), index % ROOT_HISTORY_SIZE), &root);
 }
 
-pub fn get_filled_subtree(env: &Env, level: u32) -> BytesN<32> {
+pub fn get_filled_subtree(env: &Env, pool_id: &PoolId, level: u32) -> BytesN<32> {
     env.storage()
         .persistent()
-        .get(&DataKey::FilledSubtree(level))
+        .get(&DataKey::FilledSubtree(pool_id.clone(), level))
         .unwrap_or_else(|| zero_at_level(env, level))
 }
 
-pub fn save_filled_subtree(env: &Env, level: u32, hash: BytesN<32>) {
+pub fn save_filled_subtree(env: &Env, pool_id: &PoolId, level: u32, hash: BytesN<32>) {
     env.storage()
         .persistent()
-        .set(&DataKey::FilledSubtree(level), &hash);
+        .set(&DataKey::FilledSubtree(pool_id.clone(), level), &hash);
 }
 
 // ──────────────────────────────────────────────────────────────
 // Merkle Tree Operations
 // ──────────────────────────────────────────────────────────────
 
-/// Insert a commitment into the incremental Merkle tree.
-///
-/// Updates the filled subtrees and computes the new Merkle root.
-/// O(depth) = O(20) hash operations per insertion.
-///
-/// # Returns
-/// `(leaf_index, new_root)`
-///
-/// # Errors
-/// - `Error::TreeFull` if all 2^20 leaf slots are used
-pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Error> {
-    let mut state = get_tree_state(env);
+/// Insert a commitment into the incremental Merkle tree for a specific pool. O(depth).
+pub fn insert(env: &Env, pool_id: &PoolId, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Error> {
+    let mut state = get_tree_state(env, pool_id);
 
     let max_leaves = 1u32 << TREE_DEPTH;
     if state.next_index >= max_leaves {
@@ -143,13 +119,11 @@ pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Er
         let right: BytesN<32>;
 
         if current_index % 2 == 0 {
-            // Left child → save as filled subtree, right = zero
             left = current_hash.clone();
             right = zero_at_level(env, level);
-            save_filled_subtree(env, level, current_hash.clone());
+            save_filled_subtree(env, pool_id, level, current_hash.clone());
         } else {
-            // Right child → left = previously saved filled subtree
-            left = get_filled_subtree(env, level);
+            left = get_filled_subtree(env, pool_id, level);
             right = current_hash.clone();
         }
 
@@ -158,25 +132,19 @@ pub fn insert(env: &Env, commitment: BytesN<32>) -> Result<(u32, BytesN<32>), Er
     }
 
     let new_root = current_hash;
-
-    // Save root to circular history buffer
     let new_root_index = state.current_root_index.wrapping_add(1) % ROOT_HISTORY_SIZE;
-    save_root(env, new_root_index, new_root.clone());
+    save_root(env, pool_id, new_root_index, new_root.clone());
 
     state.current_root_index = new_root_index;
     state.next_index = leaf_index + 1;
-    save_tree_state(env, &state);
+    save_tree_state(env, pool_id, &state);
 
     Ok((leaf_index, new_root))
 }
 
-// ──────────────────────────────────────────────────────────────
-// Root History
-// ──────────────────────────────────────────────────────────────
-
-/// Check if a given root is in the historical root buffer.
-pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
-    let state = get_tree_state(env);
+/// Check if a given root is in the historical root buffer of a specific pool.
+pub fn is_known_root(env: &Env, pool_id: &PoolId, root: &BytesN<32>) -> bool {
+    let state = get_tree_state(env, pool_id);
 
     if state.next_index == 0 {
         return false;
@@ -184,7 +152,7 @@ pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
 
     let mut index = state.current_root_index;
     for _ in 0..ROOT_HISTORY_SIZE {
-        if let Some(stored_root) = get_root(env, index) {
+        if let Some(stored_root) = get_root(env, pool_id, index) {
             if stored_root == *root {
                 return true;
             }
@@ -199,11 +167,11 @@ pub fn is_known_root(env: &Env, root: &BytesN<32>) -> bool {
     false
 }
 
-/// Returns the current (most recent) Merkle root.
-pub fn current_root(env: &Env) -> Option<BytesN<32>> {
-    let state = get_tree_state(env);
+/// Returns the current (most recent) Merkle root for a specific pool.
+pub fn current_root(env: &Env, pool_id: &PoolId) -> Option<BytesN<32>> {
+    let state = get_tree_state(env, pool_id);
     if state.next_index == 0 {
         return None;
     }
-    get_root(env, state.current_root_index)
+    get_root(env, pool_id, state.current_root_index)
 }

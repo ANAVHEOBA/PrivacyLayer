@@ -20,7 +20,7 @@ use soroban_sdk::{
 };
 
 use crate::types::errors::Error;
-use crate::types::state::{Proof, PublicInputs, VerifyingKey};
+use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
 
 // ──────────────────────────────────────────────────────────────
 // Public Input Linear Combination
@@ -135,4 +135,43 @@ pub fn verify_proof(
     let result = bn254.pairing_check(g1_points, g2_points);
 
     Ok(result)
+}
+
+// ──────────────────────────────────────────────────────────────
+// Schema Version Validation
+// ──────────────────────────────────────────────────────────────
+
+/// Validates that the proof schema version matches the expected version.
+///
+/// This function ensures that proofs are generated with a compatible schema version,
+/// preventing runtime errors from schema mismatches at the verifier boundary.
+///
+/// # Arguments
+/// * `proof_schema` - The schema version from the proof
+/// * `expected_version_str` - The expected schema version string (e.g., "1.0.0")
+///
+/// # Returns
+/// * `Ok(())` if the schema versions are compatible
+/// * `Err(Error::InvalidSchemaVersion)` if the expected version string is malformed
+/// * `Err(Error::SchemaVersionMismatch)` if the versions are incompatible
+///
+/// # Compatibility Rules
+/// Schema versions are compatible if:
+/// - Major versions match exactly
+/// - Minor versions match exactly
+/// - Patch versions can differ (backward compatible bug fixes)
+pub fn validate_schema_version(
+    proof_schema: &SchemaVersion,
+    expected_version_str: &str,
+) -> Result<(), Error> {
+    // Parse the expected version string
+    let expected = SchemaVersion::from_string(expected_version_str)
+        .map_err(|_| Error::InvalidSchemaVersion)?;
+    
+    // Check compatibility using semantic versioning rules
+    if !proof_schema.is_compatible_with(&expected) {
+        return Err(Error::SchemaVersionMismatch);
+    }
+    
+    Ok(())
 }

@@ -23,6 +23,10 @@ pub enum Error {
     PoolPaused = 20,
     /// Merkle tree is full (2^20 notes inserted)
     TreeFull = 21,
+    /// Pool with the given ID not found
+    PoolNotFound = 22,
+    /// Pool ID does not match canonical derivation
+    InvalidPoolId = 23,
 
     // ── Deposit ────────────────────────────────────────
     /// Wrong deposit amount — must match the pool denomination
@@ -43,6 +47,10 @@ pub enum Error {
     InvalidRelayerFee = 44,
     /// Recipient address is invalid
     InvalidRecipient = 45,
+    /// Pool ID in public inputs does not match the pool being withdrawn from
+    InvalidPoolId = 46,
+    /// Denomination in public inputs does not match the pool denomination
+    InvalidDenomination = 47,
 
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set
@@ -63,4 +71,10 @@ pub enum Error {
     PointNotOnCurve = 70,
     /// BN254 pairing check failed unexpectedly
     PairingFailed = 71,
+
+    // ── Schema Versioning ──────────────────────────────
+    /// Schema version format is invalid
+    InvalidSchemaVersion = 80,
+    /// Proof schema version does not match expected version
+    SchemaVersionMismatch = 81,
 }

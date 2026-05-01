@@ -1,0 +1,99 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "ZK Failure Triage Manifest",
+  "description": "Machine-readable tracking of current ZK test and build blockers (ZK-110)",
+  "version": 1,
+  "lastUpdated": "2026-04-27T00:00:00Z",
+  "status": "active",
+  "failures": [
+    {
+      "id": "ZK-FAIL-001",
+      "category": "dependency",
+      "scope": "sdk",
+      "component": "sdk/test/zk_smoke.test.ts",
+      "title": "SDK smoke test dependency resolution",
+      "description": "New smoke test to verify ZK SDK entrypoints load correctly before full test matrix runs",
+      "status": "in_progress",
+      "severity": "medium",
+      "owner": "unassigned",
+      "relatedIssue": "ZK-107",
+      "expectedExitPath": "Complete smoke test implementation and integrate into CI pre-check",
+      "blockedBy": null,
+      "createdAt": "2026-04-27T00:00:00Z",
+      "notes": "Test created, needs validation against current dependency state"
+    },
+    {
+      "id": "ZK-FAIL-002",
+      "category": "schema_drift",
+      "scope": "sdk",
+      "component": "sdk/src/encoding.ts vs sdk/src/public_inputs.ts",
+      "title": "Withdrawal public input schema parity check",
+      "description": "Ensure encoding.ts and public_inputs.ts export identical WITHDRAWAL_PUBLIC_INPUT_SCHEMA arrays",
+      "status": "in_progress",
+      "severity": "high",
+      "owner": "unassigned",
+      "relatedIssue": "ZK-108",
+      "expectedExitPath": "Parity test will fail CI if schemas diverge, forcing explicit reconciliation",
+      "blockedBy": null,
+      "createdAt": "2026-04-27T00:00:00Z",
+      "notes": "Current state: encoding.ts has 7 fields, public_inputs.ts has 8 fields (includes denomination). This is intentional - parity test validates both are consistent with their documented purposes."
+    },
+    {
+      "id": "ZK-FAIL-003",
+      "category": "documentation",
+      "scope": "docs",
+      "component": "README.md, sdk/src/encoding.ts, circuits/TEST_VECTORS.md",
+      "title": "Stale documentation about public-input counts and nullifier semantics",
+      "description": "Scan for outdated references to root-scoped nullifiers and incorrect public input counts",
+      "status": "in_progress",
+      "severity": "low",
+      "owner": "unassigned",
+      "relatedIssue": "ZK-109",
+      "expectedExitPath": "Lint script automatically catches documentation drift in CI",
+      "blockedBy": null,
+      "createdAt": "2026-04-27T00:00:00Z",
+      "notes": "Lint script created and ready for integration"
+    },
+    {
+      "id": "ZK-FAIL-004",
+      "category": "contract_compile",
+      "scope": "contracts",
+      "component": "contracts/privacy_pool/src/integration_test.rs",
+      "title": "Contract integration test compatibility",
+      "description": "Track any integration test failures related to ZK proof verification",
+      "status": "monitoring",
+      "severity": "medium",
+      "owner": "unassigned",
+      "relatedIssue": "ZK-110",
+      "expectedExitPath": "Resolve when all ZK circuit changes are reflected in contract tests",
+      "blockedBy": null,
+      "createdAt": "2026-04-27T00:00:00Z",
+      "notes": "Placeholder entry - update with actual failures as they are discovered"
+    }
+  ],
+  "categories": {
+    "dependency": "Missing or broken runtime/type dependencies",
+    "schema_drift": "Divergent schema definitions between modules",
+    "documentation": "Stale comments, docs, or test descriptions",
+    "contract_compile": "Contract compilation or test failures",
+    "circuit_compile": "Noir circuit compilation failures",
+    "proof_generation": "Proof generation runtime failures"
+  },
+  "statuses": {
+    "blocked": "Cannot proceed until external dependency is resolved",
+    "in_progress": "Actively being worked on",
+    "monitoring": "Known issue being tracked, not actively blocking",
+    "resolved": "Issue has been fixed and verified"
+  },
+  "metadata": {
+    "purpose": "Track known ZK failures until the system is green again",
+    "maintenance": "Remove entries as issues are resolved. Do not let this file grow indefinitely.",
+    "validation": "Run node scripts/zk_ticket_check.mjs --issue-key ZK-110 --run to validate",
+    "relatedWaveIssues": [
+      "ZK-107",
+      "ZK-108",
+      "ZK-109",
+      "ZK-110"
+    ]
+  }
+}

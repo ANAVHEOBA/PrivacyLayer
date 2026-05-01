@@ -216,4 +216,5 @@ Bounty amounts are listed in each issue. Payment is processed after PR merge.
 - Ask in the issue you're working on
 - Open a new discussion for general questions
 
+
 Thank you for contributing to PrivacyLayer! 🙏

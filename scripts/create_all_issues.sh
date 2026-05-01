@@ -1,6 +1,5 @@
 #!/bin/bash
-# Creates all GitHub issues from markdown files
-set -e
+set -euo pipefail
 
 echo "Creating all GitHub issues..."
 
@@ -26,6 +25,7 @@ for file in issues/*.md; do
         count=$((count + 1))
         echo "✅ Created issue #$count"
         sleep 2
+        # sleep2
     fi
 done
 

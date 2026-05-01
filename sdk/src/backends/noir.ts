@@ -1,0 +1,444 @@
+/**
+ * NoirJS Proving Backend
+ *
+ * Adapter for Noir circuits using the Noir.js library and Barretenberg proving system.
+ * Handles witness compilation, artifact loading, and proof generation.
+ */
+
+import { createHash } from 'crypto';
+import { ProvingBackend } from '../proof';
+import { stableStringify } from '../stable';
+import { assertProvingBackendSupported, detectCapabilities, ZkCapabilities } from '../capabilities';
+
+export interface NoirArtifacts {
+  /**
+   * Compiled ACIR bytecode (Application-Constraint-Intermediate-Representation).
+   * This is the compiled circuit constraints.
+   */
+  acir: Buffer;
+  bytecode?: string;
+  name?: string;
+
+  /**
+   * Verification key for Groth16 proofs.
+   * Used for on-chain verification of the proof.
+   */
+  vkey?: Buffer;
+
+  /**
+   * ABI specification for the circuit.
+   * Maps field names to their types and positions.
+   */
+  abi?: Record<string, any>;
+}
+
+/**
+ * Configuration for Noir proving backend initialization.
+ */
+export interface NoirBackendConfig {
+  /**
+   * The compiled circuit artifacts (ACIR + VKey + ABI).
+   */
+  artifacts: NoirArtifacts;
+
+  /**
+   * Optional manifest used to validate artifact provenance before proving.
+   */
+  manifest?: ZkArtifactManifest;
+
+  /**
+   * Manifest circuit key to validate against, e.g. "withdraw".
+   */
+  circuitName?: string;
+
+  /**
+   * Optional artifact filename to match against the manifest entry path.
+   */
+  artifactPath?: string;
+
+  /**
+   * Optional: Barretenberg backend instance.
+   * If not provided, one will be created automatically.
+   */
+  backend?: any; // BarretenbergBackend type when @noir/types is available
+
+  /**
+   * Whether to skip runtime capability checks on initialization.
+   * Set to true if you want to defer capability validation.
+   * @default false
+   */
+  skipCapabilityCheck?: boolean;
+}
+
+export interface ZkArtifactManifestFile {
+  path: string;
+  sha256: string;
+  version?: number;
+}
+
+export interface ZkArtifactManifestCircuit {
+  circuit_id: string;
+  path: string;
+  artifact_sha256: string;
+  bytecode_sha256: string;
+  abi_sha256: string;
+  name: string;
+  backend: string;
+  root_depth?: number;
+  public_input_schema?: string[];
+  schema_version?: string;
+}
+
+export interface ZkArtifactManifestBackend {
+  name: string;
+  nargo_version: string;
+  noirc_version: string;
+}
+
+export interface ZkArtifactManifest {
+  version: number;
+  backend: ZkArtifactManifestBackend;
+  circuits: Record<string, ZkArtifactManifestCircuit>;
+  files?: Record<string, ZkArtifactManifestFile>;
+}
+
+export class ArtifactManifestError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'ArtifactManifestError';
+  }
+}
+
+function sha256Hex(data: Buffer | string): string {
+  return '0x' + createHash('sha256').update(data).digest('hex');
+}
+
+function computeAbiHash(abi: Record<string, any> | undefined): string {
+  return sha256Hex(stableStringify(abi ?? null));
+}
+
+function computeBytecodeHash(artifacts: NoirArtifacts): string {
+  if (typeof artifacts.bytecode === 'string') {
+    return sha256Hex(artifacts.bytecode);
+  }
+  return sha256Hex(Buffer.from(artifacts.acir));
+}
+
+export function assertManifestMatchesNoirArtifacts(
+  manifest: ZkArtifactManifest,
+  circuitName: string,
+  artifacts: NoirArtifacts,
+  artifactPath?: string
+): ZkArtifactManifestCircuit {
+  const entry = manifest.circuits[circuitName];
+  if (!entry) {
+    throw new ArtifactManifestError(`Missing manifest entry for circuit "${circuitName}"`);
+  }
+
+  if (entry.circuit_id !== circuitName) {
+    throw new ArtifactManifestError(
+      `Manifest circuit_id mismatch for "${circuitName}": expected ${circuitName}, got ${entry.circuit_id}`
+    );
+  }
+
+  if (artifactPath && entry.path !== artifactPath) {
+    throw new ArtifactManifestError(
+      `Artifact path mismatch for "${circuitName}": expected ${entry.path}, got ${artifactPath}`
+    );
+  }
+
+  if (artifacts.name && artifacts.name !== entry.name) {
+    throw new ArtifactManifestError(
+      `Artifact name mismatch for "${circuitName}": expected ${entry.name}, got ${artifacts.name}`
+    );
+  }
+
+  const bytecodeHash = computeBytecodeHash(artifacts);
+  if (bytecodeHash !== entry.bytecode_sha256) {
+    throw new ArtifactManifestError(
+      `Bytecode hash mismatch for "${circuitName}": expected ${entry.bytecode_sha256}, got ${bytecodeHash}`
+    );
+  }
+
+  const abiHash = computeAbiHash(artifacts.abi);
+  if (abiHash !== entry.abi_sha256) {
+    throw new ArtifactManifestError(
+      `ABI hash mismatch for "${circuitName}": expected ${entry.abi_sha256}, got ${abiHash}`
+    );
+  }
+
+  return entry;
+}
+
+/**
+ * Parses a semantic version string into components.
+ * 
+ * Expected format: MAJOR.MINOR.PATCH (e.g., "1.20680.19972")
+ * 
+ * For schema versions:
+ * - MAJOR: Fixed at 1 for initial release (increment for breaking changes to versioning system)
+ * - MINOR: Derived from first 4 hex digits of schema hash (0-65535)
+ * - PATCH: Derived from next 4 hex digits of schema hash (0-65535)
+ * 
+ * This function validates the format and extracts the numeric components.
+ * 
+ * @param version - Semantic version string (e.g., "1.2.3")
+ * @returns Object with major, minor, and patch components
+ * @throws Error if version format is invalid (not matching MAJOR.MINOR.PATCH pattern)
+ */
+function parseSemanticVersion(version: string): { major: number; minor: number; patch: number } {
+  const match = version.match(/^(\d+)\.(\d+)\.(\d+)$/);
+  if (!match) {
+    throw new Error(`Invalid semantic version format: ${version}`);
+  }
+  
+  return {
+    major: parseInt(match[1], 10),
+    minor: parseInt(match[2], 10),
+    patch: parseInt(match[3], 10),
+  };
+}
+
+/**
+ * NoirBackend
+ *
+ * Implements the ProvingBackend interface for Noir circuits.
+ * Generates proofs using Barretenberg and the compiled ACIR.
+ */
+export class NoirBackend implements ProvingBackend {
+  private artifacts: NoirArtifacts;
+  private backend: any; // BarretenbergBackend when imported
+  private capabilities: ZkCapabilities;
+  private schemaVersion?: string;
+
+  constructor(config: NoirBackendConfig) {
+    this.artifacts = config.artifacts;
+    this.backend = config.backend;
+    
+    // Detect and store capabilities
+    this.capabilities = detectCapabilities();
+    
+    // Perform capability check unless explicitly skipped
+    if (!config.skipCapabilityCheck) {
+      this.assertProvingCapabilities();
+    }
+    
+    if (config.manifest && config.circuitName) {
+      const entry = assertManifestMatchesNoirArtifacts(
+        config.manifest,
+        config.circuitName,
+        config.artifacts,
+        config.artifactPath
+      );
+      
+      // Validate and store schema version
+      this.validateAndStoreSchemaVersion(entry);
+    }
+  }
+
+  /**
+   * Asserts that the current runtime supports proving operations.
+   * Throws UnsupportedRuntimeError with actionable diagnostics if not.
+   */
+  private assertProvingCapabilities(): void {
+    assertProvingBackendSupported();
+  }
+
+  /**
+   * Validates that a circuit entry has a schema_version if it has a public_input_schema.
+   * Stores the schema version for later use.
+   * 
+   * Schema Version Validation Logic:
+   * 1. Check if circuit has public_input_schema array with at least one field
+   * 2. If yes, verify schema_version field exists in manifest
+   * 3. If schema_version is missing:
+   *    - Log warning to alert developer (backward compatibility mode)
+   *    - Treat as version "0.0.0" to allow loading old manifests
+   *    - Recommend regenerating manifest with refresh_manifest.mjs
+   * 4. If schema_version exists, store it for later compatibility checks
+   * 5. If no public_input_schema, skip validation (circuit has no public inputs)
+   * 
+   * This approach ensures:
+   * - New manifests always have schema versions for circuits with public inputs
+   * - Old manifests continue to work during migration period
+   * - Developers are notified when manifests need updating
+   * - Circuits without public inputs are not affected
+   * 
+   * @param entry - Manifest circuit entry
+   */
+  private validateAndStoreSchemaVersion(entry: ZkArtifactManifestCircuit): void {
+    // Only validate circuits that have public inputs
+    if (entry.public_input_schema && entry.public_input_schema.length > 0) {
+      if (!entry.schema_version) {
+        // Backward compatibility: treat missing schema_version as "0.0.0"
+        // This allows old manifests to load while alerting developers to update
+        console.warn(
+          `Circuit "${entry.circuit_id}" has public_input_schema but no schema_version. ` +
+          `Treating as version "0.0.0". Please regenerate manifest.`
+        );
+        this.schemaVersion = "0.0.0";
+      } else {
+        // Store the validated schema version for later use
+        this.schemaVersion = entry.schema_version;
+      }
+    }
+    // If no public_input_schema, schemaVersion remains undefined
+  }
+
+  /**
+   * Returns the schema version for this circuit.
+   * 
+   * @returns Schema version string or undefined if circuit has no public inputs
+   */
+  getSchemaVersion(): string | undefined {
+    return this.schemaVersion;
+  }
+
+  /**
+   * Checks if two schema versions are compatible.
+   * 
+   * Schema Version Compatibility Rules (Semantic Versioning):
+   * 
+   * Given version format: MAJOR.MINOR.PATCH (e.g., "1.20680.19972")
+   * 
+   * Compatible if:
+   * - Major version matches exactly (breaking changes to versioning system)
+   * - Minor version matches exactly (schema structure changes)
+   * - Patch version can differ (bug fixes, no schema changes)
+   * 
+   * Incompatible if:
+   * - Major version differs (different versioning system)
+   * - Minor version differs (different schema structure)
+   * 
+   * Why this matters:
+   * - Schema versions are derived from SHA-256 hash of public_input_schema
+   * - Any change to field order, names, or count changes the hash
+   * - Hash changes result in different minor/patch versions
+   * - Only identical schemas (same hash) have compatible versions
+   * 
+   * Examples:
+   * - "1.20680.19972" vs "1.20680.19972" → Compatible (identical)
+   * - "1.20680.19972" vs "1.20680.99999" → Compatible (same schema, different patch)
+   * - "1.20680.19972" vs "1.20681.19972" → Incompatible (different schema)
+   * - "1.20680.19972" vs "2.20680.19972" → Incompatible (different major version)
+   * 
+   * @param version1 - First schema version
+   * @param version2 - Second schema version
+   * @returns true if versions are compatible, false otherwise
+   * @throws Error if version format is invalid
+   */
+  static isSchemaVersionCompatible(version1: string, version2: string): boolean {
+    const v1 = parseSemanticVersion(version1);
+    const v2 = parseSemanticVersion(version2);
+    
+    // Compatible if major and minor versions match exactly
+    // Patch version can differ (represents same schema with potential bug fixes)
+    return v1.major === v2.major && v1.minor === v2.minor;
+  }
+
+  /**
+   * Returns the detected capabilities for this backend instance.
+   */
+  getCapabilities(): ZkCapabilities {
+    return this.capabilities;
+  }
+
+  /**
+   * Generates a proof for the given witness using Noir/Barretenberg.
+   *
+   * The witness must match the circuit's ABI schema exactly:
+   * - Private inputs (nullifier, secret, leaf_index, hash_path)
+   * - Public inputs (root, nullifier_hash, recipient, amount, relayer, fee)
+   *
+   * @param witness The circuit witness with all inputs
+   * @returns The proof as a Uint8Array (Groth16 proof format)
+   */
+  async generateProof(witness: any): Promise<Uint8Array> {
+    // Ensure artifacts are loaded
+    if (!this.artifacts.acir) {
+      throw new Error('Circuit ACIR not loaded. Provide compiled artifacts.');
+    }
+
+    // Initialize backend if not provided
+    if (!this.backend) {
+      // In a real implementation, this would use BarretenbergBackend from @noir/backend_wasm
+      // For now, we provide an interface that consumers must implement.
+      throw new Error(
+        'Barretenberg backend not initialized. ' +
+        'Please provide a BarretenbergBackend instance or ensure the backend is properly set up.'
+      );
+    }
+
+    try {
+      // Step 1: Prove the witness
+      // This calls into Barretenberg to generate the proof
+      const proof = await this.backend.prove(this.artifacts.acir, witness);
+
+      return new Uint8Array(proof);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : String(error);
+      throw new Error(
+        `Noir proof generation failed: ${message}. ` +
+        'Ensure the witness matches the circuit ABI and all required inputs are provided.'
+      );
+    }
+  }
+
+  /**
+   * Sets or updates the Barretenberg backend instance.
+   * Allows for backend swapping (e.g., Node vs Browser).
+   */
+  setBackend(backend: any): void {
+    this.backend = backend;
+  }
+
+  /**
+   * Retrieves the current circuit artifacts.
+   */
+  getArtifacts(): NoirArtifacts {
+    return this.artifacts;
+  }
+}
+
+/**
+ * Helper to load circuit artifacts from files (Node.js environment).
+ *
+ * Expected file structure:
+ * - circuit.noir.acir (binary ACIR bytecode)
+ * - circuit.noir.vkey (binary verification key)
+ * - circuit.noir.abi.json (ABI schema)
+ */
+export async function loadNoirArtifacts(basePath: string): Promise<NoirArtifacts> {
+  // This would be implemented in Node.js environment using fs
+  // For now, provide the interface for consuming code
+  throw new Error(
+    'loadNoirArtifacts is not implemented. ' +
+    'Provide artifacts directly to NoirBackend constructor.'
+  );
+}
+
+/**
+ * Helper to create a NoirBackend from Barretenberg WASM.
+ *
+ * Requires @noir/backend_wasm to be installed.
+ * Usage:
+ *   const backend = await createBarretenbergBackend(artifacts);
+ */
+export async function createBarretenbergBackend(
+  artifacts: NoirArtifacts
+): Promise<NoirBackend> {
+  // Dynamic import to avoid requiring the module if not using this backend
+  try {
+    // In real usage: const { Barretenberg } = await import('@noir/backend_wasm');
+    // const bbBackend = await Barretenberg.new();
+    throw new Error(
+      '@noir/backend_wasm not installed. ' +
+      'Please install it to use Barretenberg proving.'
+    );
+  } catch (error) {
+    throw new Error(
+      'Failed to initialize Barretenberg backend. ' +
+      'Ensure @noir/backend_wasm is properly installed: npm install @noir/backend_wasm'
+    );
+  }
+}

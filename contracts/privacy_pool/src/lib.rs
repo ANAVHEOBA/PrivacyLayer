@@ -29,7 +29,10 @@ pub use contract::{PrivacyPool, PrivacyPoolClient};
 pub use types::{
     errors::Error,
     events::*,
-    state::{Denomination, PoolConfig, Proof, PublicInputs, VerifyingKey},
+    state::{
+        AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
+        VerifyingKey,
+    },
 };
 
 // Test modules
@@ -38,3 +41,6 @@ mod test;
 
 #[cfg(test)]
 mod integration_test;
+
+#[cfg(test)]
+mod privacy_audit_test;
