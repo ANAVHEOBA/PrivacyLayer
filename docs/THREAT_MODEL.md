@@ -1,132 +1,639 @@
-# 🔒 PrivacyLayer - Threat Model
+# PrivacyLayer Threat Model
 
-This document outlines the security assumptions, potential threat actors, and attack vectors for PrivacyLayer. It uses the **STRIDE** methodology (Spoofing, Tampering, Repudiation, Information Disclosure, Denial of Service, and Elevation of Privilege) to identify risks in the zero-knowledge shielded pool.
+## Status
 
----
+This document describes the security model, attack surface, current mitigations, and residual risks for the current PrivacyLayer implementation in this repository as of April 4, 2026.
 
-## 1. System Overview
+Scope covered:
 
-### Trust Assumptions
-1.  **Stellar Network Liveness**: The underlying Stellar blockchain continues to produce blocks and process transactions.
-2.  **Host Function Correctness**: The BN254 pairing and Poseidon hash host functions provided by Stellar Protocol 25 are implemented correctly and securely.
-3.  **Client Environment**: The user's device (browser/SDK) is not compromised when generating the `nullifier` and `secret`.
-4.  **Cryptographic Primitives**: Standard security assumptions for Groth16, BN254, and Poseidon hash functions hold.
+- Noir circuits under `circuits/`
+- Soroban contract under `contracts/privacy_pool/`
+- Contract events and storage model
+- Operational assumptions around proving keys, deposits, and withdrawals
 
-### Security Goals
-*   **Integrity**: No funds can be withdrawn without a valid proof of knowledge for a previously committed note.
-*   **Double-Spend Prevention**: A single note cannot be withdrawn more than once.
-*   **Privacy**: No observer should be able to link a deposit transaction to a withdrawal transaction.
-*   **Availability**: Legitimate note holders should always be able to withdraw their funds.
+Out of scope for this version:
 
-### Threat Actors
-*   **Malicious Relayers**: May attempt to front-run users or censor transactions.
-*   **Adversarial Observers**: Attempting to de-anonymize users via off-chain data and timing analysis.
-*   **Compromised Admin**: Using administrative privileges to freeze funds or manipulate contract state.
-*   **Miner/Validator Collusion**: Attempting to reorder transactions for profit (MEV).
+- A production relayer
+- A completed TypeScript SDK
+- A production frontend
+- Third-party infrastructure hardening
 
----
+## System Overview
 
-## 2. Attack Vectors
+PrivacyLayer is a fixed-denomination shielded pool for Stellar Soroban. Users deposit a fixed asset amount into a pool, receive an off-chain note, and later withdraw to a recipient using a zero-knowledge proof.
 
-### Cryptographic Attacks
+Current high-level flow:
 
-1.  **V-CRY-01: Proof Forgery (False Positives)**: An attacker generates a valid ZK proof for a commitment they do not own.
-    *   *Mitigation*: Use of standard Groth16 verification with high security parameters (BN254).
-2.  **V-CRY-02: Hash Collision**: Finding a different (nullifier, secret) pair that produces the same commitment.
-    *   *Mitigation*: Use of Poseidon/Pedersen hashes with 254-bit security. Tested in `TC-C-09`.
-3.  **V-CRY-03: Nullifier Prediction**: If the random number generator for nullifiers is weak, an observer could predict the nullifier hash and identify withdrawals.
-    *   *Mitigation*: SDK must use cryptographically secure random number generators (CSPRNG).
-4.  **V-CRY-04: Merkle Proof Manipulation**: An attacker provides a fake auth path to link a leaf to the root.
-    *   *Mitigation*: Circuit strictly enforces bit-index path verification (`lib/src/merkle/mod.nr`).
-5.  **V-CRY-05: Trusted Setup Compromise**: If the system requires a ceremony, compromised toxic waste could allow forging any proof.
-    *   *Mitigation*: Use universal setups (Barretenberg) or future transparent SNARKs.
+1. A user authorizes a token transfer to the contract and submits a commitment.
+2. The contract inserts the commitment into an incremental Merkle tree and emits a deposit event.
+3. Off-chain software reconstructs the Merkle tree and generates a withdrawal proof.
+4. The contract verifies a Groth16 proof, checks the root and nullifier, and transfers funds to the recipient.
 
-### Smart Contract Attacks
+Primary implementation references:
 
-6. **V-CON-01: Reentrancy during Withdrawal**: Re-entering the `withdraw` function before the nullifier is marked as spent in storage.
-    *   *Mitigation*: Soroban's single-threaded nature and "Checks-Effects-Interactions" pattern. Nullifier is checked in `contracts/privacy_pool/src/storage/nullifier.rs` and marked as spent *before* the transfer.
-7. **V-CON-02: Front-running (Proof Stealing)**: A relayer sees a `withdraw` transaction and submits it with their own address as the `recipient`.
-    *   *Mitigation*: The `recipient` address is a public input to the ZK circuit, binding the proof to a specific destination (Enforced in `circuits/withdraw/src/main.nr`).
-8. **V-CON-03: Storage Corruption**: Manipulating the incremental Merkle tree state to "insert" a leaf without a deposit.
-    *   *Mitigation*: Merkle tree updates are only performed within the authorized `deposit` host flow (`contracts/privacy_pool/src/core/deposit.rs`).
-9. **V-CON-04: Admin Key Compromise**: An attacker gains access to the contract admin key.
-    *   *Mitigation*: Admin powers are restricted in `contracts/privacy_pool/src/core/admin.rs`. Use of Multi-sig addresses and time-locks for critical admin functions is recommended.
-10. **V-CON-05: Griefing: Tree Saturation**: Filling the Merkle tree (2^20 slots) with dust deposits to prevent further use.
-    *   *Mitigation*: Minimum deposit denominations discourage spam. Fixed denominations are implemented in `contracts/privacy_pool/src/core/deposit.rs`.
-11. **V-CON-06: Oracle/Price Manipulation**: If the pool supports multiple assets with variable fees based on price.
-    *   *Mitigation*: PrivacyLayer uses fixed denominations for each asset to avoid side-channel leaks.
+- `contracts/privacy_pool/src/core/deposit.rs`
+- `contracts/privacy_pool/src/core/withdraw.rs`
+- `contracts/privacy_pool/src/crypto/merkle.rs`
+- `contracts/privacy_pool/src/crypto/verifier.rs`
+- `circuits/commitment/src/main.nr`
+- `circuits/withdraw/src/main.nr`
 
-### Privacy Attacks (Anonymity Leaks)
+## Security Goals
 
-12. **V-PRV-01: Timing Analysis**: A withdrawal occurring 10 seconds after a deposit likely originates from that deposit.
-    *   *Mitigation*: SDK advises users to wait for more deposits. Anonymity set tracking in `contracts/privacy_pool/src/core/view.rs`.
-13. **V-PRV-02: Amount Correlation**: Depositing exactly 123.456 XLM and withdrawing exactly 123.456 XLM.
-    *   *Mitigation*: The pool enforces fixed denominations.
-14. **V-PRV-03: Address Clustering**: Withdrawing to an address that was previously funded by the depositor's main wallet.
-    *   *Mitigation*: User education and SDK-enforced best practices.
-15. **V-PRV-04: Gas/Fee Side-Channels**: Correlating transactions based on specific gas fees paid to relayers.
-    *   *Mitigation*: Standardized fee structures for all withdrawals (`contracts/privacy_pool/src/core/withdraw.rs`).
-16. **V-PRV-05: ISP/Metadata Analysis**: Linking the IP addresses of the deposit and withdrawal transactions.
-    *   *Mitigation*: Recommended use of Tor/VPN for dApp interactions.
+The system should provide the following properties:
 
-### Economic & Network Attacks
+1. Soundness: invalid withdrawals must not succeed.
+2. Double-spend resistance: the same note must not be withdrawn twice.
+3. Membership integrity: only commitments present in the Merkle tree may be withdrawn.
+4. Denomination integrity: withdrawals should respect the configured pool denomination.
+5. Privacy: observers should not be able to link a withdrawal to a specific deposit from on-chain data alone.
+6. Admin containment: admin powers should be explicit, auditable, and limited.
+7. Recoverable operations: incidents should be detectable and the system should be pausable.
 
-17. **V-ECO-01: Relayer Denial of Service**: All relayers go offline, preventing users without XLM for gas from withdrawing.
-    *   *Mitigation*: Decentralized relayer network and direct withdrawal support.
-18. **V-ECO-02: Resource Exhaustion**: Submitting proofs that pass verification but trigger high CPU usage on Soroban nodes.
-    *   *Mitigation*: Soroban gas limits and host function pricing (`contracts/privacy_pool/src/crypto/verifier.rs`).
-19. **V-ECO-03: Protocol Upgrade Incompatibility**: A Stellar network upgrade changes the behavior of host functions.
-    *   *Mitigation*: Rigorous testing on Testnet before Protocol upgrades.
-20. **V-ECO-04: Fee Exploitation**: Relayers charging more than the actual gas cost for sensitive transactions.
-    *   *Mitigation*: Competitive relayer market.
+## Trust Assumptions
 
----
+PrivacyLayer does not eliminate all trust. The current design assumes:
 
-## 3. Mitigations & Residual Risks
+- The Groth16 proving and verifying keys correspond to the intended withdrawal circuit.
+- The admin key is honest, uncompromised, and operationally secure.
+- Soroban token semantics are correct for the configured asset contract.
+- The Noir circuits and Soroban verifier agree on public input encoding and field interpretation.
+- Users securely store notes and do not leak them before withdrawal.
+- The underlying BN254 and Poseidon host functionality behaves correctly.
 
-### Current Mitigations
-*   **Circuit Level**: Strict input validation (`validate_fee`, `validate_nullifier_hash`) and comprehensive edge-case testing (`TC-W-01` through `TC-W-21`).
-*   **Contract Level**: Nullifiers are tracked in Soroban `Persistent` storage to prevent double-spending across Ledger entries (`contracts/privacy_pool/src/storage/nullifier.rs`).
-*   **Design Level**: Fixed denominations and root-binding for nullifiers.
+## Threat Actors
 
-### Residual Risks
-*   **User Error**: Users may accidentally link their identities via off-chain behavior.
-*   **Zero-day in Host Functions**: Vulnerabilities in its native implementation of BN254/Poseidon.
-*   **Liveness of the Merkle Tree**: If the Soroban storage for the tree becomes extremely large/expensive.
+- External attacker with no special privileges.
+- Malicious depositor or withdrawer.
+- Malicious relayer.
+- Compromised or malicious admin.
+- Passive chain observer performing privacy analysis.
+- Infrastructure attacker targeting RPC, frontend, or deployment pipeline.
 
----
+## Assets To Protect
 
-## 4. Known Limitations
+- Funds held by the pool contract.
+- The unlinkability between deposit and withdrawal.
+- Nullifier uniqueness and spend state.
+- Correctness of the Merkle root history.
+- Integrity of the verifying key.
+- Off-chain notes, proofs, and Merkle witnesses.
 
-1.  **Privacy Set Size**: Privacy depends on the number of deposits between a user's deposit and their withdrawal. Low volume reduces anonymity.
-2.  **Fixed Denominations**: Users cannot withdraw arbitrary amounts; they must withdraw in the specific increments supported by the pool.
-3.  **Account Abstraction**: Users need a way to pay for gas on a new address (mitigated by relayers).
+## Attack Surface Summary
 
----
+Main trust boundaries:
 
-## 5. Audit Recommendations
+- User to contract authorization during deposit.
+- Off-chain note handling and proof generation.
+- Proof verification and public input decoding on-chain.
+- Token transfer execution during deposit and withdrawal.
+- Admin-only pause and verifying-key rotation paths.
+- Event publication and public observability.
 
-### Critical Areas for Review
-*   **Merkle Tree Incremental Updates**: Ensure the `contracts/privacy_pool/src/crypto/merkle.rs` logic correctly handles edge cases without skipping levels.
-*   **Groth16 Verifier**: Verify the mapping of Noir proof outputs to Stellar host function inputs in `contracts/privacy_pool/src/crypto/verifier.rs`.
-*   **Nullifier Uniqueness**: Confirm that no two note/root combinations can produce the same nullifier hash.
+## Threat Catalogue
 
-### Testing Requirements
-*   **Fuzz Testing**: Range check inputs and Merkle paths.
-*   **Formal Verification**: Target the Merkle tree and commitment integrity.
+### Cryptographic And Circuit Threats
 
----
+#### T1. Forged withdrawal proof
 
-## 6. Incident Response
+Risk:
 
-### Emergency Procedures
-1.  **Contract Pause**: The Admin can pause `deposit`/`withdraw` functions if a vulnerability is detected (See `contracts/privacy_pool/src/core/admin.rs`).
-2.  **Gradual Withdrawal**: If a Merkle bug is found, a secondary proof system might be deployed to allow manual fund recovery.
-ry.
+- An attacker submits a fabricated proof and steals pool funds.
 
-### Communication Plan
-*   **Social Media**: Immediate broadcast via X/Discord.
-*   **SDK Warning**: Automated banners in the dApp interface if the contract is paused.
+Current controls:
 
----
-*Created by PrivacyLayer Security Team. Version 1.0.0.*
+- On-chain Groth16 verification in `contracts/privacy_pool/src/crypto/verifier.rs`
+- Verifying key stored in contract storage
+- Circuit-level constraints in `circuits/withdraw/src/main.nr`
+
+Residual risk:
+
+- High impact if the verifying key is wrong, malformed, or replaced by a malicious admin.
+
+#### T2. Commitment collision
+
+Risk:
+
+- Two different `(nullifier, secret)` pairs produce the same commitment, weakening note uniqueness.
+
+Current controls:
+
+- Commitment derived from a hash function in `circuits/lib/src/hash/mod.nr`
+- Circuit tests cover basic consistency cases
+
+Residual risk:
+
+- Relies on Poseidon/Pedersen usage being correct and consistent across implementations.
+- Should be audited with dedicated test vectors and cross-language checks.
+
+#### T3. Nullifier collision or replay
+
+Risk:
+
+- A note can be spent more than once or replayed across pool states.
+
+Current controls:
+
+- Circuit computes `nullifier_hash = Hash(nullifier, root)` in `circuits/withdraw/src/main.nr`
+- Contract checks `NullifierAlreadySpent` before transfer and marks spent after verification in `contracts/privacy_pool/src/core/withdraw.rs`
+
+Residual risk:
+
+- Sound design, but correctness depends on circuit and contract using the same encoding.
+
+#### T4. Merkle proof forgery
+
+Risk:
+
+- An attacker withdraws using a leaf not actually present in the on-chain tree.
+
+Current controls:
+
+- Circuit verifies inclusion
+- Contract also checks root membership through `require_known_root`
+
+Residual risk:
+
+- Correctness depends on off-chain tree construction matching `contracts/privacy_pool/src/crypto/merkle.rs`.
+
+#### T5. Stale-root abuse
+
+Risk:
+
+- Old roots remain usable too long, expanding the window for stolen-note withdrawal.
+
+Current controls:
+
+- Root history is capped at 30 in `contracts/privacy_pool/src/crypto/merkle.rs`
+
+Residual risk:
+
+- A 30-root replay window is intentional but materially affects operational risk.
+- Users who delay withdrawals too long may fail; attackers with stolen notes may still have time.
+
+#### T6. Public input encoding mismatch
+
+Risk:
+
+- The Noir circuit and Soroban verifier interpret `recipient`, `relayer`, `amount`, or `fee` differently.
+
+Current controls:
+
+- Public inputs are passed into Groth16 verification through `compute_vk_x`
+
+Residual risk:
+
+- This is one of the highest-priority audit targets.
+- The circuit treats these values as field elements.
+- The contract decodes them as raw bytes or truncated integers.
+- End-to-end encoding invariants are not specified in one place today.
+
+#### T7. Trusted-setup failure
+
+Risk:
+
+- A compromised Groth16 setup invalidates proof soundness.
+
+Current controls:
+
+- None in-repo beyond storing the verifying key.
+
+Residual risk:
+
+- This remains an explicit trust assumption and should be documented for users and auditors.
+
+### Contract And State Threats
+
+#### T8. Unauthorized admin actions
+
+Risk:
+
+- A non-admin pauses the pool or rotates the verifying key.
+
+Current controls:
+
+- `require_auth()` on admin address
+- `require_admin()` in `contracts/privacy_pool/src/utils/validation.rs`
+
+Residual risk:
+
+- Depends entirely on admin key security.
+
+#### T9. Malicious verifying-key rotation
+
+Risk:
+
+- A compromised admin installs a malicious verifying key and enables invalid withdrawals.
+
+Current controls:
+
+- Only admin may call `set_verifying_key`
+- Event emitted on rotation
+
+Residual risk:
+
+- Very high impact.
+- There is no timelock, multisig, staged rollout, or out-of-band approval requirement.
+
+#### T10. Deposit while paused or before initialization
+
+Risk:
+
+- Funds move into an invalid or emergency state.
+
+Current controls:
+
+- `config::load()` rejects uninitialized state
+- `require_not_paused()` enforced in deposit and withdrawal
+
+Residual risk:
+
+- Low if pause checks remain mandatory in all entrypoints.
+
+#### T11. Tree overflow
+
+Risk:
+
+- More than `2^20` deposits corrupt tree state.
+
+Current controls:
+
+- `Error::TreeFull` in `contracts/privacy_pool/src/crypto/merkle.rs`
+
+Residual risk:
+
+- Low for correctness, but capacity limits should be visible operationally.
+
+#### T12. Root-history overwrite
+
+Risk:
+
+- Old roots are evicted sooner than users expect, breaking delayed withdrawals.
+
+Current controls:
+
+- Explicit circular buffer of size 30
+- Tests cover eviction behavior
+
+Residual risk:
+
+- Operational, not cryptographic.
+- The UX and docs must make the window clear.
+
+#### T13. Fee decoding mismatch
+
+Risk:
+
+- The contract decodes `fee` differently from the circuit and could overpay the recipient or mishandle relayer logic.
+
+Current controls:
+
+- `decode_and_validate_fee()` rejects fees above denomination amount
+- Circuit checks `fee <= amount`
+
+Residual risk:
+
+- High-priority review item.
+- The contract decodes only the last 16 bytes of a 32-byte field element as signed `i128`.
+- It does not explicitly reject negative values or enforce canonical encoding.
+- This should be formally specified and tested with adversarial vectors.
+
+#### T14. Amount consistency gap
+
+Risk:
+
+- The public input `amount` may not match the pool denomination or may be ignored by the contract.
+
+Current controls:
+
+- The pool uses a configured denomination from `PoolConfig`.
+- The circuit includes `amount` as a public input.
+
+Residual risk:
+
+- High-priority review item.
+- `contracts/privacy_pool/src/core/withdraw.rs` transfers `pool_config.denomination.amount()` and does not explicitly compare `pub_inputs.amount` against the configured denomination.
+- This creates a specification gap even if it is not immediately exploitable.
+
+#### T15. Address decoding failure or ambiguity
+
+Risk:
+
+- A malformed `recipient` or `relayer` value causes unexpected behavior, panic, denial of service, or misrouting.
+
+Current controls:
+
+- Optional relayer zero-check
+
+Residual risk:
+
+- High-priority review item.
+- `contracts/privacy_pool/src/utils/address_decoder.rs` reconstructs an `Address` from raw 32-byte data.
+- Stellar address encodings need a precise canonical mapping between circuit field elements and on-chain address parsing.
+
+#### T16. Token transfer assumptions
+
+Risk:
+
+- The configured token contract has unexpected semantics, fails non-atomically, or behaves differently from expected SAC behavior.
+
+Current controls:
+
+- Soroban token client used for transfer calls in deposit and withdrawal
+
+Residual risk:
+
+- Medium.
+- This is especially important once multiple assets are supported.
+
+#### T17. Event and state desynchronization
+
+Risk:
+
+- Off-chain clients build a Merkle tree that diverges from contract state.
+
+Current controls:
+
+- Deposit event includes commitment, leaf index, and root
+- Tests cover deterministic insert behavior
+
+Residual risk:
+
+- Medium.
+- The planned SDK must be validated against the exact event ordering and tree logic.
+
+### Privacy Threats
+
+#### T18. Deposit origin leakage
+
+Risk:
+
+- Observers learn who deposited, even if they cannot later link the withdrawal.
+
+Current controls:
+
+- Deposit event omits the depositor address
+
+Residual risk:
+
+- High but expected.
+- The token transfer from the depositor to the contract is still visible in the same transaction.
+- PrivacyLayer currently hides deposit-to-withdraw linkage, not deposit existence.
+
+#### T19. Timing analysis
+
+Risk:
+
+- Deposits and withdrawals close in time can be linked probabilistically.
+
+Current controls:
+
+- Fixed denominations reduce one class of leakage
+
+Residual risk:
+
+- High.
+- User behavior and pool size dominate this risk.
+
+#### T20. Small anonymity-set attacks
+
+Risk:
+
+- If few users share a denomination pool, linkability becomes much easier.
+
+Current controls:
+
+- Fixed denominations
+
+Residual risk:
+
+- High.
+- This is an economic and adoption problem, not a contract-only problem.
+
+#### T21. Recipient and relayer exposure
+
+Risk:
+
+- Withdrawals reveal the destination address and optional relayer on-chain.
+
+Current controls:
+
+- None beyond unavoidable design constraints
+
+Residual risk:
+
+- High and unavoidable for UTXO-style shield exit flows.
+
+#### T22. Metadata leakage through frontend or RPC
+
+Risk:
+
+- IP addresses, wallet fingerprints, browser characteristics, and RPC patterns deanonymize users.
+
+Current controls:
+
+- No in-repo mitigation yet
+
+Residual risk:
+
+- High for real-world privacy.
+- Must be documented clearly for users.
+
+### Economic And Availability Threats
+
+#### T23. Invalid-withdraw spam
+
+Risk:
+
+- Attackers submit many invalid proofs to consume resources or degrade service.
+
+Current controls:
+
+- Invalid proofs revert
+- Pause mechanism available
+
+Residual risk:
+
+- Medium.
+- Operational monitoring will matter once deployed.
+
+#### T24. Proof verification cost spikes
+
+Risk:
+
+- Groth16 verification becomes expensive enough to make withdrawals impractical.
+
+Current controls:
+
+- None yet besides fixed design assumptions
+
+Residual risk:
+
+- Medium.
+- A benchmark suite is still outstanding and should be completed before production rollout.
+
+#### T25. Storage-growth pressure
+
+Risk:
+
+- Root history, filled subtrees, and nullifier tracking increase storage costs over time.
+
+Current controls:
+
+- Fixed root-history size
+
+Residual risk:
+
+- Medium.
+- Nullifier storage is unbounded by design.
+
+#### T26. Admin key loss
+
+Risk:
+
+- The admin cannot pause, rotate keys, or recover from operational incidents.
+
+Current controls:
+
+- None in-repo
+
+Residual risk:
+
+- Medium to high depending on deployment maturity.
+
+### Operational And Process Threats
+
+#### T27. Incomplete deployment procedure
+
+Risk:
+
+- A correct contract is deployed with the wrong token, denomination, or verifying key.
+
+Current controls:
+
+- Initialization is one-time only
+
+Residual risk:
+
+- High.
+- A bad one-time initialization can permanently misconfigure a pool.
+
+#### T28. Missing incident response runbook
+
+Risk:
+
+- The team detects an issue but cannot respond quickly and consistently.
+
+Current controls:
+
+- Pause functionality exists
+
+Residual risk:
+
+- Medium.
+- There is no dedicated incident response document yet.
+
+#### T29. Documentation drift
+
+Risk:
+
+- README, circuits, and contract behavior diverge, causing operator or auditor misunderstanding.
+
+Current controls:
+
+- Tests exist for many contract invariants
+
+Residual risk:
+
+- Medium.
+- This document should be updated whenever public input encoding or admin flows change.
+
+#### T30. False sense of privacy
+
+Risk:
+
+- Users assume stronger anonymity than the implementation actually provides.
+
+Current controls:
+
+- README states the project is unaudited
+
+Residual risk:
+
+- High.
+- User-facing docs must explicitly say what is and is not hidden.
+
+## Highest-Priority Audit Targets
+
+The following areas should receive the most scrutiny before mainnet deployment:
+
+1. Public input encoding across Noir and Soroban:
+   `recipient`, `relayer`, `amount`, and `fee` need a single canonical specification plus end-to-end test vectors.
+2. Fee and amount validation on withdrawal:
+   on-chain checks should align exactly with circuit constraints and configured denomination rules.
+3. Address serialization:
+   the proof-facing representation of Stellar addresses should be formalized and tested for malformed inputs.
+4. Verifying-key governance:
+   admin-only rotation is too strong a trust assumption without multisig or delayed execution.
+5. Benchmarking and denial-of-service analysis:
+   withdrawal verification and storage growth need quantified cost envelopes.
+6. Off-chain Merkle synchronization:
+   SDK and circuit proofs must be validated against contract events and root history behavior.
+
+## Recommended Security Improvements
+
+Short-term:
+
+- Add a canonical encoding spec for all public inputs.
+- Add end-to-end tests for address, amount, fee, and relayer encoding.
+- Add an explicit on-chain equality check between `pub_inputs.amount` and the configured denomination.
+- Reject negative or non-canonical fee encodings explicitly.
+- Document the trusted-setup assumption and admin key power in user docs.
+
+Medium-term:
+
+- Introduce multisig or timelocked verifying-key rotation.
+- Add benchmark and cost-regression tooling.
+- Add fuzz/property tests around public input decoding and withdrawal execution.
+- Generate cross-language test vectors from circuits and verify them on-chain.
+
+Long-term:
+
+- Establish a formal spec for the withdraw statement and its byte encodings.
+- Run an external security audit focused on circuit/contract boundary correctness.
+- Consider stronger operational privacy guidance for production users.
+
+## Incident Response Guidance
+
+If a serious issue is detected:
+
+1. Pause the pool immediately using the admin key.
+2. Preserve all relevant transaction hashes, events, and proof inputs.
+3. Determine whether the issue is circuit-only, contract-only, or an encoding mismatch across both.
+4. Notify users that the pool is paused and instruct them not to deposit.
+5. Review verifying-key integrity, deployment parameters, and recent admin actions.
+6. Publish a post-incident report before resuming operations.
+
+## Open Questions
+
+These questions should be resolved before claiming production readiness:
+
+- What is the exact canonical encoding of a Stellar `Address` inside Noir public inputs?
+- Should `amount` remain a public input if the contract always enforces a fixed denomination?
+- How is the Groth16 trusted setup generated, stored, and rotated?
+- What operational window is acceptable for root-history retention?
+- What minimum anonymity set should be recommended to users before withdrawal?
+
+## References
+
+- `contracts/privacy_pool/src/core/deposit.rs`
+- `contracts/privacy_pool/src/core/withdraw.rs`
+- `contracts/privacy_pool/src/core/admin.rs`
+- `contracts/privacy_pool/src/crypto/merkle.rs`
+- `contracts/privacy_pool/src/crypto/verifier.rs`
+- `contracts/privacy_pool/src/utils/address_decoder.rs`
+- `contracts/privacy_pool/src/utils/validation.rs`
+- `contracts/privacy_pool/src/types/state.rs`
+- `contracts/privacy_pool/src/types/events.rs`
+- `circuits/commitment/src/main.nr`
+- `circuits/withdraw/src/main.nr`
