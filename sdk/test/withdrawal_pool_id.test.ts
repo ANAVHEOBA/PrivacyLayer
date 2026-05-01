@@ -24,6 +24,9 @@ import { assertValidPreparedWithdrawalWitness } from "../src/witness";
 const RECIPIENT = "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF";
 
 function buildNote(poolId: string): Note {
+  if (!/^[0-9a-f]{64}$/.test(poolId)) {
+    throw new Error("Invalid poolId format. Must be a 64-character hexadecimal string.");
+  }
   return new Note(
     Buffer.from("01".repeat(31), "hex"),
     Buffer.from("02".repeat(31), "hex"),
@@ -44,11 +47,9 @@ function buildMerkleProof(): MerkleProof {
 }
 
 async function prepareFor(poolId: string): Promise<PreparedWitness> {
-  return ProofGenerator.prepareWitness(
-    buildNote(poolId),
-    buildMerkleProof(),
-    RECIPIENT,
-  );
+  const note = buildNote(poolId);
+  const merkleProof = buildMerkleProof();
+  return ProofGenerator.prepareWitness(note, merkleProof, RECIPIENT);
 }
 
 describe("Withdrawal proof pool_id (ZK-029)", () => {
@@ -66,7 +67,7 @@ describe("Withdrawal proof pool_id (ZK-029)", () => {
   it("witness validation rejects a witness whose pool_id is not a canonical field hex string", async () => {
     const good = await prepareFor("aa".repeat(32));
     const bad: PreparedWitness = { ...good, pool_id: "not-a-hex-string" };
-    expect(() => assertValidPreparedWithdrawalWitness(bad)).toThrow();
+    expect(() => assertValidPreparedWithdrawalWitness(bad)).toThrow("Invalid pool_id format");
   });
 
   it("differing pool_ids produce differing prepared witnesses (everything else equal)", async () => {
