@@ -97,4 +97,10 @@ pub enum Error {
     InvalidSchemaVersion = 80,
     /// Proof schema version does not match expected version
     SchemaVersionMismatch = 81,
+
+    // ── Batch Verification ─────────────────────────────
+    /// The number of proofs does not match the number of public inputs in a batch
+    BatchLengthMismatch = 90,
+    /// Batch verification failed for the proof at the given index
+    BatchVerificationFailed(u32) = 91,
 }
