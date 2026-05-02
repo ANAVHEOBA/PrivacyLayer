@@ -1,4 +1,12 @@
 /**
+
+/** Thrown by `assertStructuralValidity` for shape violations. */
+export class StructuralError extends Error {
+  constructor(message: string) {
+    super(message);
+    this.name = 'StructuralError';
+  }
+}
  * Thrown when withdrawal witness or proof inputs fail structural validation
  * (lengths, encodings) before a proving backend is invoked. Use
  * `code` to distinguish from honest proving/verification errors.
