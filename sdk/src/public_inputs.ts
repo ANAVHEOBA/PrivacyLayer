@@ -29,7 +29,9 @@
  * but not passed to the contract verifier.
  */
 
-import { createHash } from 'crypto';
+import { computeAddressBinding } from './binding';
+
+// ... (rest of the imports)
 import { FIELD_MODULUS, MERKLE_NODE_BYTE_LENGTH, NOTE_SCALAR_BYTE_LENGTH, NULLIFIER_DOMAIN_SEP_HEX } from './zk_constants';
 import { StrKey } from '@stellar/stellar-base';
 import { WitnessValidationError } from './errors';
@@ -297,6 +299,7 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'pool_id',
   'root',
   'nullifier_hash',
+  'address_binding',
   'recipient',
   'amount',
   'relayer',
@@ -450,16 +453,18 @@ export function packWithdrawalPublicInputs(
   fee: bigint,
   denomination: bigint
 ): string[] {
+  const addressBinding = computeAddressBinding(nullifierHash, recipient);
   return serializeWithdrawalPublicInputs({
     pool_id: poolId,
     root,
     nullifier_hash: nullifierHash,
+    address_binding: addressBinding,
     recipient,
     amount: encodeAmount(amount),
     relayer,
     fee: encodeFee(fee),
-    denomination: encodeDenomination(denomination),
-  }).fields;
+    denomination: denomination,
+  } as any).fields;
 }
 
 // ============================================================
