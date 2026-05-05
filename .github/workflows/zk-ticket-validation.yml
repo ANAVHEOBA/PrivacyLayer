@@ -128,3 +128,30 @@ jobs:
       - name: Run SDK Jest
         working-directory: sdk
         run: npm test
+
+  zk-system-validation:
+    needs: resolve-issue-key
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: |
+          cd sdk && npm ci
+          cd ../
+
+      - name: Run ZK Wave 2 Validation
+        shell: bash
+        run: bash validate_zk_wave2.sh
+
+      - name: Artifact Hash Validation
+        shell: bash
+        run: |
+          echo "Validating artifact hashes..."
+          node scripts/validate_artifacts.mjs
