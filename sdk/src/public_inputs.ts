@@ -197,9 +197,11 @@ export function encodeSecret(secret: Buffer): string {
 /**
  * Encodes a Stellar public key (G… Strkey address) as a circuit field element.
  *
- * The Stellar address is hashed with SHA-256 and the digest is reduced modulo
- * the BN254 field prime, producing a deterministic field-sized value.  This
- * mirrors the on-chain address_decoder used in the Soroban contract.
+ * ZK-072: Replaces lossy recipient decoding with a verifiable address-binding
+ * strategy.  The recipient address is hashed with SHA-256 and the digest is
+ * reduced modulo the BN254 field prime.  The contract no longer attempts to
+ * reverse this hash; instead, it verifies that the hashed recipient provided
+ * in the proof matches the hash of the concrete recipient address argument.
  */
 export function encodeStellarAddress(address: string): string {
   if (!StrKey.isValidEd25519PublicKey(address)) {

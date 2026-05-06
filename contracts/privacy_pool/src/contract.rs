@@ -59,8 +59,9 @@ impl PrivacyPool {
         pool_id: PoolId,
         proof: Proof,
         pub_inputs: PublicInputs,
+        recipient: Address,
     ) -> Result<bool, Error> {
-        withdraw::execute(env, pool_id, proof, pub_inputs)
+        withdraw::execute(env, pool_id, proof, pub_inputs, recipient)
     }
 
     // ──────────────────────────────────────────────────────────
