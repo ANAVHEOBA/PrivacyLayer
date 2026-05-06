@@ -17,6 +17,7 @@ pub fn execute(
     pool_id: PoolId,
     proof: Proof,
     pub_inputs: PublicInputs,
+    recipient: Address,
 ) -> Result<bool, Error> {
     // Load and validate pool configuration
     let pool_config = config::load_pool_config(&env, &pool_id)?;
@@ -38,6 +39,14 @@ pub fn execute(
         return Err(Error::InvalidDenomination);
     }
 
+    // Step 2.6: Validate recipient address binding (ZK-072)
+    // The proof is bound to the hash of the recipient address. We verify that 
+    // the hashed recipient in the proof matches the concrete recipient provided.
+    let expected_recipient_field = address_decoder::encode_address_to_field(&env, &recipient);
+    if pub_inputs.recipient != expected_recipient_field {
+        return Err(Error::RecipientBindingMismatch);
+    }
+
     // Step 3: Validate and decode fee
     let fee = validation::decode_and_validate_fee(&pub_inputs.fee, denomination_amount)?;
 
@@ -52,7 +61,6 @@ pub fn execute(
     nullifier::mark_spent(&env, &pool_id, &pub_inputs.nullifier_hash);
 
     // Step 6: Decode addresses
-    let recipient = address_decoder::decode_address(&env, &pub_inputs.recipient);
     let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer);
 
     // Step 7: Transfer funds

@@ -51,6 +51,8 @@ pub enum Error {
     InvalidPoolId = 46,
     /// Denomination in public inputs does not match the pool denomination
     InvalidDenomination = 47,
+    /// Recipient provided does not match the recipient bound in the proof
+    RecipientBindingMismatch = 48,
 
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set
