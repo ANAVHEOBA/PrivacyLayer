@@ -228,7 +228,7 @@ fn test_e2e_unknown_root_rejected() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
 }
 
@@ -274,7 +274,7 @@ fn test_e2e_double_spend_rejected_after_manual_spend_mark() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
 }
 
@@ -341,7 +341,7 @@ fn test_e2e_withdraw_rejects_wrong_pool_id_in_public_inputs() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_a, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_a, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with InvalidPoolId error due to pool_id mismatch
 }
@@ -365,7 +365,7 @@ fn test_e2e_withdraw_rejects_wrong_denomination_in_public_inputs() {
         denomination: field(&env, 200), // Wrong denomination
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with InvalidDenomination error due to denomination mismatch
 }
@@ -391,7 +391,7 @@ fn test_e2e_withdraw_accepts_correct_pool_id_and_denomination() {
 
     // This should pass the pool_id and denomination validation
     // (though it will fail later due to invalid proof, which is expected)
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with InvalidProof, not InvalidPoolId or InvalidDenomination
 }
@@ -426,7 +426,7 @@ fn test_e2e_vk_circuit_id_mismatch_rejected() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with CircuitIdMismatch before expensive pairing operations
 }
@@ -457,7 +457,7 @@ fn test_e2e_vk_public_input_count_mismatch_rejected() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with PublicInputCountMismatch before expensive pairing operations
 }
@@ -504,9 +504,36 @@ fn test_e2e_vk_gamma_abc_length_mismatch_rejected() {
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &alice);
     assert!(result.is_err());
     // Should fail with MalformedVerifyingKey due to length mismatch
+}
+
+#[test]
+fn test_e2e_withdraw_rejects_mismatched_recipient_binding() {
+    let (env, client, _token_id, _admin, alice, bob, pool_id) = setup();
+
+    // Deposit into pool
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+
+    // Encode alice's address as the recipient bound in the proof
+    let alice_recipient_field = crate::utils::address_decoder::encode_address_to_field(&env, &alice);
+
+    // Try to withdraw with alice's bound recipient but bob's actual address
+    let pub_inputs = PublicInputs {
+        pool_id: pool_id.0.clone(),
+        root,
+        nullifier_hash: make_nullifier_hash(&env, 1),
+        recipient: alice_recipient_field, // Proof bound to Alice
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+        denomination: field(&env, 100),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &bob);
+    assert!(result.is_err());
+    // Should fail with RecipientBindingMismatch because bob is not alice
 }
 
 #[test]
