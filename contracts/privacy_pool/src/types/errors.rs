@@ -1,6 +1,9 @@
 // ============================================================
 // PrivacyLayer — Contract Errors
 // ============================================================
+// ZK-072: Added RecipientBindingMismatch and RelayerBindingMismatch
+// Fixed duplicate error code (InvalidPoolId was 23 and 46)
+// ============================================================
 
 use soroban_sdk::contracterror;
 
@@ -47,10 +50,14 @@ pub enum Error {
     InvalidRelayerFee = 44,
     /// Recipient address is invalid
     InvalidRecipient = 45,
-    /// Pool ID in public inputs does not match the pool being withdrawn from
-    InvalidPoolId = 46,
-    /// Denomination in public inputs does not match the pool denomination
+    /// Pool ID mismatch between proof public inputs and pool
+    InvalidPoolIdInProof = 46,
+    /// Denomination mismatch between proof and pool config
     InvalidDenomination = 47,
+    /// ZK-072: Recipient address does not match proof commitment
+    RecipientBindingMismatch = 48,
+    /// ZK-072: Relayer address does not match proof commitment
+    RelayerBindingMismatch = 49,
 
     // ── Verifying Key ──────────────────────────────────
     /// Verifying key has not been set

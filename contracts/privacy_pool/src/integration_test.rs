@@ -343,7 +343,7 @@ fn test_e2e_withdraw_rejects_wrong_pool_id_in_public_inputs() {
 
     let result = client.try_withdraw(&pool_a, &dummy_proof(&env), &pub_inputs);
     assert!(result.is_err());
-    // Should fail with InvalidPoolId error due to pool_id mismatch
+    // Should fail with InvalidPoolIdInProof error due to pool_id mismatch
 }
 
 #[test]
@@ -393,7 +393,7 @@ fn test_e2e_withdraw_accepts_correct_pool_id_and_denomination() {
     // (though it will fail later due to invalid proof, which is expected)
     let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
     assert!(result.is_err());
-    // Should fail with InvalidProof, not InvalidPoolId or InvalidDenomination
+    // Should fail with InvalidProof, not InvalidPoolIdInProof or InvalidDenomination
 }
 
 // ──────────────────────────────────────────────────────────────

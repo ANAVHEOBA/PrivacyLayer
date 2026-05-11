@@ -54,13 +54,18 @@ impl PrivacyPool {
     }
 
     /// Withdraw from a specific shielded pool using a ZK proof.
+    ///
+    /// ZK-072: recipient and optional relayer are explicit arguments.
+    /// The proof binds to hash(recipient) and hash(relayer) via SHA-256.
     pub fn withdraw(
         env: Env,
         pool_id: PoolId,
         proof: Proof,
         pub_inputs: PublicInputs,
+        recipient: Address,
+        relayer: Option<Address>,
     ) -> Result<bool, Error> {
-        withdraw::execute(env, pool_id, proof, pub_inputs)
+        withdraw::execute(env, pool_id, proof, pub_inputs, recipient, relayer)
     }
 
     // ──────────────────────────────────────────────────────────
