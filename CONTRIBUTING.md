@@ -128,7 +128,7 @@ Example:
 ```typescript
 /**
  * Generates a new note for depositing into the privacy pool.
- * 
+ *
  * @returns A note containing nullifier, secret, and commitment
  */
 export async function generateNote(): Promise<Note> {
