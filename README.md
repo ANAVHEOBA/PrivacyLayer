@@ -187,11 +187,11 @@ cargo test        # Run unit and integration tests
 
 ## Current Status
 
-✅ Circuits: Commitment, withdrawal, and merkle circuits implemented  
-✅ Contracts: Full privacy pool contract with deposit/withdraw/admin functions  
-✅ Analytics: Privacy-preserving aggregate analytics + public dashboard scaffold  
-🚧 SDK: TypeScript client SDK (planned)  
-🚧 Frontend: Next.js dApp (planned)  
+✅ Circuits: Commitment, withdrawal, and merkle circuits implemented
+✅ Contracts: Full privacy pool contract with deposit/withdraw/admin functions
+✅ Analytics: Privacy-preserving aggregate analytics + public dashboard scaffold
+🚧 SDK: TypeScript client SDK (planned)
+🚧 Frontend: Next.js dApp (planned)
 🚧 Scripts: Deployment automation (planned)
 
 ## Privacy-Preserving Analytics

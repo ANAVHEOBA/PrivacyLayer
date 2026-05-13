@@ -62,17 +62,17 @@ const vk = {
 
 ### CircuitIdMismatch (Error 52)
 
-**Cause**: VK circuit_id doesn't match expected circuit  
+**Cause**: VK circuit_id doesn't match expected circuit
 **Fix**: Deploy correct VK for this circuit
 
 ### PublicInputCountMismatch (Error 53)
 
-**Cause**: Proof has different number of inputs than VK expects  
+**Cause**: Proof has different number of inputs than VK expects
 **Fix**: Regenerate proof with matching circuit version
 
 ### MalformedVerifyingKey (Error 51)
 
-**Cause**: gamma_abc_g1 length doesn't match public_input_count + 1  
+**Cause**: gamma_abc_g1 length doesn't match public_input_count + 1
 **Fix**: Regenerate VK from circuit artifacts
 
 ## Client-Side Validation
