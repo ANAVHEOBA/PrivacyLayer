@@ -83,10 +83,10 @@ Artifact versions are tracked via the `version` field in `sdk/src/artifacts.ts`.
 The SDK uses the centralized path configuration in `sdk/src/artifacts.ts`:
 
 ```typescript
-import { 
-  getKnownCircuitPath, 
+import {
+  getKnownCircuitPath,
   CIRCUIT_NAMES,
-  ZK_ARTIFACT_VERSION 
+  ZK_ARTIFACT_VERSION
 } from './artifacts';
 
 // Get current version withdraw circuit
