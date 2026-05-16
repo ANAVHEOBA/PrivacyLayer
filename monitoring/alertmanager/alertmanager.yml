@@ -1,0 +1,48 @@
+# Alertmanager Configuration for PrivacyLayer
+
+global:
+  resolve_timeout: 5m
+  smtp_smarthost: 'smtp.example.com:587'
+  smtp_from: 'alerts@privacypool.example.com'
+
+route:
+  receiver: 'privacypool-default'
+  group_wait: 30s
+  group_interval: 5m
+  repeat_interval: 4h
+  group_by: ['alertname', 'severity']
+  routes:
+    - match:
+        severity: critical
+      receiver: 'privacypool-critical'
+    - match:
+        component: security
+      receiver: 'privacypool-security'
+    - match:
+        severity: warning
+      receiver: 'privacypool-warning'
+
+receivers:
+  - name: 'privacypool-default'
+    slack_configs:
+      - channel: '#privacypool-alerts'
+        send_resolved: true
+
+  - name: 'privacypool-critical'
+    slack_configs:
+      - channel: '#privacypool-critical'
+        send_resolved: true
+    pagerduty_configs:
+      - service_key: '<pagerduty-service-key>'
+        
+  - name: 'privacypool-security'
+    slack_configs:
+      - channel: '#privacypool-security'
+        send_resolved: true
+    email_configs:
+      - to: 'security@privacypool.example.com'
+        
+  - name: 'privacypool-warning'
+    slack_configs:
+      - channel: '#privacypool-alerts'
+        send_resolved: true

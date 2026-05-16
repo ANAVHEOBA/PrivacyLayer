@@ -1,0 +1,59 @@
+version: '3.8'
+
+services:
+  prometheus:
+    image: prom/prometheus:v2.48.0
+    container_name: privacypool-prometheus
+    ports:
+      - "9090:9090"
+    volumes:
+      - ./prometheus/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts/alert_rules.yml:/etc/prometheus/alert_rules.yml:ro
+      - prometheus_data:/prometheus
+    command:
+      - '--config.file=/etc/prometheus/prometheus.yml'
+      - '--storage.tsdb.path=/prometheus'
+      - '--web.enable-lifecycle'
+    restart: unless-stopped
+    networks:
+      - privacypool-monitoring
+
+  alertmanager:
+    image: prom/alertmanager:v0.26.0
+    container_name: privacypool-alertmanager
+    ports:
+      - "9093:9093"
+    volumes:
+      - ./alertmanager/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+      - alertmanager_data:/alertmanager
+    command:
+      - '--config.file=/etc/alertmanager/alertmanager.yml'
+    restart: unless-stopped
+    networks:
+      - privacypool-monitoring
+
+  grafana:
+    image: grafana/grafana:10.2.2
+    container_name: privacypool-grafana
+    ports:
+      - "3000:3000"
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/dashboards:/var/lib/grafana/dashboards:ro
+    environment:
+      - GF_SECURITY_ADMIN_USER=admin
+      - GF_SECURITY_ADMIN_PASSWORD=changeme
+    restart: unless-stopped
+    depends_on:
+      - prometheus
+    networks:
+      - privacypool-monitoring
+
+volumes:
+  prometheus_data:
+  alertmanager_data:
+  grafana_data:
+
+networks:
+  privacypool-monitoring:
+    driver: bridge
