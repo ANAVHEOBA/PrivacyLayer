@@ -1,0 +1,102 @@
+// Prisma Schema for PrivacyLayer Event Indexer
+// Stores all contract events for efficient querying
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Deposit events - emitted when user deposits into the shielded pool
+model DepositEvent {
+  id          String   @id @default(cuid())
+  commitment  String   // 32-byte hex string
+  leafIndex   Int      // Position in Merkle tree
+  root        String   // Merkle root after insertion
+  txHash      String   // Transaction hash
+  timestamp   DateTime @default(now())
+  ledger      BigInt   // Stellar ledger number
+  
+  @@index([commitment])
+  @@index([leafIndex])
+  @@index([timestamp])
+  @@index([ledger])
+  @@map("deposit_events")
+}
+
+// Withdrawal events - emitted when user withdraws from the shielded pool
+model WithdrawEvent {
+  id            String   @id @default(cuid())
+  nullifierHash String   // 32-byte hex string
+  recipient     String   // Stellar address
+  relayer       String?  // Optional relayer address
+  fee           BigInt   // Fee paid to relayer
+  amount        BigInt   // Amount withdrawn
+  txHash        String   // Transaction hash
+  timestamp     DateTime @default(now())
+  ledger        BigInt   // Stellar ledger number
+  
+  @@index([nullifierHash])
+  @@index([recipient])
+  @@index([timestamp])
+  @@index([ledger])
+  @@map("withdraw_events")
+}
+
+// Pool pause events - emitted when admin pauses the pool
+model PoolPausedEvent {
+  id        String   @id @default(cuid())
+  admin     String   // Admin address
+  txHash    String   // Transaction hash
+  timestamp DateTime @default(now())
+  ledger    BigInt   // Stellar ledger number
+  
+  @@index([timestamp])
+  @@map("pool_paused_events")
+}
+
+// Pool unpause events - emitted when admin unpauses the pool
+model PoolUnpausedEvent {
+  id        String   @id @default(cuid())
+  admin     String   // Admin address
+  txHash    String   // Transaction hash
+  timestamp DateTime @default(now())
+  ledger    BigInt   // Stellar ledger number
+  
+  @@index([timestamp])
+  @@map("pool_unpaused_events")
+}
+
+// Verifying key update events - emitted when admin updates the VK
+model VkUpdatedEvent {
+  id        String   @id @default(cuid())
+  admin     String   // Admin address
+  txHash    String   // Transaction hash
+  timestamp DateTime @default(now())
+  ledger    BigInt   // Stellar ledger number
+  
+  @@index([timestamp])
+  @@map("vk_updated_events")
+}
+
+// Merkle tree state - tracks the current state of the tree
+model MerkleTreeState {
+  id           String @id @default("singleton")
+  currentRoot  String // Current Merkle root
+  leafCount    Int    @default(0)
+  lastUpdated  DateTime @default(now())
+  
+  @@map("merkle_tree_state")
+}
+
+// Indexer state - tracks the last indexed ledger
+model IndexerState {
+  id           String @id @default("singleton")
+  lastLedger   BigInt @default(0)
+  lastUpdated  DateTime @default(now())
+  
+  @@map("indexer_state")
+}
