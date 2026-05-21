@@ -1,0 +1,261 @@
+{
+  "info": {
+    "name": "PrivacyLayer API",
+    "description": "Complete API collection for PrivacyLayer privacy pool on Stellar Soroban",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "CONTRACT_ADDRESS",
+      "value": "CCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "type": "string"
+    },
+    {
+      "key": "ADMIN_ADDRESS",
+      "value": "GABC...XYZ",
+      "type": "string"
+    },
+    {
+      "key": "USER_ADDRESS",
+      "value": "GDEF...ABC",
+      "type": "string"
+    },
+    {
+      "key": "NETWORK",
+      "value": "testnet",
+      "type": "string"
+    },
+    {
+      "key": "RPC_URL",
+      "value": "https://soroban-testnet.stellar.org",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Initialization",
+      "item": [
+        {
+          "name": "Initialize Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{ADMIN_ADDRESS}}\",\n  \"token\": \"CDLZFC3SYJYDZT7K67VZ75HPJVIEUVNIXF47ZG2FB2RMQQVU2HHGCYSC\",\n  \"denomination\": \"Xlm100\",\n  \"verifying_key\": {\n    \"alpha_g1\": \"0x...\",\n    \"beta_g2\": \"0x...\",\n    \"gamma_g2\": \"0x...\",\n    \"delta_g2\": \"0x...\",\n    \"gamma_abc_g1\": [\"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/initialize",
+              "host": ["{{RPC_URL}}"],
+              "path": ["initialize"]
+            },
+            "description": "Initialize the privacy pool with admin, token, denomination, and verifying key"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Core Operations",
+      "item": [
+        {
+          "name": "Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{USER_ADDRESS}}\",\n  \"commitment\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/deposit",
+              "host": ["{{RPC_URL}}"],
+              "path": ["deposit"]
+            },
+            "description": "Deposit funds into the shielded pool with a Poseidon commitment"
+          }
+        },
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": {\n    \"a\": \"0x...\",\n    \"b\": \"0x...\",\n    \"c\": \"0x...\"\n  },\n  \"public_inputs\": {\n    \"root\": \"0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890\",\n    \"nullifier_hash\": \"0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba\",\n    \"recipient\": \"0x1111111111111111111111111111111111111111111111111111111111111111\",\n    \"amount\": \"0x0000000000000000000000000000000000000000000000000000003b9aca00\",\n    \"relayer\": \"0x0000000000000000000000000000000000000000000000000000000000000000\",\n    \"fee\": \"0x0000000000000000000000000000000000000000000000000000000000000000\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/withdraw",
+              "host": ["{{RPC_URL}}"],
+              "path": ["withdraw"]
+            },
+            "description": "Withdraw funds using a zero-knowledge proof"
+          }
+        }
+      ]
+    },
+    {
+      "name": "View Functions",
+      "item": [
+        {
+          "name": "Get Root",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{RPC_URL}}/get_root",
+              "host": ["{{RPC_URL}}"],
+              "path": ["get_root"]
+            },
+            "description": "Get the current Merkle root"
+          }
+        },
+        {
+          "name": "Deposit Count",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{RPC_URL}}/deposit_count",
+              "host": ["{{RPC_URL}}"],
+              "path": ["deposit_count"]
+            },
+            "description": "Get total number of deposits"
+          }
+        },
+        {
+          "name": "Is Known Root",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{RPC_URL}}/is_known_root?root=0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890",
+              "host": ["{{RPC_URL}}"],
+              "path": ["is_known_root"],
+              "query": [
+                {
+                  "key": "root",
+                  "value": "0xabcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890"
+                }
+              ]
+            },
+            "description": "Check if a Merkle root is in the historical buffer"
+          }
+        },
+        {
+          "name": "Is Spent",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{RPC_URL}}/is_spent?nullifier_hash=0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba",
+              "host": ["{{RPC_URL}}"],
+              "path": ["is_spent"],
+              "query": [
+                {
+                  "key": "nullifier_hash",
+                  "value": "0x9876543210fedcba9876543210fedcba9876543210fedcba9876543210fedcba"
+                }
+              ]
+            },
+            "description": "Check if a nullifier has been spent"
+          }
+        },
+        {
+          "name": "Get Config",
+          "request": {
+            "method": "GET",
+            "url": {
+              "raw": "{{RPC_URL}}/get_config",
+              "host": ["{{RPC_URL}}"],
+              "path": ["get_config"]
+            },
+            "description": "Get pool configuration"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Admin Functions",
+      "item": [
+        {
+          "name": "Pause Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{ADMIN_ADDRESS}}\"\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/pause",
+              "host": ["{{RPC_URL}}"],
+              "path": ["pause"]
+            },
+            "description": "Pause all deposits and withdrawals (admin only)"
+          }
+        },
+        {
+          "name": "Unpause Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{ADMIN_ADDRESS}}\"\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/unpause",
+              "host": ["{{RPC_URL}}"],
+              "path": ["unpause"]
+            },
+            "description": "Resume deposits and withdrawals (admin only)"
+          }
+        },
+        {
+          "name": "Set Verifying Key",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{ADMIN_ADDRESS}}\",\n  \"new_verifying_key\": {\n    \"alpha_g1\": \"0x...\",\n    \"beta_g2\": \"0x...\",\n    \"gamma_g2\": \"0x...\",\n    \"delta_g2\": \"0x...\",\n    \"gamma_abc_g1\": [\"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\", \"0x...\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{RPC_URL}}/set_verifying_key",
+              "host": ["{{RPC_URL}}"],
+              "path": ["set_verifying_key"]
+            },
+            "description": "Update the Groth16 verifying key (admin only)"
+          }
+        }
+      ]
+    }
+  ]
+}

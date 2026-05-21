@@ -1,0 +1,724 @@
+openapi: 3.0.3
+info:
+  title: PrivacyLayer API
+  version: 1.0.0
+  description: |
+    # PrivacyLayer - Stellar Soroban Privacy Pool API
+
+    The first ZK-proof shielded pool on Stellar Soroban, powered by Protocol 25's native BN254 and Poseidon cryptographic primitives.
+
+    ## Overview
+
+    PrivacyLayer enables compliance-forward private transactions on Stellar. Users deposit fixed-denomination XLM or USDC into a shielded pool, then withdraw to any address using a zero-knowledge proof — with no on-chain link between deposit and withdrawal.
+
+    ## Architecture
+
+    - **Deposit**: User commits funds with a Poseidon hash commitment
+    - **Merkle Tree**: Commitments stored in on-chain incremental Merkle tree (depth 20)
+    - **Withdraw**: User generates Groth16 ZK proof and withdraws to any address
+    - **Verification**: On-chain Groth16 verification using BN254 pairing
+
+    ## Contract Methods
+
+    This API documents all public methods of the PrivacyPool Soroban smart contract.
+
+  contact:
+    name: PrivacyLayer Team
+    url: https://github.com/ANAVHEOBA/PrivacyLayer
+  license:
+    name: MIT
+    url: https://github.com/ANAVHEOBA/PrivacyLayer/blob/main/LICENSE
+
+servers:
+  - url: https://soroban-testnet.stellar.org
+    description: Stellar Testnet
+  - url: https://soroban-mainnet.stellar.org
+    description: Stellar Mainnet (when deployed)
+
+tags:
+  - name: Initialization
+    description: Contract initialization operations
+  - name: Core Operations
+    description: Deposit and withdrawal operations
+  - name: View Functions
+    description: Read-only query functions
+  - name: Admin Functions
+    description: Administrative operations (admin only)
+
+paths:
+  /initialize:
+    post:
+      tags:
+        - Initialization
+      summary: Initialize the privacy pool
+      description: |
+        Initialize the privacy pool contract. Must be called once before any deposits or withdrawals.
+        Sets the admin, token, denomination, and verifying key.
+
+        **Requirements:**
+        - Can only be called once
+        - Must be called before any other operations
+
+      operationId: initialize
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+                - token
+                - denomination
+                - verifying_key
+              properties:
+                admin:
+                  type: string
+                  description: Stellar address of the pool administrator
+                  example: "GABC...XYZ"
+                token:
+                  type: string
+                  description: Token contract address (XLM native or USDC)
+                  example: "CDLZ...ABC"
+                denomination:
+                  $ref: '#/components/schemas/Denomination'
+                verifying_key:
+                  $ref: '#/components/schemas/VerifyingKey'
+      responses:
+        '200':
+          description: Pool initialized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '409':
+          description: Pool already initialized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /deposit:
+    post:
+      tags:
+        - Core Operations
+      summary: Deposit into the shielded pool
+      description: |
+        Deposit funds into the privacy pool. Transfers the denomination amount from the sender
+        and inserts the commitment into the Merkle tree.
+
+        **Process:**
+        1. Generate a random nullifier and secret off-chain
+        2. Compute commitment = Poseidon2(nullifier, secret)
+        3. Call this endpoint with the commitment
+        4. Save the nullifier and secret securely (needed for withdrawal)
+
+        **Returns:**
+        - Leaf index in the Merkle tree
+        - Updated Merkle root
+
+      operationId: deposit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - from
+                - commitment
+              properties:
+                from:
+                  type: string
+                  description: Stellar address of the depositor
+                  example: "GABC...XYZ"
+                commitment:
+                  type: string
+                  format: hex
+                  description: 32-byte Poseidon2 commitment hash (hex-encoded)
+                  example: "0x1234567890abcdef..."
+                  minLength: 66
+                  maxLength: 66
+      responses:
+        '200':
+          description: Deposit successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leaf_index:
+                    type: integer
+                    format: uint32
+                    description: Index of the inserted leaf in the Merkle tree
+                    example: 42
+                  merkle_root:
+                    type: string
+                    format: hex
+                    description: Updated Merkle root after insertion
+                    example: "0xabcdef1234567890..."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Pool is paused
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /withdraw:
+    post:
+      tags:
+        - Core Operations
+      summary: Withdraw from the shielded pool using a ZK proof
+      description: |
+        Withdraw funds from the privacy pool to any address using a zero-knowledge proof.
+
+        **Process:**
+        1. Sync the Merkle tree state from the contract
+        2. Generate a Merkle proof for your commitment
+        3. Generate a Groth16 ZK proof using the Noir circuit
+        4. Call this endpoint with the proof and public inputs
+
+        **Verification:**
+        - Proof is valid (Groth16 pairing check)
+        - Root is in the historical root buffer
+        - Nullifier has not been spent
+        - Amount matches denomination
+
+      operationId: withdraw
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - proof
+                - public_inputs
+              properties:
+                proof:
+                  $ref: '#/components/schemas/Proof'
+                public_inputs:
+                  $ref: '#/components/schemas/PublicInputs'
+      responses:
+        '200':
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  nullifier_hash:
+                    type: string
+                    format: hex
+                    description: Nullifier hash that was marked as spent
+                    example: "0x9876543210fedcba..."
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '403':
+          description: Pool is paused or proof verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '409':
+          description: Nullifier already spent (double-spend attempt)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /get_root:
+    get:
+      tags:
+        - View Functions
+      summary: Get the current Merkle root
+      description: Returns the most recent Merkle root of the commitment tree
+      operationId: getRoot
+      responses:
+        '200':
+          description: Current Merkle root
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  root:
+                    type: string
+                    format: hex
+                    description: Current Merkle root (32 bytes, hex-encoded)
+                    example: "0xabcdef1234567890..."
+
+  /deposit_count:
+    get:
+      tags:
+        - View Functions
+      summary: Get total number of deposits
+      description: Returns the total number of deposits made to the pool
+      operationId: depositCount
+      responses:
+        '200':
+          description: Deposit count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    format: uint32
+                    description: Total number of deposits
+                    example: 137
+
+  /is_known_root:
+    get:
+      tags:
+        - View Functions
+      summary: Check if a root is in the historical root buffer
+      description: |
+        Verify if a given Merkle root exists in the historical root buffer.
+        Used during withdrawal to validate that the proof was generated against a valid historical state.
+      operationId: isKnownRoot
+      parameters:
+        - name: root
+          in: query
+          required: true
+          schema:
+            type: string
+            format: hex
+          description: Merkle root to check (32 bytes, hex-encoded)
+          example: "0xabcdef1234567890..."
+      responses:
+        '200':
+          description: Root validity check result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_known:
+                    type: boolean
+                    description: True if root is in the historical buffer
+                    example: true
+
+  /is_spent:
+    get:
+      tags:
+        - View Functions
+      summary: Check if a nullifier has been spent
+      description: |
+        Check if a nullifier hash has already been used in a withdrawal.
+        Prevents double-spending.
+      operationId: isSpent
+      parameters:
+        - name: nullifier_hash
+          in: query
+          required: true
+          schema:
+            type: string
+            format: hex
+          description: Nullifier hash to check (32 bytes, hex-encoded)
+          example: "0x9876543210fedcba..."
+      responses:
+        '200':
+          description: Nullifier spent status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_spent:
+                    type: boolean
+                    description: True if nullifier has been spent
+                    example: false
+
+  /get_config:
+    get:
+      tags:
+        - View Functions
+      summary: Get pool configuration
+      description: Returns the current pool configuration including admin, token, denomination, and pause status
+      operationId: getConfig
+      responses:
+        '200':
+          description: Pool configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolConfig'
+
+  /pause:
+    post:
+      tags:
+        - Admin Functions
+      summary: Pause the pool
+      description: |
+        Pause all deposits and withdrawals. Admin only.
+
+        **Requirements:**
+        - Caller must be the admin address
+        - Pool must not already be paused
+      operationId: pause
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+              properties:
+                admin:
+                  type: string
+                  description: Admin address (must match configured admin)
+                  example: "GABC...XYZ"
+      responses:
+        '200':
+          description: Pool paused successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized - caller is not admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /unpause:
+    post:
+      tags:
+        - Admin Functions
+      summary: Unpause the pool
+      description: |
+        Resume deposits and withdrawals. Admin only.
+
+        **Requirements:**
+        - Caller must be the admin address
+        - Pool must be paused
+      operationId: unpause
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+              properties:
+                admin:
+                  type: string
+                  description: Admin address (must match configured admin)
+                  example: "GABC...XYZ"
+      responses:
+        '200':
+          description: Pool unpaused successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized - caller is not admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /set_verifying_key:
+    post:
+      tags:
+        - Admin Functions
+      summary: Update the Groth16 verifying key
+      description: |
+        Update the verifying key used for proof verification. Admin only.
+
+        **Use case:** Circuit upgrades or bug fixes that require a new verifying key.
+
+        **Requirements:**
+        - Caller must be the admin address
+        - New verifying key must be valid
+      operationId: setVerifyingKey
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+                - new_verifying_key
+              properties:
+                admin:
+                  type: string
+                  description: Admin address (must match configured admin)
+                  example: "GABC...XYZ"
+                new_verifying_key:
+                  $ref: '#/components/schemas/VerifyingKey'
+      responses:
+        '200':
+          description: Verifying key updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+        '401':
+          description: Unauthorized - caller is not admin
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+components:
+  schemas:
+    Denomination:
+      type: string
+      enum:
+        - Xlm10
+        - Xlm100
+        - Xlm1000
+        - Usdc100
+        - Usdc1000
+      description: |
+        Fixed denomination amounts supported by the pool.
+        Using fixed denominations prevents amount-based correlation attacks.
+
+        - **Xlm10**: 10 XLM (100,000,000 stroops)
+        - **Xlm100**: 100 XLM (1,000,000,000 stroops)
+        - **Xlm1000**: 1000 XLM (10,000,000,000 stroops)
+        - **Usdc100**: 100 USDC (100,000,000 microunits, 6 decimals)
+        - **Usdc1000**: 1000 USDC (1,000,000,000 microunits)
+      example: "Xlm100"
+
+    VerifyingKey:
+      type: object
+      description: |
+        Groth16 verifying key for BN254 curve.
+        Used to verify withdrawal proofs on-chain.
+
+        **Structure:**
+        - alpha_g1: G1 point (64 bytes)
+        - beta_g2: G2 point (128 bytes)
+        - gamma_g2: G2 point (128 bytes)
+        - delta_g2: G2 point (128 bytes)
+        - gamma_abc_g1: Array of G1 points (7 points × 64 bytes = 448 bytes)
+
+        Total: 896 bytes
+      required:
+        - alpha_g1
+        - beta_g2
+        - gamma_g2
+        - delta_g2
+        - gamma_abc_g1
+      properties:
+        alpha_g1:
+          type: string
+          format: hex
+          description: G1 point alpha (64 bytes, hex-encoded)
+          minLength: 130
+          maxLength: 130
+        beta_g2:
+          type: string
+          format: hex
+          description: G2 point beta (128 bytes, hex-encoded)
+          minLength: 258
+          maxLength: 258
+        gamma_g2:
+          type: string
+          format: hex
+          description: G2 point gamma (128 bytes, hex-encoded)
+          minLength: 258
+          maxLength: 258
+        delta_g2:
+          type: string
+          format: hex
+          description: G2 point delta (128 bytes, hex-encoded)
+          minLength: 258
+          maxLength: 258
+        gamma_abc_g1:
+          type: array
+          description: Array of G1 points for public input combination (7 points)
+          items:
+            type: string
+            format: hex
+            minLength: 130
+            maxLength: 130
+          minItems: 7
+          maxItems: 7
+
+    Proof:
+      type: object
+      description: |
+        Groth16 proof — three elliptic curve points on BN254.
+
+        **Structure:**
+        - a: G1 point (64 bytes)
+        - b: G2 point (128 bytes)
+        - c: G1 point (64 bytes)
+
+        Total: 256 bytes
+      required:
+        - a
+        - b
+        - c
+      properties:
+        a:
+          type: string
+          format: hex
+          description: G1 point A (64 bytes, hex-encoded)
+          minLength: 130
+          maxLength: 130
+        b:
+          type: string
+          format: hex
+          description: G2 point B (128 bytes, hex-encoded)
+          minLength: 258
+          maxLength: 258
+        c:
+          type: string
+          format: hex
+          description: G1 point C (64 bytes, hex-encoded)
+          minLength: 130
+          maxLength: 130
+
+    PublicInputs:
+      type: object
+      description: |
+        Public inputs to the withdrawal Groth16 proof.
+        Order must match the circuit's public input ordering.
+      required:
+        - root
+        - nullifier_hash
+        - recipient
+        - amount
+        - relayer
+        - fee
+      properties:
+        root:
+          type: string
+          format: hex
+          description: Merkle root at deposit time (must be a known historical root)
+          example: "0xabcdef1234567890..."
+          minLength: 66
+          maxLength: 66
+        nullifier_hash:
+          type: string
+          format: hex
+          description: Poseidon2(nullifier, root) — prevents double-spend
+          example: "0x9876543210fedcba..."
+          minLength: 66
+          maxLength: 66
+        recipient:
+          type: string
+          format: hex
+          description: Stellar address of withdrawal recipient (as field element)
+          example: "0x1234567890abcdef..."
+          minLength: 66
+          maxLength: 66
+        amount:
+          type: string
+          format: hex
+          description: Denomination amount being withdrawn (as field element)
+          example: "0x0000000000000000..."
+          minLength: 66
+          maxLength: 66
+        relayer:
+          type: string
+          format: hex
+          description: Relayer address (zero if none)
+          example: "0x0000000000000000..."
+          minLength: 66
+          maxLength: 66
+        fee:
+          type: string
+          format: hex
+          description: Relayer fee (zero if none)
+          example: "0x0000000000000000..."
+          minLength: 66
+          maxLength: 66
+
+    PoolConfig:
+      type: object
+      description: Pool configuration — set at initialization
+      properties:
+        admin:
+          type: string
+          description: Pool administrator address
+          example: "GABC...XYZ"
+        token:
+          type: string
+          description: Token contract address
+          example: "CDLZ...ABC"
+        denomination:
+          $ref: '#/components/schemas/Denomination'
+        tree_depth:
+          type: integer
+          format: uint32
+          description: Merkle tree depth (always 20)
+          example: 20
+        root_history_size:
+          type: integer
+          format: uint32
+          description: Maximum number of historical roots to keep
+          example: 100
+        paused:
+          type: boolean
+          description: Whether deposits/withdrawals are paused
+          example: false
+
+    Error:
+      type: object
+      properties:
+        error:
+          type: string
+          description: Error message
+          example: "Pool is paused"
+        code:
+          type: string
+          description: Error code
+          example: "POOL_PAUSED"
+
+  responses:
+    BadRequest:
+      description: Invalid request parameters
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+          example:
+            error: "Invalid commitment format"
+            code: "INVALID_INPUT"
+
+  securitySchemes:
+    StellarAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: |
+        Stellar transaction signing authentication.
+        Transactions must be signed by the appropriate Stellar account.
+
+security:
+  - StellarAuth: []
