@@ -1,0 +1,404 @@
+{
+  "contract": "PrivacyPool",
+  "version": "1.0.0",
+  "description": "ZK-proof shielded pool on Stellar Soroban",
+  "functions": [
+    {
+      "name": "initialize",
+      "type": "write",
+      "description": "Initialize the privacy pool. Must be called once before any deposits or withdrawals.",
+      "parameters": [
+        {
+          "name": "admin",
+          "type": "Address",
+          "description": "Admin address (becomes contract admin)"
+        },
+        {
+          "name": "token",
+          "type": "Address",
+          "description": "Token contract address (XLM or USDC)"
+        },
+        {
+          "name": "denomination",
+          "type": "Denomination",
+          "description": "Fixed deposit denomination",
+          "enum": ["XLM_10", "XLM_100", "USDC_10", "USDC_100"]
+        },
+        {
+          "name": "vk",
+          "type": "VerifyingKey",
+          "description": "Groth16 verifying key"
+        }
+      ],
+      "returns": {
+        "type": "Result<(), Error>",
+        "description": "Success or error"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Initialize pool with XLM 10 denomination",
+          "code": "await contract.initialize(admin, token, { XLM: 10_000_000n }, verifyingKey);"
+        }
+      ]
+    },
+    {
+      "name": "deposit",
+      "type": "write",
+      "description": "Deposit into the shielded pool. Transfers denomination amount and inserts commitment into Merkle tree.",
+      "parameters": [
+        {
+          "name": "from",
+          "type": "Address",
+          "description": "Depositor address"
+        },
+        {
+          "name": "commitment",
+          "type": "BytesN<32>",
+          "description": "Poseidon hash of (nullifier || secret)"
+        }
+      ],
+      "returns": {
+        "type": "Result<(u32, BytesN<32>), Error>",
+        "description": "Leaf index and commitment"
+      },
+      "access": "public",
+      "events": [
+        {
+          "name": "deposit",
+          "data": {
+            "from": "Address",
+            "commitment": "BytesN<32>",
+            "leaf_index": "u32",
+            "timestamp": "u64"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "description": "Deposit 10 XLM",
+          "code": "const { nullifier, secret } = generateNote();\nconst commitment = poseidonHash(nullifier, secret);\nconst { leafIndex, commitment } = await contract.deposit(from, commitment);"
+        }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "type": "write",
+      "description": "Withdraw from the shielded pool using a ZK proof. Verifies proof and transfers funds to recipient.",
+      "parameters": [
+        {
+          "name": "proof",
+          "type": "Proof",
+          "description": "Groth16 proof"
+        },
+        {
+          "name": "pub_inputs",
+          "type": "PublicInputs",
+          "description": "Public inputs for proof verification"
+        }
+      ],
+      "returns": {
+        "type": "Result<bool, Error>",
+        "description": "Success status"
+      },
+      "access": "public",
+      "events": [
+        {
+          "name": "withdraw",
+          "data": {
+            "recipient": "Address",
+            "nullifier_hash": "BytesN<32>",
+            "amount": "i128",
+            "timestamp": "u64"
+          }
+        }
+      ],
+      "examples": [
+        {
+          "description": "Withdraw with ZK proof",
+          "code": "const proof = await generateProof(note, merkleProof);\nconst pubInputs = { root, nullifierHash, recipient };\nawait contract.withdraw(proof, pubInputs);"
+        }
+      ]
+    },
+    {
+      "name": "get_root",
+      "type": "read",
+      "description": "Returns the current Merkle root (most recent).",
+      "parameters": [],
+      "returns": {
+        "type": "Result<BytesN<32>, Error>",
+        "description": "Current Merkle root"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Get current root",
+          "code": "const root = await contract.getRoot();\nconsole.log('Current root:', root);"
+        }
+      ]
+    },
+    {
+      "name": "deposit_count",
+      "type": "read",
+      "description": "Returns the total number of deposits.",
+      "parameters": [],
+      "returns": {
+        "type": "u32",
+        "description": "Total deposit count"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Get deposit count",
+          "code": "const count = await contract.depositCount();\nconsole.log('Total deposits:', count);"
+        }
+      ]
+    },
+    {
+      "name": "is_known_root",
+      "type": "read",
+      "description": "Check if a root is in the historical root buffer.",
+      "parameters": [
+        {
+          "name": "root",
+          "type": "BytesN<32>",
+          "description": "Merkle root to check"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "description": "True if root is valid"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Verify root validity",
+          "code": "const isValid = await contract.isKnownRoot(root);\nif (!isValid) throw new Error('Invalid root');"
+        }
+      ]
+    },
+    {
+      "name": "is_spent",
+      "type": "read",
+      "description": "Check if a nullifier has been spent (prevents double-spend).",
+      "parameters": [
+        {
+          "name": "nullifier_hash",
+          "type": "BytesN<32>",
+          "description": "Nullifier hash to check"
+        }
+      ],
+      "returns": {
+        "type": "bool",
+        "description": "True if nullifier is spent"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Check if note is spent",
+          "code": "const isSpent = await contract.isSpent(nullifierHash);\nif (isSpent) throw new Error('Note already spent');"
+        }
+      ]
+    },
+    {
+      "name": "get_config_view",
+      "type": "read",
+      "description": "Returns the pool configuration.",
+      "parameters": [],
+      "returns": {
+        "type": "Result<PoolConfig, Error>",
+        "description": "Pool configuration"
+      },
+      "access": "public",
+      "examples": [
+        {
+          "description": "Get pool config",
+          "code": "const config = await contract.getConfigView();\nconsole.log('Admin:', config.admin);\nconsole.log('Token:', config.token);"
+        }
+      ]
+    },
+    {
+      "name": "pause",
+      "type": "write",
+      "description": "Pause the pool (admin only). Blocks all deposits and withdrawals.",
+      "parameters": [
+        {
+          "name": "admin",
+          "type": "Address",
+          "description": "Admin address (must sign)"
+        }
+      ],
+      "returns": {
+        "type": "Result<(), Error>",
+        "description": "Success or error"
+      },
+      "access": "admin",
+      "examples": [
+        {
+          "description": "Pause pool",
+          "code": "await contract.pause(admin);"
+        }
+      ]
+    },
+    {
+      "name": "unpause",
+      "type": "write",
+      "description": "Unpause the pool (admin only). Resumes deposits and withdrawals.",
+      "parameters": [
+        {
+          "name": "admin",
+          "type": "Address",
+          "description": "Admin address (must sign)"
+        }
+      ],
+      "returns": {
+        "type": "Result<(), Error>",
+        "description": "Success or error"
+      },
+      "access": "admin",
+      "examples": [
+        {
+          "description": "Unpause pool",
+          "code": "await contract.unpause(admin);"
+        }
+      ]
+    },
+    {
+      "name": "set_verifying_key",
+      "type": "write",
+      "description": "Update the Groth16 verifying key (admin only). Used for circuit upgrades.",
+      "parameters": [
+        {
+          "name": "admin",
+          "type": "Address",
+          "description": "Admin address (must sign)"
+        },
+        {
+          "name": "new_vk",
+          "type": "VerifyingKey",
+          "description": "New verifying key"
+        }
+      ],
+      "returns": {
+        "type": "Result<(), Error>",
+        "description": "Success or error"
+      },
+      "access": "admin",
+      "examples": [
+        {
+          "description": "Update verifying key",
+          "code": "await contract.setVerifyingKey(admin, newVerifyingKey);"
+        }
+      ]
+    }
+  ],
+  "types": {
+    "Denomination": {
+      "type": "enum",
+      "variants": [
+        { "name": "XLM_10", "value": "10_000_000" },
+        { "name": "XLM_100", "value": "100_000_000" },
+        { "name": "USDC_10", "value": "10_000_000" },
+        { "name": "USDC_100", "value": "100_000_000" }
+      ]
+    },
+    "VerifyingKey": {
+      "type": "struct",
+      "fields": [
+        { "name": "alpha", "type": "BytesN<64>", "description": "G1 point" },
+        { "name": "beta", "type": "BytesN<128>", "description": "G2 point" },
+        { "name": "gamma", "type": "BytesN<128>", "description": "G2 point" },
+        { "name": "delta", "type": "BytesN<128>", "description": "G2 point" },
+        { "name": "ic", "type": "Vec<BytesN<64>>", "description": "G1 points for public inputs" }
+      ]
+    },
+    "Proof": {
+      "type": "struct",
+      "fields": [
+        { "name": "a", "type": "BytesN<64>", "description": "G1 point" },
+        { "name": "b", "type": "BytesN<128>", "description": "G2 point" },
+        { "name": "c", "type": "BytesN<64>", "description": "G1 point" }
+      ]
+    },
+    "PublicInputs": {
+      "type": "struct",
+      "fields": [
+        { "name": "root", "type": "BytesN<32>", "description": "Merkle root" },
+        { "name": "nullifier_hash", "type": "BytesN<32>", "description": "Nullifier hash" },
+        { "name": "recipient", "type": "Address", "description": "Withdrawal recipient" }
+      ]
+    },
+    "PoolConfig": {
+      "type": "struct",
+      "fields": [
+        { "name": "admin", "type": "Address" },
+        { "name": "token", "type": "Address" },
+        { "name": "denomination", "type": "Denomination" },
+        { "name": "is_paused", "type": "bool" },
+        { "name": "verifying_key", "type": "VerifyingKey" }
+      ]
+    },
+    "Error": {
+      "type": "enum",
+      "variants": [
+        { "name": "AlreadyInitialized", "description": "Contract already initialized" },
+        { "name": "NotInitialized", "description": "Contract not initialized" },
+        { "name": "InvalidCommitment", "description": "Invalid commitment format" },
+        { "name": "InvalidProof", "description": "ZK proof verification failed" },
+        { "name": "DoubleSpend", "description": "Nullifier already spent" },
+        { "name": "InsufficientBalance", "description": "Insufficient token balance" },
+        { "name": "Paused", "description": "Pool is paused" },
+        { "name": "Unauthorized", "description": "Caller is not admin" },
+        { "name": "UnknownRoot", "description": "Merkle root not found" }
+      ]
+    }
+  },
+  "events": [
+    {
+      "name": "initialize",
+      "description": "Emitted when pool is initialized",
+      "fields": [
+        { "name": "admin", "type": "Address" },
+        { "name": "token", "type": "Address" },
+        { "name": "denomination", "type": "Denomination" },
+        { "name": "timestamp", "type": "u64" }
+      ]
+    },
+    {
+      "name": "deposit",
+      "description": "Emitted on successful deposit",
+      "fields": [
+        { "name": "from", "type": "Address" },
+        { "name": "commitment", "type": "BytesN<32>" },
+        { "name": "leaf_index", "type": "u32" },
+        { "name": "timestamp", "type": "u64" }
+      ]
+    },
+    {
+      "name": "withdraw",
+      "description": "Emitted on successful withdrawal",
+      "fields": [
+        { "name": "recipient", "type": "Address" },
+        { "name": "nullifier_hash", "type": "BytesN<32>" },
+        { "name": "amount", "type": "i128" },
+        { "name": "timestamp", "type": "u64" }
+      ]
+    },
+    {
+      "name": "pause",
+      "description": "Emitted when pool is paused",
+      "fields": [
+        { "name": "admin", "type": "Address" },
+        { "name": "timestamp", "type": "u64" }
+      ]
+    },
+    {
+      "name": "unpause",
+      "description": "Emitted when pool is unpaused",
+      "fields": [
+        { "name": "admin", "type": "Address" },
+        { "name": "timestamp", "type": "u64" }
+      ]
+    }
+  ]
+}

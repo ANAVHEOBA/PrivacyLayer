@@ -1,0 +1,359 @@
+{
+  "info": {
+    "_postman_id": "privacy-layer-api-collection",
+    "name": "PrivacyLayer API",
+    "description": "Zero-knowledge shielded pool on Stellar Soroban\n\nThis collection contains all API endpoints for the PrivacyLayer privacy pool contract.\n\n**Contract:** PrivacyPool  \n**Network:** Stellar Soroban (Testnet)  \n**Version:** 1.0.0",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "variable": [
+    {
+      "key": "rpc_url",
+      "value": "https://soroban-test.stellar.org",
+      "type": "string"
+    },
+    {
+      "key": "contract_id",
+      "value": "CA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAXE",
+      "type": "string"
+    },
+    {
+      "key": "admin_key",
+      "value": "SCXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX",
+      "type": "string",
+      "description": "Admin secret key"
+    },
+    {
+      "key": "user_key",
+      "value": "SCYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY",
+      "type": "string",
+      "description": "User secret key"
+    }
+  ],
+  "auth": {
+    "type": "noauth"
+  },
+  "item": [
+    {
+      "name": "View Functions",
+      "item": [
+        {
+          "name": "Get Merkle Root",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"simulateTransaction\",\n  \"params\": {\n    \"transaction\": \"{{tx_blob}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}",
+              "host": ["{{rpc_url}}"]
+            },
+            "description": "Returns the current Merkle tree root"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Deposit Count",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"getLedgerEntries\",\n  \"params\": {\n    \"keys\": [\"contract_data\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}",
+              "host": ["{{rpc_url}}"]
+            },
+            "description": "Returns total number of deposits"
+          },
+          "response": []
+        },
+        {
+          "name": "Check Root Validity",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"root\": \"0xabcdef1234567890...\"\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/is-known-root/:root",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "is-known-root", ":root"],
+              "variable": [
+                {
+                  "key": "root",
+                  "value": "0xabcdef1234567890"
+                }
+              ]
+            },
+            "description": "Check if a Merkle root is valid"
+          },
+          "response": []
+        },
+        {
+          "name": "Check Nullifier Spent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nullifier_hash\": \"0x1234567890abcdef...\"\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/is-spent/:nullifier",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "is-spent", ":nullifier"],
+              "variable": [
+                {
+                  "key": "nullifier",
+                  "value": "0x1234567890abcdef"
+                }
+              ]
+            },
+            "description": "Check if a nullifier has been spent"
+          },
+          "response": []
+        },
+        {
+          "name": "Get Pool Config",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"jsonrpc\": \"2.0\",\n  \"id\": 1,\n  \"method\": \"simulateTransaction\",\n  \"params\": {\n    \"transaction\": \"{{tx_blob}}\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}",
+              "host": ["{{rpc_url}}"]
+            },
+            "description": "Get pool configuration (admin, token, denomination)"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Core Operations",
+      "item": [
+        {
+          "name": "Initialize Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"token\": \"CA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAXE\",\n  \"denomination\": \"XLM_10\",\n  \"vk\": {\n    \"alpha\": \"0x...\",\n    \"beta\": \"0x...\",\n    \"gamma\": \"0x...\",\n    \"delta\": \"0x...\",\n    \"ic\": [\"0x...\", \"0x...\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/initialize",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "initialize"]
+            },
+            "description": "Initialize the privacy pool (one-time setup)"
+          },
+          "response": []
+        },
+        {
+          "name": "Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"commitment\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/deposit",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "deposit"]
+            },
+            "description": "Deposit funds into the shielded pool"
+          },
+          "response": []
+        },
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": {\n    \"a\": \"0x...\",\n    \"b\": \"0x...\",\n    \"c\": \"0x...\"\n  },\n  \"public_inputs\": {\n    \"root\": \"0x...\",\n    \"nullifier_hash\": \"0x...\",\n    \"recipient\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/withdraw",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "withdraw"]
+            },
+            "description": "Withdraw funds using ZK proof"
+          },
+          "response": []
+        }
+      ]
+    },
+    {
+      "name": "Admin Functions",
+      "item": [
+        {
+          "name": "Pause Pool",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{admin_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-Stellar-Signature",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/pause",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "pause"]
+            },
+            "description": "Pause the pool (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Unpause Pool",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{admin_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-Stellar-Signature",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\"\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/unpause",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "unpause"]
+            },
+            "description": "Unpause the pool (admin only)"
+          },
+          "response": []
+        },
+        {
+          "name": "Update Verifying Key",
+          "request": {
+            "auth": {
+              "type": "apikey",
+              "apikey": [
+                {
+                  "key": "value",
+                  "value": "{{admin_key}}",
+                  "type": "string"
+                },
+                {
+                  "key": "key",
+                  "value": "X-Stellar-Signature",
+                  "type": "string"
+                }
+              ]
+            },
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"new_vk\": {\n    \"alpha\": \"0x...\",\n    \"beta\": \"0x...\",\n    \"gamma\": \"0x...\",\n    \"delta\": \"0x...\",\n    \"ic\": [\"0x...\", \"0x...\"]\n  }\n}"
+            },
+            "url": {
+              "raw": "{{rpc_url}}/contracts/{{contract_id}}/verifying-key",
+              "host": ["{{rpc_url}}"],
+              "path": ["contracts", "{{contract_id}}", "verifying-key"]
+            },
+            "description": "Update Groth16 verifying key (admin only)"
+          },
+          "response": []
+        }
+      ]
+    }
+  ]
+}

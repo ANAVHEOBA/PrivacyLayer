@@ -1,0 +1,577 @@
+openapi: 3.0.3
+info:
+  title: PrivacyLayer API
+  description: |
+    # PrivacyLayer - ZK Shielded Pool on Stellar Soroban
+    
+    The first zero-knowledge proof shielded pool on Stellar Protocol 25, 
+    powered by native BN254 and Poseidon cryptographic primitives.
+    
+    ## Features
+    
+    - **Private Transactions**: No on-chain link between deposit and withdrawal
+    - **ZK Proofs**: Groth16 proofs verified on-chain via BN254 pairing
+    - **Compliance-Forward**: Designed for regulatory compliance
+    - **Fixed Denominations**: XLM or USDC deposits
+    
+    ## Authentication
+    
+    All transactions require a Soroban-compatible wallet (e.g., Freighter).
+    Transactions are signed and submitted via the Stellar network.
+    
+    ## Links
+    
+    - [GitHub Repository](https://github.com/ANAVHEOBA/PrivacyLayer)
+    - [Stellar Protocol 25](https://stellar.org)
+    - [Soroban Docs](https://soroban.stellar.org)
+    
+  version: 1.0.0
+  contact:
+    name: PrivacyLayer Team
+    url: https://github.com/ANAVHEOBA/PrivacyLayer
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: https://soroban-test.stellar.org
+    description: Stellar Testnet (Soroban)
+  - url: https://mainnet.stellar.org
+    description: Stellar Mainnet (Future)
+
+tags:
+  - name: Core Operations
+    description: Deposit and withdrawal operations
+  - name: View Functions
+    description: Read-only query functions
+  - name: Admin Functions
+    description: Administrative operations (admin only)
+  - name: Contract Info
+    description: Contract metadata and configuration
+
+paths:
+  /contracts/{contract_id}/initialize:
+    post:
+      tags:
+        - Core Operations
+      summary: Initialize Privacy Pool
+      description: |
+        Initialize the privacy pool contract. Must be called once before any 
+        deposits or withdrawals. Sets the admin, token, denomination, and 
+        verifying key.
+        
+        **Requirements:**
+        - Can only be called once
+        - Caller becomes the admin
+        - Verifying key must be valid Groth16 VK
+      operationId: initializePool
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "CA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAXE"
+          description: Soroban contract address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+                - token
+                - denomination
+                - vk
+              properties:
+                admin:
+                  type: string
+                  description: Admin address (Stellar public key)
+                  example: "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                token:
+                  type: string
+                  description: Token contract address (XLM or USDC)
+                  example: "CA3D5KRYM6CB7OWQ6TWYRR3Z4T7GNZLKERYNZGGA5SOAOPIFY6YQGAXE"
+                denomination:
+                  type: string
+                  enum: [XLM_10, XLM_100, USDC_10, USDC_100]
+                  description: Fixed deposit denomination
+                vk:
+                  $ref: '#/components/schemas/VerifyingKey'
+      responses:
+        '200':
+          description: Pool initialized successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  transaction_hash:
+                    type: string
+                    example: "abc123..."
+        '400':
+          description: Invalid parameters or already initialized
+        '401':
+          description: Unauthorized (not admin)
+
+  /contracts/{contract_id}/deposit:
+    post:
+      tags:
+        - Core Operations
+      summary: Deposit to Shielded Pool
+      description: |
+        Deposit funds into the shielded pool. Transfers the denomination amount 
+        from the user and inserts the commitment into the Merkle tree.
+        
+        **Process:**
+        1. Generate nullifier and secret (client-side)
+        2. Compute commitment = Poseidon(nullifier || secret)
+        3. Call deposit with commitment
+        4. Receive leaf index for future withdrawal
+      operationId: deposit
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Soroban contract address
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - from
+                - commitment
+              properties:
+                from:
+                  type: string
+                  description: Depositor address
+                  example: "GAXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX"
+                commitment:
+                  type: string
+                  format: byte
+                  description: Poseidon hash of (nullifier || secret)
+                  example: "0x1234567890abcdef..."
+      responses:
+        '200':
+          description: Deposit successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  leaf_index:
+                    type: integer
+                    description: Position in Merkle tree
+                    example: 42
+                  commitment:
+                    type: string
+                    description: The committed value
+        '400':
+          description: Invalid commitment or insufficient balance
+        '403':
+          description: Pool is paused
+
+  /contracts/{contract_id}/withdraw:
+    post:
+      tags:
+        - Core Operations
+      summary: Withdraw from Shielded Pool
+      description: |
+        Withdraw funds from the shielded pool using a zero-knowledge proof.
+        
+        **Process:**
+        1. Sync Merkle tree (client-side)
+        2. Generate Merkle proof for your note
+        3. Create ZK proof (Groth16 via Noir)
+        4. Submit proof to withdraw
+        5. Receive funds at new address
+        
+        **Privacy:** No on-chain link between deposit and withdrawal address.
+      operationId: withdraw
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - proof
+                - public_inputs
+              properties:
+                proof:
+                  $ref: '#/components/schemas/Proof'
+                public_inputs:
+                  $ref: '#/components/schemas/PublicInputs'
+      responses:
+        '200':
+          description: Withdrawal successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  transaction_hash:
+                    type: string
+        '400':
+          description: Invalid proof or already spent
+        '403':
+          description: Pool is paused
+
+  /contracts/{contract_id}/root:
+    get:
+      tags:
+        - View Functions
+      summary: Get Current Merkle Root
+      description: Returns the current (most recent) Merkle tree root.
+      operationId: getRoot
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Current Merkle root
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  root:
+                    type: string
+                    format: byte
+                    example: "0xabcdef1234567890..."
+
+  /contracts/{contract_id}/deposit-count:
+    get:
+      tags:
+        - View Functions
+      summary: Get Total Deposits
+      description: Returns the total number of deposits made to the pool.
+      operationId: getDepositCount
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Total deposit count
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  count:
+                    type: integer
+                    example: 1547
+
+  /contracts/{contract_id}/is-known-root/{root}:
+    get:
+      tags:
+        - View Functions
+      summary: Check if Root is Valid
+      description: Check if a Merkle root is in the historical root buffer.
+      operationId: isKnownRoot
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: root
+          in: path
+          required: true
+          schema:
+            type: string
+            format: byte
+      responses:
+        '200':
+          description: Root validity check
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_known:
+                    type: boolean
+                    example: true
+
+  /contracts/{contract_id}/is-spent/{nullifier}:
+    get:
+      tags:
+        - View Functions
+      summary: Check if Nullifier is Spent
+      description: Check if a nullifier has already been spent (prevents double-spend).
+      operationId: isSpent
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: nullifier
+          in: path
+          required: true
+          schema:
+            type: string
+            format: byte
+      responses:
+        '200':
+          description: Nullifier status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  is_spent:
+                    type: boolean
+                    example: false
+
+  /contracts/{contract_id}/config:
+    get:
+      tags:
+        - Contract Info
+      summary: Get Pool Configuration
+      description: Returns the pool configuration (admin, token, denomination).
+      operationId: getConfig
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Pool configuration
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PoolConfig'
+
+  /contracts/{contract_id}/pause:
+    post:
+      tags:
+        - Admin Functions
+      summary: Pause the Pool
+      description: |
+        Pause all deposit and withdrawal operations.
+        
+        **Requirements:**
+        - Admin only
+        - Emergency use (e.g., vulnerability discovered)
+      operationId: pause
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin:
+                  type: string
+                  description: Admin address (must sign transaction)
+      responses:
+        '200':
+          description: Pool paused successfully
+        '401':
+          description: Unauthorized (not admin)
+
+  /contracts/{contract_id}/unpause:
+    post:
+      tags:
+        - Admin Functions
+      summary: Unpause the Pool
+      description: |
+        Resume deposit and withdrawal operations.
+        
+        **Requirements:**
+        - Admin only
+      operationId: unpause
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                admin:
+                  type: string
+      responses:
+        '200':
+          description: Pool unpaused successfully
+        '401':
+          description: Unauthorized
+
+  /contracts/{contract_id}/verifying-key:
+    put:
+      tags:
+        - Admin Functions
+      summary: Update Verifying Key
+      description: |
+        Update the Groth16 verifying key.
+        
+        **Requirements:**
+        - Admin only
+        - Used for circuit upgrades
+      operationId: setVerifyingKey
+      security:
+        - AdminAuth: []
+      parameters:
+        - name: contract_id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - admin
+                - new_vk
+              properties:
+                admin:
+                  type: string
+                new_vk:
+                  $ref: '#/components/schemas/VerifyingKey'
+      responses:
+        '200':
+          description: Verifying key updated
+        '401':
+          description: Unauthorized
+
+components:
+  schemas:
+    VerifyingKey:
+      type: object
+      description: Groth16 verifying key for ZK proof verification
+      required:
+        - alpha
+        - beta
+        - gamma
+        - delta
+        - ic
+      properties:
+        alpha:
+          type: string
+          description: G1 point (hex encoded)
+          example: "0x1234..."
+        beta:
+          type: string
+          description: G2 point (hex encoded)
+          example: "0x5678..."
+        gamma:
+          type: string
+          description: G2 point (hex encoded)
+        delta:
+          type: string
+          description: G2 point (hex encoded)
+        ic:
+          type: array
+          items:
+            type: string
+            description: G1 points for public inputs
+          example: ["0xaaaa...", "0xbbbb..."]
+
+    Proof:
+      type: object
+      description: Groth16 zero-knowledge proof
+      required:
+        - a
+        - b
+        - c
+      properties:
+        a:
+          type: string
+          description: G1 point (hex encoded)
+        b:
+          type: string
+          description: G2 point (hex encoded)
+        c:
+          type: string
+          description: G1 point (hex encoded)
+
+    PublicInputs:
+      type: object
+      description: Public inputs for ZK proof verification
+      required:
+        - root
+        - nullifier_hash
+        -recipient
+      properties:
+        root:
+          type: string
+          description: Merkle root at time of proof
+        nullifier_hash:
+          type: string
+          description: Hash of nullifier (prevents double-spend)
+        recipient:
+          type: string
+          description: Withdrawal recipient address
+
+    PoolConfig:
+      type: object
+      description: Privacy pool configuration
+      properties:
+        admin:
+          type: string
+          description: Admin address
+        token:
+          type: string
+          description: Token contract address
+        denomination:
+          type: string
+          enum: [XLM_10, XLM_100, USDC_10, USDC_100]
+        is_paused:
+          type: boolean
+          description: Whether pool is paused
+        verifying_key:
+          $ref: '#/components/schemas/VerifyingKey'
+
+  securitySchemes:
+    AdminAuth:
+      type: apiKey
+      name: X-Stellar-Signature
+      in: header
+      description: Admin-signed transaction required
+
+security:
+  - AdminAuth: false
