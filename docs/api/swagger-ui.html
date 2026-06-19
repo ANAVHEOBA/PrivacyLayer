@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>PrivacyLayer API Documentation</title>
+  <link rel="stylesheet" type="text/css" href="https://unpkg.com/swagger-ui-dist@5/swagger-ui.css">
+  <style>
+    html { box-sizing: border-box; overflow: -moz-scrollbars-vertical; overflow-y: scroll; }
+    *, *:before, *:after { box-sizing: inherit; }
+    body { margin:0; background: #fafafa; }
+    
+    /* Custom styling */
+    .swagger-ui .topbar { display: none; }
+    
+    .custom-header {
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: white;
+      padding: 2rem;
+      text-align: center;
+    }
+    
+    .custom-header h1 {
+      margin: 0;
+      font-size: 2.5rem;
+      font-weight: 700;
+    }
+    
+    .custom-header p {
+      margin: 0.5rem 0 0;
+      opacity: 0.8;
+    }
+    
+    .custom-header .badges {
+      margin-top: 1rem;
+    }
+    
+    .custom-header .badge {
+      display: inline-block;
+      background: rgba(255,255,255,0.1);
+      padding: 0.25rem 0.75rem;
+      border-radius: 9999px;
+      font-size: 0.875rem;
+      margin: 0.25rem;
+    }
+  </style>
+</head>
+<body>
+  <!-- Custom Header -->
+  <div class="custom-header">
+    <h1>🔐 PrivacyLayer API</h1>
+    <p>The first ZK-proof shielded pool on Stellar Soroban</p>
+    <div class="badges">
+      <span class="badge">Stellar Protocol 25</span>
+      <span class="badge">BN254 Native</span>
+      <span class="badge">Poseidon Hash</span>
+      <span class="badge">Groth16 Proofs</span>
+    </div>
+  </div>
+  
+  <!-- Swagger UI Container -->
+  <div id="swagger-ui"></div>
+  
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-bundle.js"></script>
+  <script src="https://unpkg.com/swagger-ui-dist@5/swagger-ui-standalone-preset.js"></script>
+  <script>
+    window.onload = function() {
+      // Initialize Swagger UI
+      const ui = SwaggerUIBundle({
+        url: "./openapi.yaml",  // Path to your OpenAPI spec
+        dom_id: '#swagger-ui',
+        deepLinking: true,
+        presets: [
+          SwaggerUIBundle.presets.apis,
+          SwaggerUIStandalonePreset
+        ],
+        plugins: [
+          SwaggerUIBundle.plugins.DownloadUrl
+        ],
+        layout: "StandaloneLayout",
+        
+        // Default values for try-it-out
+        requestInterceptor: function(request) {
+          // Add custom headers
+          request.headers['X-Requested-With'] = 'PrivacyLayer-SwaggerUI';
+          return request;
+        },
+        
+        // Custom syntax highlighting
+        syntaxHighlight: {
+          activate: true,
+          theme: "monokai"
+        },
+        
+        // Enable try-it-out by default
+        tryItOutEnabled: true,
+        
+        // Persist authorization
+        persistAuthorization: true
+      });
+      
+      window.ui = ui;
+    };
+  </script>
+</body>
+</html>

@@ -1,0 +1,474 @@
+{
+  "info": {
+    "name": "PrivacyLayer API",
+    "description": "PrivacyLayer is the first ZK-proof shielded pool on Stellar Soroban. This collection provides all endpoints for interacting with the privacy pool contract.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "version": "1.0.0"
+  },
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://testnet.stellar.org",
+      "type": "string"
+    },
+    {
+      "key": "contract_id",
+      "value": "CAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAP3B",
+      "type": "string"
+    },
+    {
+      "key": "admin_address",
+      "value": "GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF",
+      "type": "string"
+    },
+    {
+      "key": "token_address",
+      "value": "CCHEGGH7VWDPOHCQFDKH2TJ5TTKYQ4FW8VBA5EOFWYPG5CLIBVH2GLI5",
+      "type": "string"
+    }
+  ],
+  "item": [
+    {
+      "name": "Core Operations",
+      "item": [
+        {
+          "name": "Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"from\": \"{{admin_address}}\",\n  \"commitment\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/deposit",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "deposit"]
+            },
+            "description": "Deposit tokens into the shielded pool.\n\n**Prerequisites**:\n1. Generate note (nullifier + secret)\n2. Compute commitment: `Poseidon(nullifier || secret)`\n3. Approve token transfer\n\n**Note Security**:\n- Store the note securely - it's your only proof of deposit\n- If lost, funds are unrecoverable\n- Never share your note"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"from\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\",\n  \"commitment\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/deposit",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "deposit"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"leaf_index\": 42,\n  \"root\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+            }
+          ]
+        },
+        {
+          "name": "Withdraw",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": {\n    \"a\": [\"0x1234567890abcdef\", \"0x1234567890abcdef\"],\n    \"b\": [[\"0x1234567890abcdef\", \"0x1234567890abcdef\"], [\"0x1234567890abcdef\", \"0x1234567890abcdef\"]],\n    \"c\": [\"0x1234567890abcdef\", \"0x1234567890abcdef\"]\n  },\n  \"pub_inputs\": {\n    \"root\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\",\n    \"nullifier_hash\": \"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12\",\n    \"recipient\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\",\n    \"relayer\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\",\n    \"fee\": \"1000000\"\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/withdraw",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "withdraw"]
+            },
+            "description": "Withdraw tokens from the shielded pool using a ZK proof.\n\n**Prerequisites**:\n1. Sync Merkle tree to get all leaves\n2. Generate Merkle proof for your commitment\n3. Generate ZK proof using Noir prover\n\n**Proof Components**:\n- `a`, `b`, `c`: Groth16 proof points (BN254)\n- Public inputs: root, nullifier hash, recipient"
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"proof\": {\n    \"a\": [\"0x1234567890abcdef\", \"0x1234567890abcdef\"],\n    \"b\": [[\"0x1234567890abcdef\", \"0x1234567890abcdef\"], [\"0x1234567890abcdef\", \"0x1234567890abcdef\"]],\n    \"c\": [\"0x1234567890abcdef\", \"0x1234567890abcdef\"]\n  },\n  \"pub_inputs\": {\n    \"root\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\",\n    \"nullifier_hash\": \"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12\",\n    \"recipient\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\"\n  }\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/withdraw",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "withdraw"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "View Functions",
+      "item": [
+        {
+          "name": "Get Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/root",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "root"]
+            },
+            "description": "Get the current Merkle root of the commitment tree."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/root",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "root"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "\"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\""
+            }
+          ]
+        },
+        {
+          "name": "Get Deposit Count",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/deposit-count",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "deposit-count"]
+            },
+            "description": "Get the total number of deposits made to the pool."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/deposit-count",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "deposit-count"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "1337"
+            }
+          ]
+        },
+        {
+          "name": "Is Known Root",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"root\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/is-known-root",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "is-known-root"]
+            },
+            "description": "Check if a Merkle root exists in the historical root buffer."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"root\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/is-known-root",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "is-known-root"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "true"
+            }
+          ]
+        },
+        {
+          "name": "Is Spent",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nullifier_hash\": \"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/is-spent",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "is-spent"]
+            },
+            "description": "Check if a nullifier hash has been spent."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"nullifier_hash\": \"0x567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef12\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/is-spent",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "is-spent"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "false"
+            }
+          ]
+        },
+        {
+          "name": "Get Config",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/config",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "config"]
+            },
+            "description": "Get the current pool configuration."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "GET",
+                "header": [],
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/config",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "config"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"admin\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\",\n  \"token\": \"CCHEGGH7VWDPOHCQFDKH2TJ5TTKYQ4FW8VBA5EOFWYPG5CLIBVH2GLI5\",\n  \"denomination\": {\n    \"tag\": \"USDC\",\n    \"value\": \"100000000\"\n  },\n  \"paused\": false,\n  \"initialized\": true\n}"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "Admin Functions",
+      "item": [
+        {
+          "name": "Initialize Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{admin_address}}\",\n  \"token\": \"{{token_address}}\",\n  \"denomination\": {\n    \"tag\": \"USDC\",\n    \"value\": \"100000000\"\n  },\n  \"vk\": {\n    \"alpha_g1\": [\"0x1234...\", \"0x5678...\"],\n    \"beta_g2\": [[\"0xabcd...\", \"0xef01...\"], [\"0x2345...\", \"0x6789...\"]],\n    \"gamma_g2\": [[\"0x...\", \"0x...\"], [\"0x...\", \"0x...\"]],\n    \"delta_g2\": [[\"0x...\", \"0x...\"], [\"0x...\", \"0x...\"]],\n    \"ic\": []\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/initialize",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "initialize"]
+            },
+            "description": "Initialize the privacy pool. Must be called once after deployment."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"admin\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\",\n  \"token\": \"CCHEGGH7VWDPOHCQFDKH2TJ5TTKYQ4FW8VBA5EOFWYPG5CLIBVH2GLI5\",\n  \"denomination\": {\n    \"tag\": \"USDC\",\n    \"value\": \"100000000\"\n  },\n  \"vk\": {}\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/initialize",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "initialize"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        },
+        {
+          "name": "Pause Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{admin_address}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/pause",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "pause"]
+            },
+            "description": "Pause all pool operations (admin only)."
+          },
+          "response": [
+            {
+              "name": "Success",
+              "originalRequest": {
+                "method": "POST",
+                "header": [],
+                "body": {
+                  "mode": "raw",
+                  "raw": "{\n  \"admin\": \"GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF\"\n}"
+                },
+                "url": {
+                  "raw": "{{base_url}}/contracts/privacy-pool/pause",
+                  "host": ["{{base_url}}"],
+                  "path": ["contracts", "privacy-pool", "pause"]
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "header": [],
+              "body": "{\n  \"success\": true\n}"
+            }
+          ]
+        },
+        {
+          "name": "Unpause Pool",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{admin_address}}\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/unpause",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "unpause"]
+            },
+            "description": "Resume pool operations (admin only)."
+          },
+          "response": []
+        },
+        {
+          "name": "Update Verifying Key",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"admin\": \"{{admin_address}}\",\n  \"new_vk\": {\n    \"alpha_g1\": [\"0x1234...\", \"0x5678...\"],\n    \"beta_g2\": [[\"0xabcd...\", \"0xef01...\"], [\"0x2345...\", \"0x6789...\"]],\n    \"gamma_g2\": [[\"0x...\", \"0x...\"], [\"0x...\", \"0x...\"]],\n    \"delta_g2\": [[\"0x...\", \"0x...\"], [\"0x...\", \"0x...\"]],\n    \"ic\": []\n  }\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/contracts/privacy-pool/verifying-key",
+              "host": ["{{base_url}}"],
+              "path": ["contracts", "privacy-pool", "verifying-key"]
+            },
+            "description": "Update the Groth16 verifying key (admin only)."
+          },
+          "response": []
+        }
+      ]
+    }
+  ],
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Add timestamp to requests",
+          "pm.request.addHeader({",
+          "    key: 'X-Timestamp',",
+          "    value: Date.now().toString()",
+          "});"
+        ]
+      }
+    }
+  ]
+}
