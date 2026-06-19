@@ -1,0 +1,41 @@
+name: Documentation
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+
+jobs:
+  docs:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Verify required docs exist
+        run: |
+          test -f README.md
+          test -f CONTRIBUTING.md
+          test -f contracts/privacy_pool/ARCHITECTURE.md
+          test -f .github/README.md
+
+      - name: Validate Markdown links
+        run: bash scripts/ci/check_markdown_links.sh
+
+      - name: Upload docs manifest
+        run: |
+          mkdir -p artifacts/docs
+          {
+            echo "# Documentation Manifest"
+            echo
+            find . -maxdepth 3 -name '*.md' | sort
+          } > artifacts/docs/manifest.md
+
+      - name: Upload docs artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: docs-manifest
+          path: artifacts/docs
