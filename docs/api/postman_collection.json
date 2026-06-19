@@ -1,0 +1,360 @@
+{
+  "info": {
+    "name": "PrivacyLayer API",
+    "description": "PrivacyLayer is a compliance-forward private transaction protocol on Stellar Soroban.\n\nBase URLs:\n- Testnet: https://api-testnet.privacylayer.io\n- Mainnet: https://api.privacylayer.io",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "apikey",
+    "apikey": [
+      {
+        "key": "key",
+        "value": "X-API-Key",
+        "type": "string"
+      },
+      {
+        "key": "value",
+        "value": "{{api_key}}",
+        "type": "string"
+      },
+      {
+        "key": "in",
+        "value": "header",
+        "type": "string"
+      }
+    ]
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          ""
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "https://api-testnet.privacylayer.io"
+    },
+    {
+      "key": "api_key",
+      "value": "your_api_key_here"
+    }
+  ],
+  "item": [
+    {
+      "name": "Pool",
+      "item": [
+        {
+          "name": "Get Pool Info",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/pool/info",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "pool", "info"]
+            },
+            "description": "Returns current pool state including Merkle root, total deposits, and pause status"
+          },
+          "response": [
+            {
+              "name": "Success Response",
+              "originalRequest": {
+                "method": "GET",
+                "url": {
+                  "raw": "{{base_url}}/v1/pool/info"
+                }
+              },
+              "status": "OK",
+              "code": 200,
+              "_postman_previewlanguage": "json",
+              "body": "{\n  \"merkleRoot\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef\",\n  \"leafCount\": 1234,\n  \"denomination\": \"1000000000\",\n  \"asset\": \"XLM\",\n  \"isPaused\": false,\n  \"totalDeposits\": 1234,\n  \"totalWithdrawals\": 567\n}"
+            }
+          ]
+        },
+        {
+          "name": "Get Denominations",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/pool/denominations",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "pool", "denominations"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Deposit",
+      "item": [
+        {
+          "name": "Prepare Deposit",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nullifier\": \"0x1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab\",\n  \"secret\": \"0xfedcba0987654321fedcba0987654321fedcba0987654321fedcba09876543\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/deposit/prepare",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "deposit", "prepare"]
+            }
+          }
+        },
+        {
+          "name": "Estimate Deposit Cost",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asset\": \"XLM\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/deposit/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "deposit", "estimate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Withdraw",
+      "item": [
+        {
+          "name": "Prepare Withdrawal",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"note\": \"0x...encrypted_note...\",\n  \"recipient\": \"GXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXXX\",\n  \"fee\": \"10000000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/withdraw/prepare",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "withdraw", "prepare"]
+            }
+          }
+        },
+        {
+          "name": "Estimate Withdrawal Cost",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"asset\": \"XLM\",\n  \"useRelayer\": false\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/withdraw/estimate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "withdraw", "estimate"]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Proof",
+      "item": [
+        {
+          "name": "Generate ZK Proof",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"nullifier\": \"0x...\",\n  \"secret\": \"0x...\",\n  \"merkleProof\": {\n    \"root\": \"0x...\",\n    \"leaf\": \"0x...\",\n    \"pathElements\": [\"0x...\", \"0x...\"],\n    \"pathIndices\": [0, 1, 0]\n  },\n  \"recipient\": \"G...\",\n  \"fee\": \"10000000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/proof/generate",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "proof", "generate"]
+            }
+          }
+        },
+        {
+          "name": "Get Merkle Root",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/merkle/root",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "merkle", "root"]
+            }
+          }
+        },
+        {
+          "name": "Get Merkle Proof",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/merkle/proof/:commitment",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "merkle", "proof", ":commitment"],
+              "variable": [
+                {
+                  "key": "commitment",
+                  "value": "0x1234567890abcdef..."
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Relayer",
+      "item": [
+        {
+          "name": "Submit via Relayer",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "X-API-Key",
+                "value": "{{api_key}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"proof\": {\n    \"pi_a\": [\"0x...\", \"0x...\"],\n    \"pi_b\": [[\"0x...\", \"0x...\"], [\"0x...\", \"0x...\"]],\n    \"pi_c\": [\"0x...\", \"0x...\"]\n  },\n  \"nullifierHash\": \"0x...\",\n  \"recipient\": \"G...\",\n  \"fee\": \"10000000\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/v1/relayer/submit",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "relayer", "submit"]
+            }
+          }
+        },
+        {
+          "name": "Get Relayer Status",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/relayer/status/:txHash",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "relayer", "status", ":txHash"],
+              "variable": [
+                {
+                  "key": "txHash",
+                  "value": "abc123..."
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Events",
+      "item": [
+        {
+          "name": "Get Deposit Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/events/deposits?skip=0&take=20",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "events", "deposits"],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "take",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Get Withdrawal Events",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/events/withdrawals?skip=0&take=20",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "events", "withdrawals"],
+              "query": [
+                {
+                  "key": "skip",
+                  "value": "0"
+                },
+                {
+                  "key": "take",
+                  "value": "20"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "Health",
+      "item": [
+        {
+          "name": "Health Check",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/v1/health",
+              "host": ["{{base_url}}"],
+              "path": ["v1", "health"]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}
