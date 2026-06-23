@@ -70,7 +70,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
   if (vk.alpha_g1.length !== G1_POINT_BYTE_LENGTH) {
     throw new WitnessValidationError(
       `VK alpha_g1 must be ${G1_POINT_BYTE_LENGTH} bytes, got ${vk.alpha_g1.length}`,
-      'VK_FORMAT',
+      'VK_FORMAT' as any,
       'structure',
     );
   }
@@ -79,7 +79,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
   if (vk.beta_g2.length !== G2_POINT_BYTE_LENGTH) {
     throw new WitnessValidationError(
       `VK beta_g2 must be ${G2_POINT_BYTE_LENGTH} bytes, got ${vk.beta_g2.length}`,
-      'VK_FORMAT',
+      'VK_FORMAT' as any,
       'structure',
     );
   }
@@ -88,7 +88,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
   if (vk.gamma_g2.length !== G2_POINT_BYTE_LENGTH) {
     throw new WitnessValidationError(
       `VK gamma_g2 must be ${G2_POINT_BYTE_LENGTH} bytes, got ${vk.gamma_g2.length}`,
-      'VK_FORMAT',
+      'VK_FORMAT' as any,
       'structure',
     );
   }
@@ -97,7 +97,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
   if (vk.delta_g2.length !== G2_POINT_BYTE_LENGTH) {
     throw new WitnessValidationError(
       `VK delta_g2 must be ${G2_POINT_BYTE_LENGTH} bytes, got ${vk.delta_g2.length}`,
-      'VK_FORMAT',
+      'VK_FORMAT' as any,
       'structure',
     );
   }
@@ -106,7 +106,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
   if (vk.gamma_abc_g1.length !== EXPECTED_IC_VECTOR_LENGTH) {
     throw new WitnessValidationError(
       `VK gamma_abc_g1 must have ${EXPECTED_IC_VECTOR_LENGTH} points (IC[0] + ${EXPECTED_PUBLIC_INPUT_COUNT} inputs), got ${vk.gamma_abc_g1.length}`,
-      'VK_FORMAT',
+      'VK_FORMAT' as any,
       'structure',
     );
   }
@@ -117,7 +117,7 @@ export function validateVkStructure(vk: VerifyingKeyStructure): void {
     if (!icPoint || icPoint.length !== G1_POINT_BYTE_LENGTH) {
       throw new WitnessValidationError(
         `VK gamma_abc_g1[${i}] must be ${G1_POINT_BYTE_LENGTH} bytes, got ${icPoint?.length ?? 0}`,
-        'VK_FORMAT',
+        'VK_FORMAT' as any,
         'structure',
       );
     }
@@ -136,7 +136,7 @@ export function validatePublicInputsStructure(publicInputs: Uint8Array[]): void 
   if (publicInputs.length !== EXPECTED_PUBLIC_INPUT_COUNT) {
     throw new WitnessValidationError(
       `Expected ${EXPECTED_PUBLIC_INPUT_COUNT} public inputs, got ${publicInputs.length}`,
-      'PUBLIC_INPUT_FORMAT',
+      'PUBLIC_INPUT_FORMAT' as any,
       'structure',
     );
   }
@@ -146,7 +146,7 @@ export function validatePublicInputsStructure(publicInputs: Uint8Array[]): void 
     if (!input || input.length !== FIELD_ELEMENT_BYTE_LENGTH) {
       throw new WitnessValidationError(
         `Public input[${i}] must be ${FIELD_ELEMENT_BYTE_LENGTH} bytes, got ${input?.length ?? 0}`,
-        'PUBLIC_INPUT_FORMAT',
+        'PUBLIC_INPUT_FORMAT' as any,
         'structure',
       );
     }
@@ -163,7 +163,7 @@ export function validatePublicInputsHexStructure(publicInputs: string[]): void {
   if (publicInputs.length !== EXPECTED_PUBLIC_INPUT_COUNT) {
     throw new WitnessValidationError(
       `Expected ${EXPECTED_PUBLIC_INPUT_COUNT} public inputs, got ${publicInputs.length}`,
-      'PUBLIC_INPUT_FORMAT',
+      'PUBLIC_INPUT_FORMAT' as any,
       'structure',
     );
   }
@@ -175,7 +175,7 @@ export function validatePublicInputsHexStructure(publicInputs: string[]): void {
     if (!input || input.length !== expectedHexLength) {
       throw new WitnessValidationError(
         `Public input[${i}] must be ${expectedHexLength} hex characters (${FIELD_ELEMENT_BYTE_LENGTH} bytes), got ${input?.length ?? 0}`,
-        'PUBLIC_INPUT_FORMAT',
+        'PUBLIC_INPUT_FORMAT' as any,
         'structure',
       );
     }
@@ -184,7 +184,7 @@ export function validatePublicInputsHexStructure(publicInputs: string[]): void {
     if (!/^[0-9a-fA-F]+$/.test(input)) {
       throw new WitnessValidationError(
         `Public input[${i}] must be valid hex string, got "${input.substring(0, 20)}..."`,
-        'PUBLIC_INPUT_FORMAT',
+        'PUBLIC_INPUT_FORMAT' as any,
         'structure',
       );
     }
@@ -210,3 +210,5 @@ export function extractProofComponents(proof: Uint8Array): {
     c: proof.slice(GROTH16_PROOF_C_OFFSET, GROTH16_PROOF_TOTAL_LENGTH),
   };
 }
+
+export type GuardArea = 'PUBLIC_INPUT_FORMAT' | 'MERKLE_PATH' | 'MERKLE_ROOT' | 'LEAF_INDEX' | 'FIELD_ENCODING' | 'ADDRESS' | 'WITNESS_SEMANTICS' | 'PUBLIC_INPUT_SCHEMA' | 'PROOF_FORMAT' | 'DENOMINATION';

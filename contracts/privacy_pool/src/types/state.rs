@@ -1,3 +1,4 @@
+extern crate alloc;
 // ============================================================
 // PrivacyLayer — Contract State Types
 // ============================================================
@@ -107,7 +108,7 @@ fn derive_pool_id_from_identity(
 /// Derive canonical pool id from a token address, denomination, and current network domain.
 pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
     let token_text: String = token.to_string();
-    let token_bytes = token_text.into_bytes();
+    let token_bytes = token_text.to_bytes();
     let network_domain = env.ledger().network_id();
     derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
 }
@@ -252,7 +253,7 @@ impl SchemaVersion {
     
     /// Parses a schema version from a string (e.g., "1.2.3").
     pub fn from_string(version: &str) -> Result<Self, &'static str> {
-        let parts: Vec<&str> = version.split('.').collect();
+        let parts: alloc::vec::Vec<&str> = version.split('.').collect();
         if parts.len() != 3 {
             return Err("Invalid schema version format");
         }
