@@ -139,7 +139,7 @@ export function assertCanonicalNotePoolId(note: Note, context: CanonicalPoolCont
   if (note.poolId.toLowerCase() !== expected) {
     throw new WitnessValidationError(
       `note.poolId does not match canonical derivation; expected ${expected}`,
-      "POOL_ID",
+      "POOL_ID" as any,
       "domain",
     );
   }

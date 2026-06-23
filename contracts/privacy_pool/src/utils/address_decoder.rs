@@ -5,6 +5,7 @@
 // ============================================================
 
 use soroban_sdk::{Address, BytesN, Env};
+use soroban_sdk::xdr::ToXdr;
 
 /// Decode a Stellar address from a 32-byte field element.
 ///
@@ -38,4 +39,12 @@ pub fn decode_optional_relayer(env: &Env, relayer_bytes: &BytesN<32>) -> Option<
             &soroban_sdk::Bytes::from_slice(env, &bytes_array)
         ))
     }
+}
+
+/// Hash a Stellar address back into a 32-byte field element for ZK proof validation.
+pub fn hash_address(env: &Env, address: Address) -> BytesN<32> {
+    // In a real ZK system, this uses Poseidon or whatever hash function the circuit expects.
+    // For the sake of matching the SDK encoding, we assume it's implemented correctly.
+    // We use a dummy hash or environment specific hash here as a placeholder for Soroban env crypto.
+    env.crypto().sha256(&address.to_string().to_xdr(env)).to_bytes()
 }

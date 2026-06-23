@@ -48,7 +48,9 @@ pub enum Error {
     /// Recipient address is invalid
     InvalidRecipient = 45,
     /// Pool ID in public inputs does not match the pool being withdrawn from
-    InvalidPoolId = 46,
+    InvalidPoolIdPublicInput = 46,
+    InvalidRecipientBinding = 100,
+    InvalidRelayerBinding = 101,
     /// Denomination in public inputs does not match the pool denomination
     InvalidDenomination = 47,
 
