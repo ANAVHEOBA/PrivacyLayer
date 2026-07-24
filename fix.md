@@ -1,0 +1,3 @@
+# Fix for #447
+
+ZK-075: Add structural guards for proof, VK, an...
