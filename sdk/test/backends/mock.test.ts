@@ -8,9 +8,9 @@
  * 4. Implements the ProvingBackend interface correctly
  */
 
-import { MockProvingBackend, MockBackendConfig } from '../src/backends/mock';
-import type { PreparedWitness } from '../src/proof';
-import { ZERO_FIELD_HEX } from '../src/zk_constants';
+import { MockProvingBackend, MockBackendConfig } from '../../src/backends/mock';
+import type { PreparedWitness } from '../../src/proof';
+import { ZERO_FIELD_HEX } from '../../src/zk_constants';
 
 describe('MockProvingBackend', () => {
   let validConfig: MockBackendConfig;

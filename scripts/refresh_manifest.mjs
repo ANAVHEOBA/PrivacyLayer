@@ -11,13 +11,6 @@ const repoRoot = path.resolve(__dirname, '..');
 const zkVersion = process.argv[2] || '2';
 const artifactsDir = path.join(repoRoot, 'artifacts', 'zk');
 const manifestPath = path.join(artifactsDir, 'manifest.json');
-const zkVersion = process.argv[2] || '1';
-const artifactsDir = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`);
-const versionedManifestPath = path.join(artifactsDir, 'manifests', 'manifest.json');
-const legacyManifestPath = path.join(repoRoot, 'artifacts', 'zk', 'manifest.json');
-const releaseBundlePath = path.join(artifactsDir, 'bundles', 'release-bundle.json');
-const benchmarkBaselinesPath = path.join(artifactsDir, 'bundles', 'benchmark-baselines.json');
-const rotationEvidenceDir = path.join(artifactsDir, 'bundles', 'rotation-evidence');
 const PRODUCTION_MERKLE_ROOT_DEPTH = 20;
 const CIRCUIT_ORDER = ['withdraw', 'commitment'];
 const WITHDRAW_PUBLIC_INPUT_SCHEMA = [
@@ -28,6 +21,7 @@ const WITHDRAW_PUBLIC_INPUT_SCHEMA = [
   'amount',
   'relayer',
   'fee',
+  'denomination',
 ];
 const COMMITMENT_PUBLIC_INPUT_SCHEMA = [
   'pool_id',
@@ -157,12 +151,6 @@ function buildCircuitEntry(name) {
   }
 
   return entry;
-function readJson(filePath) {
-  return JSON.parse(fs.readFileSync(filePath, 'utf8'));
-}
-
-function ensureDirectory(filePath) {
-  fs.mkdirSync(path.dirname(filePath), { recursive: true });
 }
 
 function buildExtraFileEntries() {
@@ -262,127 +250,6 @@ function main() {
       console.log(`  ${name}: ${version} (migrated from no schema_version)`);
     }
   }
-function loadManifest() {
-  if (fs.existsSync(versionedManifestPath)) {
-    return readJson(versionedManifestPath);
-  }
-
-  if (fs.existsSync(legacyManifestPath)) {
-    return readJson(legacyManifestPath);
-  }
-
-  return {
-    version: Number.parseInt(zkVersion, 10),
-    backend: {
-      name: 'nargo/noir',
-      nargo_version: 'unknown',
-      noirc_version: 'unknown',
-    },
-    circuits: {},
-  };
-}
-
-function buildReleaseBundle(manifest) {
-  const withdraw = manifest.circuits.withdraw;
-  if (!withdraw || !withdraw.public_input_schema) {
-    throw new Error('Withdrawal circuit manifest entry is required to build the release bundle');
-  }
-
-  const manifestSha256 = sha256Hex(stableStringify(manifest));
-  const verifierSchema = {
-    circuit_id: withdraw.circuit_id,
-    public_input_schema: withdraw.public_input_schema,
-    public_input_arity: withdraw.public_input_schema.length,
-    contract_public_input_schema: CONTRACT_PUBLIC_INPUT_SCHEMA,
-    contract_public_input_arity: CONTRACT_PUBLIC_INPUT_SCHEMA.length,
-    schema_version: 1,
-  };
-
-  return {
-    version: 1,
-    artifact_version: zkVersion,
-    manifest_sha256: manifestSha256,
-    manifest,
-    verifier_schema,
-    contract_metadata: {
-      contract_name: 'privacy_pool',
-      target_circuit_id: withdraw.circuit_id,
-      manifest_sha256: manifestSha256,
-      public_input_arity: CONTRACT_PUBLIC_INPUT_SCHEMA.length,
-      schema_version: 1,
-      verifier_key_storage: 'DataKey::VerifyingKey',
-    },
-    operational_artifacts: {
-      benchmark_baselines_path: path.relative(repoRoot, benchmarkBaselinesPath).replace(/\\/g, '/'),
-      rotation_evidence_dir: path.relative(repoRoot, rotationEvidenceDir).replace(/\\/g, '/'),
-    },
-  };
-}
-
-function computeChecksums(raw, artifact) {
-  return {
-    artifact_sha256: sha256Hex(raw),
-    bytecode_sha256: sha256Hex(String(artifact.bytecode ?? '')),
-    abi_sha256: sha256Hex(stableStringify(artifact.abi ?? null)),
-  };
-}
-
-function refreshCircuit(manifest, name) {
-  const filePath = path.join(artifactsDir, 'circuits', name, `${name}.json`);
-  const circuitFile = `circuits/${name}/${name}.json`;
-
-  if (!fs.existsSync(filePath)) {
-    console.warn(`Warning: Missing artifact for ${name} at ${filePath}`);
-    return;
-  }
-
-  const raw = fs.readFileSync(filePath);
-  const artifact = JSON.parse(raw.toString('utf8'));
-  const checksums = computeChecksums(raw, artifact);
-  const circuitEntry = manifest.circuits[name] ?? (manifest.circuits[name] = {});
-
-  circuitEntry.circuit_id = name;
-  circuitEntry.path = circuitFile;
-  circuitEntry.artifact_sha256 = checksums.artifact_sha256;
-  circuitEntry.bytecode_sha256 = checksums.bytecode_sha256;
-  circuitEntry.abi_sha256 = checksums.abi_sha256;
-  circuitEntry.name = artifact.name ?? name;
-  circuitEntry.backend = manifest.backend.name;
-
-  if (name === 'withdraw') {
-    circuitEntry.root_depth = PRODUCTION_MERKLE_ROOT_DEPTH;
-    circuitEntry.public_input_schema = WITHDRAW_PUBLIC_INPUT_SCHEMA;
-  }
-}
-
-function main() {
-  console.log(`Refreshing ZK manifest for version ${zkVersion}...`);
-
-  ensureDirectory(versionedManifestPath);
-  ensureDirectory(releaseBundlePath);
-  fs.mkdirSync(rotationEvidenceDir, { recursive: true });
-
-  const manifest = loadManifest();
-  manifest.version = Number.parseInt(zkVersion, 10);
-  manifest.backend = normalizeBackend(manifest.backend);
-
-  for (const name of ['withdraw', 'commitment', 'merkle']) {
-    refreshCircuit(manifest, name);
-  }
-
-  manifest.files = buildExtraFileEntries();
-
-  const manifestText = JSON.stringify(manifest, null, 2) + '\n';
-  const releaseBundle = buildReleaseBundle(manifest);
-  const releaseBundleText = JSON.stringify(releaseBundle, null, 2) + '\n';
-
-  fs.writeFileSync(versionedManifestPath, manifestText);
-  fs.writeFileSync(legacyManifestPath, manifestText);
-  fs.writeFileSync(releaseBundlePath, releaseBundleText);
-
-  console.log(`Manifest updated at ${versionedManifestPath}`);
-  console.log(`Legacy manifest updated at ${legacyManifestPath}`);
-  console.log(`Release bundle updated at ${releaseBundlePath}`);
 }
 
 main();

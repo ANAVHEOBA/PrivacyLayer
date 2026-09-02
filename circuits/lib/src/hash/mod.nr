@@ -18,11 +18,11 @@ pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field) -> Fi
     commitment::compute_commitment(nullifier, secret, pool_id)
 }
 
-/// Compute nullifier hash bound to a specific root.
-/// nullifier_hash = Hash(nullifier, root)
-/// This prevents replay attacks across different pool states.
-pub fn compute_nullifier_hash(nullifier: Field, root: Field) -> Field {
-    nullifier::compute_nullifier_hash(nullifier, root)
+/// Compute nullifier hash bound to a specific pool_id.
+/// nullifier_hash = Hash(nullifier, pool_id)
+/// This prevents replay attacks across different pools.
+pub fn compute_nullifier_hash(nullifier: Field, pool_id: Field) -> Field {
+    nullifier::compute_nullifier_hash(nullifier, pool_id)
 }
 
 /// Compute parent hash in Merkle tree.

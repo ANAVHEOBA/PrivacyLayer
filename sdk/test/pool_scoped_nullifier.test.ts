@@ -8,11 +8,11 @@ import { computeNullifierHash, poolIdToField, noteScalarToField } from '../src/e
 import { DEFAULT_DENOMINATION } from '../src/zk_constants';
 
 const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-const r32 = Buffer.from('ab'.repeat(32), 'hex');
+const r32 = Buffer.from('00' + 'ab'.repeat(31), 'hex');
 const s31 = () => Buffer.from('01'.repeat(31), 'hex');
 const p20 = () => Array.from({ length: 20 }, () => r32);
 
-function makeNote(poolId: string = 'cc'.repeat(32), amount: bigint = DEFAULT_DENOMINATION) {
+function makeNote(poolId: string = '00' + 'cc'.repeat(31), amount: bigint = DEFAULT_DENOMINATION) {
   return new Note(s31(), s31(), poolId, amount);
 }
 
@@ -20,14 +20,14 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
   describe('Nullifier hash stability across roots', () => {
     it('produces same nullifier hash for same note across different roots', () => {
       const nullifier = s31();
-      const poolId = 'cc'.repeat(32);
+      const poolId = '00' + 'cc'.repeat(31);
       const nullifierField = noteScalarToField(nullifier);
       const poolIdField = poolIdToField(poolId);
       
       // Simulate different Merkle roots at different points in time
-      const root1 = Buffer.from('aa'.repeat(32), 'hex');
-      const root2 = Buffer.from('bb'.repeat(32), 'hex');
-      const root3 = Buffer.from('cc'.repeat(32), 'hex');
+      const root1 = Buffer.from('00' + 'aa'.repeat(31), 'hex');
+      const root2 = Buffer.from('00' + 'bb'.repeat(31), 'hex');
+      const root3 = Buffer.from('00' + 'cc'.repeat(31), 'hex');
       
       // Nullifier hash should be the same regardless of root
       const nh1 = computeNullifierHash(nullifierField, poolIdField);
@@ -40,8 +40,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
 
     it('nullifier hash depends only on nullifier and pool_id', () => {
       const nullifier = s31();
-      const poolId1 = 'cc'.repeat(32);
-      const poolId2 = 'dd'.repeat(32);
+      const poolId1 = '00' + 'cc'.repeat(31);
+      const poolId2 = '00' + 'dd'.repeat(31);
       
       const nullifierField = noteScalarToField(nullifier);
       const poolIdField1 = poolIdToField(poolId1);
@@ -63,8 +63,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
       const expectedNh = computeNullifierHash(nullifierField, poolIdField);
       
       // Create witnesses with different roots (simulating different tree states)
-      const root1 = Buffer.from('aa'.repeat(32), 'hex');
-      const root2 = Buffer.from('bb'.repeat(32), 'hex');
+      const root1 = Buffer.from('00' + 'aa'.repeat(31), 'hex');
+      const root2 = Buffer.from('00' + 'bb'.repeat(31), 'hex');
       
       const proof1: MerkleProof = { root: root1, pathElements: p20(), leafIndex: 0 };
       const proof2: MerkleProof = { root: root2, pathElements: p20(), leafIndex: 0 };
@@ -82,8 +82,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
   describe('Cross-pool rejection by construction', () => {
     it('different pool_ids produce different nullifier hashes for same nullifier', () => {
       const nullifier = s31();
-      const poolId1 = 'aa'.repeat(32);
-      const poolId2 = 'bb'.repeat(32);
+      const poolId1 = '00' + 'aa'.repeat(31);
+      const poolId2 = '00' + 'bb'.repeat(31);
       
       const nullifierField = noteScalarToField(nullifier);
       const poolIdField1 = poolIdToField(poolId1);
@@ -98,8 +98,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
     it('same nullifier in different pools produces different nullifier hashes', () => {
       const nullifier = s31();
       const secret = s31();
-      const poolId1 = 'aa'.repeat(32);
-      const poolId2 = 'bb'.repeat(32);
+      const poolId1 = '00' + 'aa'.repeat(31);
+      const poolId2 = '00' + 'bb'.repeat(31);
       
       const note1 = new Note(nullifier, secret, poolId1, DEFAULT_DENOMINATION);
       const note2 = new Note(nullifier, secret, poolId2, DEFAULT_DENOMINATION);
@@ -115,7 +115,7 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
     });
 
     it('witness preparation uses pool_id for nullifier hash', async () => {
-      const poolId = 'cc'.repeat(32);
+      const poolId = '00' + 'cc'.repeat(31);
       const note = makeNote(poolId);
       
       const proof: MerkleProof = { root: r32, pathElements: p20(), leafIndex: 0 };
@@ -133,13 +133,13 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
   describe('Regression tests for root-bound logic removal', () => {
     it('nullifier hash does not change when root changes', () => {
       const nullifier = s31();
-      const poolId = 'cc'.repeat(32);
+      const poolId = '00' + 'cc'.repeat(31);
       
       const nullifierField = noteScalarToField(nullifier);
       const poolIdField = poolIdToField(poolId);
       
-      const root1Field = poolIdToField('aa'.repeat(32));
-      const root2Field = poolIdToField('bb'.repeat(32));
+      const root1Field = poolIdToField('00' + 'aa'.repeat(31));
+      const root2Field = poolIdToField('00' + 'bb'.repeat(31));
       
       // Nullifier hash should only depend on nullifier and pool_id
       const nh = computeNullifierHash(nullifierField, poolIdField);
@@ -152,8 +152,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
     it('witness nullifier_hash is independent of Merkle proof root', async () => {
       const note = makeNote();
       
-      const proof1: MerkleProof = { root: Buffer.from('aa'.repeat(32), 'hex'), pathElements: p20(), leafIndex: 0 };
-      const proof2: MerkleProof = { root: Buffer.from('bb'.repeat(32), 'hex'), pathElements: p20(), leafIndex: 0 };
+      const proof1: MerkleProof = { root: Buffer.from('00' + 'aa'.repeat(31), 'hex'), pathElements: p20(), leafIndex: 0 };
+      const proof2: MerkleProof = { root: Buffer.from('00' + 'bb'.repeat(31), 'hex'), pathElements: p20(), leafIndex: 0 };
       
       const witness1 = await ProofGenerator.prepareWitness(note, proof1, G);
       const witness2 = await ProofGenerator.prepareWitness(note, proof2, G);
@@ -171,9 +171,9 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
       
       // Simulate multiple tree states
       const proofs: MerkleProof[] = [
-        { root: Buffer.from('00'.repeat(32), 'hex'), pathElements: p20(), leafIndex: 0 },
-        { root: Buffer.from('11'.repeat(32), 'hex'), pathElements: p20(), leafIndex: 5 },
-        { root: Buffer.from('ff'.repeat(32), 'hex'), pathElements: p20(), leafIndex: 10 },
+        { root: Buffer.from('00' + '01'.repeat(31), 'hex'), pathElements: p20(), leafIndex: 0 },
+        { root: Buffer.from('00' + '11'.repeat(31), 'hex'), pathElements: p20(), leafIndex: 5 },
+        { root: Buffer.from('00' + '22'.repeat(31), 'hex'), pathElements: p20(), leafIndex: 10 },
       ];
       
       for (const proof of proofs) {
@@ -186,8 +186,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
   describe('Cross-pool replay prevention', () => {
     it('nullifier from one pool cannot be used in another pool', () => {
       const nullifier = s31();
-      const poolId1 = 'aa'.repeat(32);
-      const poolId2 = 'bb'.repeat(32);
+      const poolId1 = '00' + 'aa'.repeat(31);
+      const poolId2 = '00' + 'bb'.repeat(31);
       
       const nullifierField = noteScalarToField(nullifier);
       const poolIdField1 = poolIdToField(poolId1);
@@ -206,8 +206,8 @@ describe('Pool-Scoped Nullifier (ZK-035)', () => {
     it('witness for pool1 cannot be used for pool2 with same nullifier', async () => {
       const nullifier = s31();
       const secret = s31();
-      const poolId1 = 'aa'.repeat(32);
-      const poolId2 = 'bb'.repeat(32);
+      const poolId1 = '00' + 'aa'.repeat(31);
+      const poolId2 = '00' + 'bb'.repeat(31);
       
       const note1 = new Note(nullifier, secret, poolId1, DEFAULT_DENOMINATION);
       const note2 = new Note(nullifier, secret, poolId2, DEFAULT_DENOMINATION);

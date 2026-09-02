@@ -136,8 +136,8 @@ mod tests {
     #[test]
     fn test_validate_schema_version_max_u32_values() {
         let proof_schema = SchemaVersion::new(u32::MAX, u32::MAX, u32::MAX);
-        let expected = format!("{}.{}.{}", u32::MAX, u32::MAX, u32::MAX - 1);
-        let result = validate_schema_version(&proof_schema, &expected);
+        let expected = "4294967295.4294967295.4294967294";
+        let result = validate_schema_version(&proof_schema, expected);
         assert!(result.is_ok());
     }
 }

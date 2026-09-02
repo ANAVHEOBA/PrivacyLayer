@@ -127,6 +127,10 @@ pub fn record_performance(env: &Env, kind: PerformanceMetricKind, duration_ms: u
     save_state(env, &state);
 }
 
+pub fn deposit_count(env: &Env) -> u64 {
+    load_state(env).successful_deposits
+}
+
 pub fn withdrawal_count(env: &Env) -> u64 {
     load_state(env).successful_withdrawals
 }
@@ -140,7 +144,7 @@ fn average(total: u64, samples: u64) -> u32 {
 }
 
 /// Build a public analytics snapshot for dashboard rendering.
-pub fn snapshot(env: &Env, deposit_count: u32) -> AnalyticsSnapshot {
+pub fn snapshot(env: &Env) -> AnalyticsSnapshot {
     let state = load_state(env);
     let total_ops = state
         .successful_deposits
@@ -163,7 +167,7 @@ pub fn snapshot(env: &Env, deposit_count: u32) -> AnalyticsSnapshot {
 
     AnalyticsSnapshot {
         page_views: state.page_views,
-        deposit_count,
+        deposit_count: state.successful_deposits as u32,
         withdrawal_count: state.successful_withdrawals,
         error_count: state.error_count,
         error_rate_bps,

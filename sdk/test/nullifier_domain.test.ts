@@ -204,7 +204,7 @@ describe('Note-derived nullifier hash', () => {
   it('computeNullifierHash from note scalar and merkle root is stable', () => {
     const note = Note.deriveDeterministic('seed-nd-001', POOL_ID, AMOUNT);
     const nf = noteScalarToField(note.nullifier);
-    const root = merkleNodeToField(Buffer.alloc(32, 0x42));
+    const root = merkleNodeToField(Buffer.alloc(32, 0x02));
     const h1 = computeNullifierHash(nf, root);
     const h2 = computeNullifierHash(nf, root);
     expect(h1).toBe(h2);

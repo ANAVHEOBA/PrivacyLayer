@@ -86,7 +86,7 @@ export function redactNoteToString(note: Note): string {
  * confirm format without exposing the actual secret material.
  */
 export function redactBackup(backup: string): string {
-  if (backup.length <= PARTIAL_VISIBLE_CHARS + 10) {
+  if (backup.length <= PARTIAL_VISIBLE_CHARS + 20) {
     return REDACTED;
   }
   const prefix = backup.slice(0, 20);

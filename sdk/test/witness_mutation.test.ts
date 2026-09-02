@@ -87,15 +87,15 @@ describe("Fixture mutation contract (one dimension per case)", () => {
     }
   }
 
-  it("M_root: public root flips one hex digit (binding broken)", () => {
+  it("M_pool_id: public pool_id flips one hex digit (binding broken)", () => {
     const w: PreparedWitness = {
       ...good,
-      root: good.root.slice(0, 63) + (good.root[63] === "1" ? "0" : "1"),
+      pool_id: good.pool_id.slice(0, 63) + (good.pool_id[63] === "1" ? "0" : "1"),
     };
-    mustFailBinding(w, "root");
+    mustFailBinding(w, "pool_id");
   });
 
-  it("M_nullifier_hash: hash does not match (nullifier, root) pair", () => {
+  it("M_nullifier_hash: hash does not match (nullifier, pool_id) pair", () => {
     const w: PreparedWitness = {
       ...good,
       nullifier_hash: "1".padStart(64, "0"),
@@ -121,7 +121,7 @@ describe("Fixture mutation contract (one dimension per case)", () => {
   it("M_fee: fee exceeds amount", () => {
     const w: PreparedWitness = {
       ...good,
-      fee: fieldToHex(BigInt(good.amount) + 1n),
+      fee: fieldToHex(BigInt("0x" + good.amount) + 1n),
     };
     mustFailBinding(w, "fee>amount");
   });
@@ -164,6 +164,7 @@ describe("Fixture mutation contract (one dimension per case)", () => {
         amount: good.amount,
         relayer: good.relayer,
         fee: good.fee,
+        denomination: good.denomination,
       }),
     ).toThrow(ProvingError);
   });

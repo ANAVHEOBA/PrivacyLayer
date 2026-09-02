@@ -980,9 +980,8 @@ export class WithdrawHarness {
       // First prepare with valid material
       const validMaterial = await this.prepareValidWithdrawal();
       
-      // Replace the root with an unknown root (random bytes)
-      const unknownRoot = Buffer.alloc(32);
-      unknownRoot.fill(0xFF); // Fill with 0xFF to ensure it's different from any real root
+      // Replace the root with an unknown root (valid field element not in tree)
+      const unknownRoot = Buffer.alloc(32, 0x12);
       
       // Update the witness with the unknown root
       const invalidWitness = {
