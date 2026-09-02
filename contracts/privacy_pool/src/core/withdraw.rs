@@ -17,20 +17,17 @@ pub fn execute(
     pool_id: PoolId,
     proof: Proof,
     pub_inputs: PublicInputs,
+    recipient: Address,
+    relayer: Option<Address>,
 ) -> Result<bool, Error> {
-    // Load and validate pool configuration
     let pool_config = config::load_pool_config(&env, &pool_id)?;
     validation::require_not_paused(&pool_config)?;
 
     let denomination_amount = pool_config.denomination.amount();
 
-    // Step 1: Validate root is in pool history
     validation::require_known_root(&env, &pool_id, &pub_inputs.root)?;
-
-    // Step 2: Check nullifier not already spent in this pool
     validation::require_nullifier_unspent(&env, &pool_id, &pub_inputs.nullifier_hash)?;
 
-    // Step 2.5: Validate pool-id and denomination binding
     if pub_inputs.pool_id != pool_id.0 {
         return Err(Error::InvalidPoolId);
     }
@@ -38,40 +35,34 @@ pub fn execute(
         return Err(Error::InvalidDenomination);
     }
 
-    // Step 3: Validate and decode fee
     let fee = validation::decode_and_validate_fee(&pub_inputs.fee, denomination_amount)?;
 
-    // Step 4: Verify Groth16 proof for this pool
+    address_decoder::verify_recipient_binding(&env, &recipient, &pub_inputs.recipient)?;
+    address_decoder::verify_relayer_binding(&env, relayer.as_ref(), &pub_inputs.relayer)?;
+
     let vk = config::load_verifying_key(&env, &pool_id)?;
     let proof_valid = verifier::verify_proof(&env, &vk, &proof, &pub_inputs)?;
     if !proof_valid {
         return Err(Error::InvalidProof);
     }
 
-    // Step 5: Mark nullifier as spent in this pool
     nullifier::mark_spent(&env, &pool_id, &pub_inputs.nullifier_hash);
 
-    // Step 6: Decode addresses
-    let recipient = address_decoder::decode_address(&env, &pub_inputs.recipient);
-    let relayer_opt = address_decoder::decode_optional_relayer(&env, &pub_inputs.relayer);
-
-    // Step 7: Transfer funds
     transfer_funds(
         &env,
         &pool_config.token,
         &recipient,
-        relayer_opt.as_ref(),
+        relayer.as_ref(),
         denomination_amount,
         fee,
     );
 
-    // Step 8: Emit event
     emit_withdraw(
         &env,
         pool_id,
         pub_inputs.nullifier_hash,
-        recipient.clone(),
-        relayer_opt.clone(),
+        recipient,
+        relayer,
         fee,
         denomination_amount,
     );

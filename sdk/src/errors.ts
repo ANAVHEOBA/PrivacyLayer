@@ -15,7 +15,12 @@ export class WitnessValidationError extends Error {
       | 'WITNESS_SEMANTICS'
       | 'PUBLIC_INPUT_SCHEMA'
       | 'PROOF_FORMAT'
-      | 'DENOMINATION',
+      | 'DENOMINATION'
+      | 'VK_FORMAT'
+      | 'PUBLIC_INPUT_FORMAT'
+      | 'POOL_ID'
+      | 'FEE'
+      | 'RELAYER',
     public readonly reason?: 'structure' | 'domain'
   ) {
     super(message);

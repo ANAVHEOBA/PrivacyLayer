@@ -64,6 +64,7 @@ function makePublicInputs(overrides: Partial<WithdrawalPublicInputs> = {}): With
     amount: '0000000000000000000000000000000000000000000000000000000000000064',
     relayer: F0,
     fee: F0,
+    denomination: F1,
     ...overrides,
   };
 }

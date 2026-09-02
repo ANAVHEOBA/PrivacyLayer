@@ -54,13 +54,11 @@ pub fn build_valid_fixture() -> (Field, Field, Field, Field, [Field; 20], Field,
 
     let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
 
     (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash)
 }
 
-/// Setup a complete valid withdrawal with all public parameters.
-/// Returns (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, relayer, fee)
 pub fn setup_valid_withdrawal() -> (Field, Field, Field, Field, [Field; 20], Field, Field, Field, Field, Field) {
     let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash) = build_valid_fixture();
     let recipient = KAT_RECIPIENT;
@@ -69,9 +67,6 @@ pub fn setup_valid_withdrawal() -> (Field, Field, Field, Field, [Field; 20], Fie
     (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash, recipient, relayer, fee)
 }
 
-/// Build a withdrawal fixture for a leaf at an arbitrary index in a sparse tree.
-///
-/// Uses canonical zero siblings so any leaf position yields a reproducible root.
 pub fn build_fixture_at_index(
     nullifier: Field,
     secret: Field,
@@ -81,7 +76,7 @@ pub fn build_fixture_at_index(
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
     (hash_path, root, nullifier_hash)
 }
 
@@ -161,16 +156,14 @@ pub fn tamper_path(path: [Field; 20], level: Field) -> [Field; 20] {
 fn test_build_valid_fixture_is_consistent() {
     let (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash) = build_valid_fixture();
 
-    // Re-derive all values and verify consistency
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let recomputed_root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, root);
+    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, pool_id);
 
     assert(recomputed_root == root, "fixture root must match recomputed root");
     assert(recomputed_nh  == nullifier_hash, "fixture nullifier_hash must match recomputed value");
 }
 
-/// TC-H-02: build_two_leaf_tree -- both leaves share the same root.
 #[test]
 fn test_build_two_leaf_tree_shared_root() {
     let c1: Field = 0x1111;
@@ -185,7 +178,6 @@ fn test_build_two_leaf_tree_shared_root() {
     assert(root_from_c2 == root, "c2 path must yield the same root");
 }
 
-/// TC-H-03: tamper_path -- tampering corrupts the root.
 #[test]
 fn test_tamper_path_changes_root() {
     let leaf: Field  = 42;
@@ -199,19 +191,18 @@ fn test_tamper_path_changes_root() {
     assert(honest_root != tampered_root, "tampered path must change the root");
 }
 
-/// TC-H-04: build_fixture_at_index with leaf_index=19 (high-bit set only).
 #[test]
 fn test_build_fixture_at_high_index() {
     let nullifier: Field = 0x5555;
     let secret: Field    = 0x6666;
     let pool_id: Field   = 0x7777;
-    let leaf_index: Field = 524288; // bit 19 only: 0b10...0
+    let leaf_index: Field = 524288;
 
     let (hash_path, root, nullifier_hash) = build_fixture_at_index(nullifier, secret, pool_id, leaf_index);
 
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let recomputed_root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, root);
+    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, pool_id);
 
     assert(recomputed_root == root);
     assert(recomputed_nh   == nullifier_hash);
@@ -339,6 +330,7 @@ impl WithdrawalBuilder {
 
     pub fn with_amount(mut self, amount: Field) -> Self {
         self.amount = amount;
+        self.denomination = amount;
         self
     }
 
@@ -395,7 +387,7 @@ impl WithdrawalBuilder {
         let nullifier_hash = if self.override_nullifier_hash {
             self.nullifier_hash
         } else {
-            hash::compute_nullifier_hash(self.nullifier, root)
+            hash::compute_nullifier_hash(self.nullifier, self.pool_id)
         };
 
         (

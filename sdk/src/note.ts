@@ -178,6 +178,13 @@ export class Note {
    *   [111..114] SHA-256 checksum over bytes [0..110] (first 4 bytes)
    */
   exportBackup(): string {
+    if (this.nullifier.length !== NOTE_SCALAR_BYTE_LENGTH || this.secret.length !== NOTE_SCALAR_BYTE_LENGTH) {
+      throw new NoteBackupError('Invalid note scalar length for backup', 'CORRUPT_DATA');
+    }
+    const poolIdBuf = Buffer.from(this.poolId, 'hex');
+    if (poolIdBuf.length !== 32) {
+      throw new NoteBackupError('Invalid pool ID length for backup', 'CORRUPT_DATA');
+    }
     const payload = Buffer.alloc(NOTE_BACKUP_PAYLOAD_LENGTH);
     let offset = 0;
 
@@ -186,7 +193,7 @@ export class Note {
     offset += NOTE_SCALAR_BYTE_LENGTH;
     this.secret.copy(payload, offset);
     offset += NOTE_SCALAR_BYTE_LENGTH;
-    Buffer.from(this.poolId, 'hex').copy(payload, offset);
+    poolIdBuf.copy(payload, offset);
     offset += 32;
     payload.writeBigUInt64BE(this.amount, offset);
     offset += 8;

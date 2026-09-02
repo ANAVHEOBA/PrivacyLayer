@@ -154,11 +154,11 @@ export function fieldToBuffer(n: bigint, byteLength: number = 32): Buffer {
  * Pool IDs are 32-byte hex strings representing unique pool identifiers.
  */
 export function encodePoolId(poolId: string): string {
-  const buf = Buffer.from(poolId, 'hex');
-  if (buf.length !== 32) {
-    throw new Error(`Pool ID must be 32 bytes hex, got ${buf.length}`);
+  const clean = poolId.startsWith('0x') ? poolId.slice(2) : poolId;
+  if (clean.length !== 64) {
+    throw new Error(`Pool ID must be 32 bytes hex, got ${clean.length / 2}`);
   }
-  return fieldToHex(bufferToField(buf));
+  return clean.toLowerCase();
 }
 
 /**
@@ -169,7 +169,7 @@ export function encodeMerkleRoot(root: Buffer): string {
   if (root.length !== MERKLE_NODE_BYTE_LENGTH) {
     throw new Error(`Merkle root must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${root.length}`);
   }
-  return fieldToHex(bufferToField(root));
+  return root.toString('hex');
 }
 
 /**
@@ -293,7 +293,7 @@ export function encodeNullifierHash(nullifierField: string, poolIdField: string)
  * Canonical order of withdrawal public inputs.
  * Matches the circuit parameter declaration order in circuits/withdraw/src/main.nr.
  */
-export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
+export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = Object.freeze([
   'pool_id',
   'root',
   'nullifier_hash',
@@ -302,12 +302,8 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'relayer',
   'fee',
   'denomination',
-] as const;
+] as const);
 
-/**
- * Order of public inputs expected by the contract verifier.
- * Matches the circuit's parameter order for BN254 pairing checks.
- */
 export const CONTRACT_VERIFIER_INPUT_SCHEMA = WITHDRAWAL_PUBLIC_INPUT_SCHEMA;
 
 export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
@@ -412,23 +408,7 @@ export function serializeWithdrawalPublicInputs(
 export function serializeContractVerifierInputs(
   source: WithdrawalPublicInputs
 ): SerializedContractVerifierInputs {
-  const values: ContractVerifierInputs = {
-    pool_id: source.pool_id,
-    root: source.root,
-    nullifier_hash: source.nullifier_hash,
-    recipient: source.recipient,
-    amount: source.amount,
-    relayer: source.relayer,
-    fee: source.fee,
-    denomination: source.denomination,
-  };
-
-  const fields = CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => values[key]);
-  const bytes = Buffer.concat(
-    CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => encodeWithdrawalPublicInputValue(key as WithdrawalPublicInputKey, values[key]))
-  );
-
-  return { values, fields, bytes };
+  return serializeWithdrawalPublicInputs(source);
 }
 
 /**
@@ -477,7 +457,14 @@ export function noteScalarToField(buf: Buffer): string {
  * @deprecated Use encodeMerkleRoot instead
  */
 export function merkleNodeToField(buf: Buffer): string {
-  return encodeMerkleRoot(buf);
+  if (buf.length !== MERKLE_NODE_BYTE_LENGTH) {
+    throw new Error(`Merkle node must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${buf.length}`);
+  }
+  const n = BigInt('0x' + buf.toString('hex'));
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError(`Merkle node must be < BN254 field modulus`);
+  }
+  return fieldToHex(n);
 }
 
 /**
@@ -491,7 +478,15 @@ export function stellarAddressToField(address: string): string {
  * @deprecated Use encodePoolId instead
  */
 export function poolIdToField(poolId: string): string {
-  return encodePoolId(poolId);
+  const clean = poolId.startsWith('0x') ? poolId.slice(2) : poolId;
+  if (clean.length !== 64) {
+    throw new Error(`Pool ID must be 32 bytes hex, got ${clean.length / 2}`);
+  }
+  const n = BigInt('0x' + clean);
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError(`Pool ID must be < BN254 field modulus`);
+  }
+  return fieldToHex(n);
 }
 
 /**

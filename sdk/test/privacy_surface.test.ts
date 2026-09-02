@@ -12,10 +12,10 @@ import { buildWithdrawalProofCacheKey, WithdrawalRequest } from '../src/withdraw
 import { MOCK_HASH_CONTEXT } from '../src/hash_mode';
 
 const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-const RELAYER = 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5';
+const RELAYER = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
 const VECTORS_PATH = path.resolve(__dirname, 'golden/vectors.json');
 
-function makeNote(poolId: string = '11'.repeat(32), amount: bigint = 1000n): Note {
+function makeNote(poolId: string = '11'.repeat(32), amount: bigint = 1000000000n): Note {
   return new Note(
     Buffer.from('01'.repeat(31), 'hex'),
     Buffer.from('02'.repeat(31), 'hex'),
@@ -48,11 +48,23 @@ describe('Privacy surface regression', () => {
     const backup = makeNote().exportBackup();
 
     expect(backup).toMatch(/^privacylayer-note:[0-9a-f]+$/);
-    expect(backup.length).toBe('privacylayer-note:'.length + (115 * 2));
+    expect(backup.length).toBe('privacylayer-note:'.length + 230);
     expect(backup).not.toContain('recipient');
     expect(backup).not.toContain('nullifier_hash');
     expect(backup).not.toContain('hash_path');
     expect(backup).not.toContain('{');
+  });
+
+  it('exportBackup fails cleanly when the note payload is malformed', () => {
+    const note = makeNote();
+    (note as any).nullifier = Buffer.from('01', 'hex');
+
+    expect(() => note.exportBackup()).toThrow(NoteBackupError);
+    try {
+      note.exportBackup();
+    } catch (error) {
+      expect((error as NoteBackupError).code).toBe('CORRUPT_DATA');
+    }
   });
 
   it('importBackup rejects appended plaintext metadata after a valid payload', () => {
@@ -139,7 +151,7 @@ describe('Privacy surface regression', () => {
     );
 
     const inconsistentRequest: WithdrawalRequest = {
-      note: makeNote('aa'.repeat(32), 777n),
+      note: makeNote('aa'.repeat(32), 1000000000n),
       merkleProof: makeMerkleProof(),
       recipient: RELAYER,
       relayer: G,
@@ -154,7 +166,15 @@ describe('Privacy surface regression', () => {
   it('golden vector fixture exports stay on the allowed field set only', () => {
     const fixture = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf8'));
 
-    expect(Object.keys(fixture).sort()).toEqual(['description', 'hash_algorithm', 'vectors', 'version']);
+    expect(Object.keys(fixture).sort()).toEqual([
+      'description',
+      'hash_algorithm',
+      'offline_tree_depth',
+      'privacy_notice',
+      'production_tree_depth',
+      'vectors',
+      'version',
+    ]);
 
     for (const vector of fixture.vectors as any[]) {
       expect(Object.keys(vector).sort()).toEqual([
@@ -173,6 +193,7 @@ describe('Privacy surface regression', () => {
         'amount',
         'fee',
         'nullifier_hash',
+        'pool_id',
         'recipient',
         'relayer',
         'root',

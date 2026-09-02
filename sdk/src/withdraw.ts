@@ -82,7 +82,7 @@ function buildCacheMaterial(
       hash_path: witness.hash_path.slice(),
     },
     publicInputs: serialized.values,
-    pool: request.note.poolId,
+    pool: witness.pool_id,
     denomination: witness.denomination,
   };
 }
@@ -238,4 +238,18 @@ export async function verifyWithdrawalProof(
     buildWithdrawalPublicInputLayout(publicInputs).fields,
     artifacts,
   );
+}
+
+/**
+ * Check if the current runtime can generate withdrawal proofs.
+ */
+export function canGenerateWithdrawalProof(): boolean {
+  return detectCapabilities().canProve;
+}
+
+/**
+ * Get the full ZK capabilities of the current runtime for withdrawal operations.
+ */
+export function getWithdrawalCapabilities(): ZkCapabilities {
+  return detectCapabilities();
 }

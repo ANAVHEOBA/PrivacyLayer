@@ -80,6 +80,14 @@ impl Denomination {
     pub fn canonical_bytes(&self) -> [u8; 16] {
         self.amount().to_be_bytes()
     }
+
+    /// Encodes the denomination amount as a 32-byte big-endian field element.
+    pub fn encode_as_field(&self, env: &Env) -> BytesN<32> {
+        let mut bytes = [0u8; 32];
+        let amount_bytes = self.amount().to_be_bytes();
+        bytes[16..32].copy_from_slice(&amount_bytes);
+        BytesN::from_array(env, &bytes)
+    }
 }
 
 const POOL_ID_DOMAIN_TAG: &[u8] = b"PrivacyLayerPoolId:v1";
@@ -107,7 +115,7 @@ fn derive_pool_id_from_identity(
 /// Derive canonical pool id from a token address, denomination, and current network domain.
 pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
     let token_text: String = token.to_string();
-    let token_bytes = token_text.into_bytes();
+    let token_bytes = token_text.to_bytes();
     let network_domain = env.ledger().network_id();
     derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
 }
@@ -250,17 +258,19 @@ impl SchemaVersion {
         Self { major, minor, patch }
     }
     
-    /// Parses a schema version from a string (e.g., "1.2.3").
     pub fn from_string(version: &str) -> Result<Self, &'static str> {
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() != 3 {
+        let mut parts = version.split('.');
+        let p0 = parts.next().ok_or("Invalid schema version format")?;
+        let p1 = parts.next().ok_or("Invalid schema version format")?;
+        let p2 = parts.next().ok_or("Invalid schema version format")?;
+        if parts.next().is_some() {
             return Err("Invalid schema version format");
         }
-        
-        let major = parts[0].parse::<u32>().map_err(|_| "Invalid major version")?;
-        let minor = parts[1].parse::<u32>().map_err(|_| "Invalid minor version")?;
-        let patch = parts[2].parse::<u32>().map_err(|_| "Invalid patch version")?;
-        
+
+        let major = p0.parse::<u32>().map_err(|_| "Invalid major version")?;
+        let minor = p1.parse::<u32>().map_err(|_| "Invalid minor version")?;
+        let patch = p2.parse::<u32>().map_err(|_| "Invalid patch version")?;
+
         Ok(Self::new(major, minor, patch))
     }
     
@@ -297,6 +307,7 @@ pub struct PublicInputsWithSchema {
 /// - amount
 /// - relayer
 /// - fee
+#[allow(dead_code)]
 pub const EXPECTED_WITHDRAW_SCHEMA_VERSION: &str = "1.20680.19972";
 
 // ──────────────────────────────────────────────────────────────

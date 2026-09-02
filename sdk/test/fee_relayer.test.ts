@@ -18,9 +18,9 @@
  * instead of constructing relayer/fee fields ad-hoc.
  */
 
-import { WitnessValidationError } from "./errors";
-import { ZERO_FIELD_HEX, STELLAR_ZERO_ACCOUNT } from "./zk_constants";
-import { fieldToHex, stellarAddressToField } from "./encoding";
+import { WitnessValidationError } from "../src/errors";
+import { ZERO_FIELD_HEX, STELLAR_ZERO_ACCOUNT } from "../src/zk_constants";
+import { fieldToHex, stellarAddressToField } from "../src/encoding";
 
 // ---------------------------------------------------------------------------
 // Validation
@@ -218,88 +218,40 @@ const prepCases: PrepCase[] = [
   },
 ];
 
-function runTests(): void {
-  console.log("=== ZK-036 Fee/Relayer Encoding Tests ===\n");
-
-  let failures = 0;
-  let total = 0;
-
-  // validateRelayerFeeEncoding cases
-  console.log("--- validateRelayerFeeEncoding ---");
-  for (const c of validationCases) {
-    total++;
-    let passed = false;
-    try {
-      validateRelayerFeeEncoding({ fee: c.fee, amount: c.amount, relayerField: c.relayerField });
-      if (c.expectError) {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      Expected error containing "${c.expectError}" but no error was thrown`);
-        failures++;
-      } else {
-        console.log(`PASS  ${c.label}`);
-        passed = true;
-      }
-    } catch (err: any) {
-      if (c.expectError) {
-        if (err.message.includes(c.expectError)) {
-          console.log(`PASS  ${c.label}`);
-          passed = true;
+describe("ZK-036 Fee/Relayer Encoding Tests", () => {
+  describe("validateRelayerFeeEncoding", () => {
+    for (const c of validationCases) {
+      it(c.label, () => {
+        if (c.expectError) {
+          expect(() =>
+            validateRelayerFeeEncoding({ fee: c.fee, amount: c.amount, relayerField: c.relayerField })
+          ).toThrow(c.expectError);
         } else {
-          console.log(`FAIL  ${c.label}`);
-          console.log(`      Expected error "${c.expectError}" but got "${err.message}"`);
-          failures++;
+          expect(() =>
+            validateRelayerFeeEncoding({ fee: c.fee, amount: c.amount, relayerField: c.relayerField })
+          ).not.toThrow();
         }
-      } else {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      Unexpected error: ${err.message}`);
-        failures++;
-      }
+      });
     }
-  }
+  });
 
-  // prepareRelayerFeeFields cases
-  console.log("\n--- prepareRelayerFeeFields ---");
-  for (const c of prepCases) {
-    total++;
-    try {
-      const fields = prepareRelayerFeeFields(c.relayerAddress, c.fee, c.amount);
-      if (c.expectError) {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      Expected error containing "${c.expectError}" but no error was thrown`);
-        failures++;
-        continue;
-      }
-      if (c.expectRelayerZero && fields.relayer !== ZERO_FIELD_HEX) {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      Expected relayer=ZERO_FIELD_HEX but got ${fields.relayer}`);
-        failures++;
-        continue;
-      }
-      if (!c.expectRelayerZero && c.fee > 0n && fields.relayer === ZERO_FIELD_HEX) {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      Expected non-zero relayer for fee=${c.fee} but got ZERO_FIELD_HEX`);
-        failures++;
-        continue;
-      }
-      console.log(`PASS  ${c.label}`);
-    } catch (err: any) {
-      if (c.expectError && err.message.includes(c.expectError)) {
-        console.log(`PASS  ${c.label}`);
-      } else {
-        console.log(`FAIL  ${c.label}`);
-        console.log(`      ${c.expectError ? `Expected "${c.expectError}" but got:` : "Unexpected error:"} ${err.message}`);
-        failures++;
-      }
+  describe("prepareRelayerFeeFields", () => {
+    for (const c of prepCases) {
+      it(c.label, () => {
+        if (c.expectError) {
+          expect(() =>
+            prepareRelayerFeeFields(c.relayerAddress, c.fee, c.amount)
+          ).toThrow(c.expectError);
+        } else {
+          const fields = prepareRelayerFeeFields(c.relayerAddress, c.fee, c.amount);
+          if (c.expectRelayerZero) {
+            expect(fields.relayer).toBe(ZERO_FIELD_HEX);
+          }
+          if (!c.expectRelayerZero && c.fee > 0n) {
+            expect(fields.relayer).not.toBe(ZERO_FIELD_HEX);
+          }
+        }
+      });
     }
-  }
-
-  const passed = total - failures;
-  console.log(`\n${passed}/${total} tests passed.`);
-
-  if (failures > 0) {
-    process.exit(1);
-  }
-}
-
-// Run when executed directly
-runTests();
+  });
+});

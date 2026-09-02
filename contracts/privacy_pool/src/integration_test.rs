@@ -80,15 +80,7 @@ fn dummy_vk(env: &Env) -> VerifyingKey {
     }
 }
 
-fn make_pool_id(env: &Env, seed: u8) -> PoolId {
-    let token_identity = soroban_sdk::Bytes::from_slice(env, &[b'c', b'o', b'n', b't', b'r', b'a', b'c', b't', b':', seed]);
-    derive_canonical_pool_id_for_fixture(
-        env,
-        &token_identity,
-        &Denomination::Xlm100,
-        &env.ledger().network_id(),
-    )
-}
+
 
 #[test]
 fn test_canonical_pool_id_fixture_vectors_match_sdk() {
@@ -217,18 +209,19 @@ fn test_e2e_unknown_root_rejected() {
     let fake_root = BytesN::from_array(&env, &[0xAA; 32]);
     assert!(!client.is_known_root(&pool_id, &fake_root));
 
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root: fake_root,
         nullifier_hash: make_nullifier_hash(&env, 5),
-        recipient: field(&env, 0xBB),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
         denomination: field(&env, 100),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
 }
 
@@ -256,25 +249,24 @@ fn test_e2e_double_spend_rejected_after_manual_spend_mark() {
     client.record_page_view();
     client.record_performance(&PerformanceMetricKind::Deposit, &250);
     let analytics = client.analytics_snapshot();
-    // 1 deposit from setup (was it?) NO, setup only creates pool.
-    // Line 178: client.deposit
     assert_eq!(analytics.deposit_count, 1);
     assert_eq!(analytics.withdrawal_count, 0);
     assert_eq!(client.withdraw_count(), 0);
     assert_eq!(analytics.avg_deposit_ms, 250);
 
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash,
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
 }
 
@@ -296,9 +288,9 @@ fn test_e2e_stale_root_evicted_after_overflow() {
 #[test]
 fn test_e2e_pool_scoping_keeps_roots_and_nullifiers_isolated() {
     let (env, client, token_id, admin, alice, _bob, pool_a) = setup();
-    let pool_b = make_pool_id(&env, 9);
+    let pool_b = derive_canonical_pool_id(&env, &token_id, &Denomination::Xlm10);
 
-    client.create_pool(&pool_b, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
+    client.create_pool(&pool_b, &token_id, &Denomination::Xlm10, &dummy_vk(&env));
 
     let (_, root_a) = client.deposit(&pool_a, &alice, &make_commit(&env, 21));
     let (_, root_b) = client.deposit(&pool_b, &alice, &make_commit(&env, 22));
@@ -319,158 +311,158 @@ fn test_e2e_pool_scoping_keeps_roots_and_nullifiers_isolated() {
 #[test]
 fn test_e2e_withdraw_rejects_wrong_pool_id_in_public_inputs() {
     let (env, client, _token_id, _admin, alice, _bob, pool_a) = setup();
-    let pool_b = make_pool_id(&env, 9);
-
-    // Create pool B with different token
     let token_admin = Address::generate(&env);
     let token_b = env.register_stellar_asset_contract_v2(token_admin).address();
+    let pool_b = derive_canonical_pool_id(&env, &token_b, &Denomination::Xlm100);
     client.create_pool(&pool_b, &token_b, &Denomination::Xlm100, &dummy_vk(&env));
 
-    // Deposit into pool A
     let (_, root_a) = client.deposit(&pool_a, &alice, &make_commit(&env, 1));
 
-    // Try to withdraw from pool A using public inputs that reference pool B
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
-        pool_id: pool_b.0.clone(), // Wrong pool ID
+        pool_id: pool_b.0.clone(),
         root: root_a,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_a, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_a, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with InvalidPoolId error due to pool_id mismatch
 }
 
 #[test]
 fn test_e2e_withdraw_rejects_wrong_denomination_in_public_inputs() {
     let (env, client, _token_id, _admin, alice, _bob, pool_id) = setup();
 
-    // Deposit into XLM100 pool
     let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
-    // Try to withdraw using wrong denomination (200 instead of 100)
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 200), // Wrong denomination
+        denomination: Denomination::Xlm10.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with InvalidDenomination error due to denomination mismatch
 }
 
 #[test]
 fn test_e2e_withdraw_accepts_correct_pool_id_and_denomination() {
     let (env, client, _token_id, _admin, alice, _bob, pool_id) = setup();
 
-    // Deposit into pool
     let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
-    // Withdraw with correct pool_id and denomination
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100), // Correct denomination
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    // This should pass the pool_id and denomination validation
-    // (though it will fail later due to invalid proof, which is expected)
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with InvalidProof, not InvalidPoolId or InvalidDenomination
 }
 
-// ──────────────────────────────────────────────────────────────
-// VK Metadata Validation Tests (ZK-074)
-// ──────────────────────────────────────────────────────────────
+#[test]
+fn test_e2e_withdraw_rejects_recipient_binding_mismatch() {
+    let (env, client, _token_id, _admin, alice, _bob, pool_id) = setup();
+
+    let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
+
+    let recipient_a = Address::generate(&env);
+    let recipient_b = Address::generate(&env);
+
+    let pub_inputs = PublicInputs {
+        pool_id: pool_id.0.clone(),
+        root,
+        nullifier_hash: make_nullifier_hash(&env, 1),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient_a),
+        amount: field(&env, 1),
+        relayer: BytesN::from_array(&env, &[0u8; 32]),
+        fee: BytesN::from_array(&env, &[0u8; 32]),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
+    };
+
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient_b, &None);
+    assert_eq!(result, Err(Ok(crate::types::errors::Error::InvalidRecipient)));
+}
 
 #[test]
 fn test_e2e_vk_circuit_id_mismatch_rejected() {
     let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
 
-    // Create a VK with wrong circuit_id
     let mut wrong_vk = dummy_vk(&env);
     wrong_vk.circuit_id = soroban_sdk::String::from_str(&env, "commitment");
 
-    // Update the VK for this pool
     client.set_verifying_key(&admin, &pool_id, &wrong_vk);
 
-    // Deposit into pool
     let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
-    // Try to withdraw with mismatched circuit_id
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with CircuitIdMismatch before expensive pairing operations
 }
 
 #[test]
 fn test_e2e_vk_public_input_count_mismatch_rejected() {
     let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
 
-    // Create a VK with wrong public_input_count
     let mut wrong_vk = dummy_vk(&env);
-    wrong_vk.public_input_count = 7; // Wrong count (should be 8)
+    wrong_vk.public_input_count = 7;
 
-    // Update the VK for this pool
     client.set_verifying_key(&admin, &pool_id, &wrong_vk);
 
-    // Deposit into pool
     let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
-    // Try to withdraw with mismatched public input count
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with PublicInputCountMismatch before expensive pairing operations
 }
 
 #[test]
 fn test_e2e_vk_gamma_abc_length_mismatch_rejected() {
     let (env, client, _token_id, admin, alice, _bob, pool_id) = setup();
 
-    // Create a VK with mismatched gamma_abc_g1 length
     let g1 = BytesN::from_array(&env, &[0u8; 64]);
     let g2 = BytesN::from_array(&env, &[0u8; 128]);
     let mut abc = Vec::new(&env);
-    // Only 7 IC points instead of 9 (public_input_count + 1)
     for _ in 0..7 {
         abc.push_back(g1.clone());
     }
@@ -482,58 +474,51 @@ fn test_e2e_vk_gamma_abc_length_mismatch_rejected() {
         delta_g2: g2,
         gamma_abc_g1: abc,
         circuit_id: soroban_sdk::String::from_str(&env, "withdraw"),
-        public_input_count: 8, // Claims 8 inputs but only has 6 IC points (7 - 1)
+        public_input_count: 8,
         manifest_hash: BytesN::from_array(&env, &[0u8; 32]),
     };
 
-    // Update the VK for this pool
     client.set_verifying_key(&admin, &pool_id, &wrong_vk);
 
-    // Deposit into pool
     let (_, root) = client.deposit(&pool_id, &alice, &make_commit(&env, 1));
 
-    // Try to withdraw with mismatched gamma_abc_g1 length
+    let recipient = Address::generate(&env);
     let pub_inputs = PublicInputs {
         pool_id: pool_id.0.clone(),
         root,
         nullifier_hash: make_nullifier_hash(&env, 1),
-        recipient: field(&env, 0xCC),
+        recipient: crate::utils::address_decoder::encode_address_as_field(&env, &recipient),
         amount: field(&env, 1),
         relayer: BytesN::from_array(&env, &[0u8; 32]),
         fee: BytesN::from_array(&env, &[0u8; 32]),
-        denomination: field(&env, 100),
+        denomination: Denomination::Xlm100.encode_as_field(&env),
     };
 
-    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs);
+    let result = client.try_withdraw(&pool_id, &dummy_proof(&env), &pub_inputs, &recipient, &None);
     assert!(result.is_err());
-    // Should fail with MalformedVerifyingKey due to length mismatch
 }
 
 #[test]
 fn test_e2e_vk_metadata_allows_upgrade_auditability() {
     let (env, client, _token_id, admin, _alice, _bob, pool_id) = setup();
 
-    // Create VK with specific manifest hash (simulating v1)
     let manifest_v1 = BytesN::from_array(&env, &[0x01; 32]);
     let mut vk_v1 = dummy_vk(&env);
     vk_v1.manifest_hash = manifest_v1.clone();
 
     client.set_verifying_key(&admin, &pool_id, &vk_v1);
 
-    // Retrieve and verify VK metadata
     let stored_vk = client.get_verifying_key(&pool_id);
-    assert_eq!(stored_vk.circuit_id.to_string(), "withdraw");
+    assert_eq!(stored_vk.circuit_id, soroban_sdk::String::from_str(&env, "withdraw"));
     assert_eq!(stored_vk.public_input_count, 8);
     assert_eq!(stored_vk.manifest_hash, manifest_v1);
 
-    // Simulate upgrade to v2
     let manifest_v2 = BytesN::from_array(&env, &[0x02; 32]);
     let mut vk_v2 = dummy_vk(&env);
     vk_v2.manifest_hash = manifest_v2.clone();
 
     client.set_verifying_key(&admin, &pool_id, &vk_v2);
 
-    // Verify upgrade is auditable
     let stored_vk_v2 = client.get_verifying_key(&pool_id);
     assert_eq!(stored_vk_v2.manifest_hash, manifest_v2);
     assert_ne!(stored_vk_v2.manifest_hash, manifest_v1);

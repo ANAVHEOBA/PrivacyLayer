@@ -19,8 +19,8 @@ import {
     LocalMerkleTree,
     computeMerkleZeroLadder,
     syncCommitmentBatch,
-  } from "../merkle";
-  import { stableHash32 } from "../stable";
+  } from "../src/merkle";
+  import { stableHash32 } from "../src/stable";
   
   // ---------------------------------------------------------------------------
   // Minimal seeded PRNG (Mulberry32) – no external deps
@@ -163,7 +163,7 @@ import {
             `[P2 FAILURE] trial=${trial} leafCount=${leafCount} proveIdx=${proveIdx}\n` +
             `  treeRoot=${treeRoot}\n` +
             `  computed=${computed.toString("hex")}\n` +
-            `  pathElements=${proof.pathElements.map((e) => e.toString("hex")).join(",")}\n` +
+            `  pathElements=${proof.pathElements.map((e: Buffer) => e.toString("hex")).join(",")}\n` +
             `  pathIndices=${pathIndices.join(",")}`,
           );
         }
@@ -212,7 +212,7 @@ import {
           `trial=${trial} leafCount=${leafCount} proveIdx=${proveIdx} ` +
           `root=${treeRoot} computed=${current.toString("hex")}`;
   
-        expect(current.toString("hex")).withContext?.(reproInfo).toBe(treeRoot);
+        expect(current.toString("hex")).toBe(treeRoot);
         if (current.toString("hex") !== treeRoot) {
           console.error(`[P2b FAILURE] ${reproInfo}`);
         }

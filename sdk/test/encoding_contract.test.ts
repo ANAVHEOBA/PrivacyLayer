@@ -48,6 +48,7 @@ describe('BN254 encoding contract', () => {
       amount: fieldToHex(5n),
       relayer: fieldToHex(6n),
       fee: fieldToHex(7n),
+      denomination: fieldToHex(8n),
     });
 
     expect(serialized.fields).toEqual([
@@ -58,8 +59,9 @@ describe('BN254 encoding contract', () => {
       fieldToHex(5n),
       fieldToHex(6n),
       fieldToHex(7n),
+      fieldToHex(8n),
     ]);
-    expect(serialized.bytes.length).toBe(7 * 32);
+    expect(serialized.bytes.length).toBe(8 * 32);
     expect(serialized.bytes.toString('hex')).toBe(serialized.fields.join(''));
   });
 

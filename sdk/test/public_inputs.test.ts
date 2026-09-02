@@ -241,18 +241,20 @@ describe('Public Input Encoding (ZK-008)', () => {
 
     it('defines contract verifier input schema', () => {
       expect(CONTRACT_VERIFIER_INPUT_SCHEMA).toEqual([
+        'pool_id',
         'root',
         'nullifier_hash',
         'recipient',
         'amount',
         'relayer',
         'fee',
+        'denomination',
       ]);
     });
 
-    it('contract verifier schema excludes pool_id and denomination', () => {
-      expect(CONTRACT_VERIFIER_INPUT_SCHEMA).not.toContain('pool_id');
-      expect(CONTRACT_VERIFIER_INPUT_SCHEMA).not.toContain('denomination');
+    it('contract verifier schema includes pool_id and denomination', () => {
+      expect(CONTRACT_VERIFIER_INPUT_SCHEMA).toContain('pool_id');
+      expect(CONTRACT_VERIFIER_INPUT_SCHEMA).toContain('denomination');
     });
   });
 
@@ -285,8 +287,8 @@ describe('Public Input Encoding (ZK-008)', () => {
         denomination: encodeDenomination(100n),
       };
       const serialized = serializeContractVerifierInputs(inputs);
-      expect(serialized.fields).toHaveLength(6);
-      expect(serialized.bytes).toHaveLength(192); // 6 * 32 bytes
+      expect(serialized.fields).toHaveLength(8);
+      expect(serialized.bytes).toHaveLength(256); // 8 * 32 bytes
     });
 
     it('packs withdrawal public inputs from individual values', () => {

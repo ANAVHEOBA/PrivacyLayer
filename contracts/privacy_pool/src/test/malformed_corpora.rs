@@ -12,7 +12,6 @@
 #[cfg(test)]
 extern crate std;
 
-use soroban_sdk::testutils::Address as _;
 use soroban_sdk::{Bytes, BytesN, Env, Vec};
 use crate::types::state::{Proof, PublicInputs, VerifyingKey};
 

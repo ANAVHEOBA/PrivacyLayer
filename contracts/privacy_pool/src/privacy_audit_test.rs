@@ -6,10 +6,10 @@
 // ============================================================
 
 use soroban_sdk::testutils::Address as _;
-use soroban_sdk::{Address, Env, IntoVal, Val, Vec, BytesN};
+use soroban_sdk::{Address, Env, BytesN};
 use crate::types::events::{emit_deposit, emit_withdraw, DepositEvent, WithdrawEvent};
-use crate::types::state::{PoolId, AnalyticsBucket, AnalyticsSnapshot, AnalyticsState};
-use crate::storage::analytics::{record_deposit_success, record_withdraw_success, snapshot, ANALYTICS_HISTORY_HOURS, SNAPSHOT_WINDOW_HOURS};
+use crate::types::state::{PoolId, AnalyticsBucket};
+use crate::storage::analytics::{record_deposit_success, record_withdraw_success, snapshot, SNAPSHOT_WINDOW_HOURS};
 
 fn pool_id(env: &Env, id: u8) -> PoolId {
     let mut bytes = [0u8; 32];
@@ -74,18 +74,20 @@ fn test_withdraw_event_no_note_material() {
 #[test]
 fn test_analytics_state_no_user_identifiers() {
     let env = Env::default();
-    
-    // Initialize analytics
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
 
-    // Record some operations
-    record_deposit_success(&env);
-    record_deposit_success(&env);
-    record_withdraw_success(&env);
+    let snap = env.as_contract(&contract_id, || {
+        // Initialize analytics
+        crate::storage::analytics::initialize(&env);
 
-    // Create snapshot
-    let deposit_count: u32 = 2;
-    let snap = snapshot(&env, deposit_count);
+        // Record some operations
+        record_deposit_success(&env);
+        record_deposit_success(&env);
+        record_withdraw_success(&env);
+
+        // Create snapshot
+        snapshot(&env)
+    });
 
     // Verify snapshot contains ONLY aggregate counters
     // No user addresses, no nullifiers, no commitments, no proof data
@@ -106,16 +108,6 @@ fn test_analytics_state_no_user_identifiers() {
 
 #[test]
 fn test_analytics_bucket_structure_privacy() {
-    let env = Env::default();
-    crate::storage::analytics::initialize(&env);
-
-    // AnalyticsBucket should only contain:
-    // - hour_epoch: timestamp (public)
-    // - page_views: counter (aggregate)
-    // - deposits: counter (aggregate)
-    // - withdrawals: counter (aggregate)
-    // - errors: counter (aggregate)
-    
     let bucket = AnalyticsBucket {
         hour_epoch: 1000,
         page_views: 5,
@@ -199,18 +191,22 @@ fn test_events_forbidden_zk_data_classes() {
 #[test]
 fn test_analytics_snapshot_public_boundary() {
     let env = Env::default();
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
 
-    // Record operations
-    for _ in 0..5 {
-        record_deposit_success(&env);
-    }
-    for _ in 0..3 {
-        record_withdraw_success(&env);
-    }
+    let snap = env.as_contract(&contract_id, || {
+        crate::storage::analytics::initialize(&env);
 
-    // Build snapshot
-    let snap = snapshot(&env, 5);
+        // Record operations
+        for _ in 0..5 {
+            record_deposit_success(&env);
+        }
+        for _ in 0..3 {
+            record_withdraw_success(&env);
+        }
+
+        // Build snapshot
+        snapshot(&env)
+    });
 
     // Snapshot should be safe for public dashboard exposure
     // All fields are aggregate counters or averages

@@ -29,6 +29,7 @@ function makePublicInputs(overrides: Partial<WithdrawalPublicInputs> = {}): With
     amount: fieldToHex(1000000000n), // DEFAULT_DENOMINATION
     relayer: '05'.repeat(32),
     fee: fieldToHex(0n),
+    denomination: fieldToHex(1000000000n),
     ...overrides,
   };
 }
@@ -42,6 +43,7 @@ function asVerifierFieldList(publicInputs: WithdrawalPublicInputs): string[] {
     publicInputs.amount,
     publicInputs.relayer,
     publicInputs.fee,
+    publicInputs.denomination,
   ];
 }
 
@@ -82,14 +84,16 @@ describe('Verification Harness', () => {
     ['amount', 4],
     ['relayer', 5],
     ['fee', 6],
+    ['denomination', 7],
   ])('should fail verification when %s is tampered', async (_label: string, idx: number) => {
     const proof = new Uint8Array(64).fill(0xab);
     const good = makePublicInputs();
     const backend = new MockVerifyingBackend(asVerifierFieldList(good));
     const tampered = { ...good };
-    const keys: (keyof WithdrawalPublicInputs)[] = ['pool_id', 'root', 'nullifier_hash', 'recipient', 'amount', 'relayer', 'fee'];
+    const keys: (keyof WithdrawalPublicInputs)[] = ['pool_id', 'root', 'nullifier_hash', 'recipient', 'amount', 'relayer', 'fee', 'denomination'];
     tampered[keys[idx]!] =
       keys[idx] === 'amount' ? fieldToHex(1000000001n)
+      : keys[idx] === 'denomination' ? fieldToHex(1000000001n)
       : keys[idx] === 'fee' ? fieldToHex(1n)
       : '09'.repeat(32);
     const isValid = await verifyWithdrawalProof(proof, tampered, withdrawArtifact, backend);
@@ -100,7 +104,7 @@ describe('Verification Harness', () => {
     await expect(
       verifyWithdrawalProof(
         new Uint8Array(64).fill(0xab),
-        ['pool', 'root', 'nullifier_hash', 'recipient', '100', 'relayer', '0'],
+        ['pool', 'root', 'nullifier_hash', 'recipient', '100', 'relayer', '0', '100'],
         withdrawArtifact,
         new MockVerifyingBackend([])
       )
@@ -129,7 +133,7 @@ describe('Verification Harness', () => {
     );
     const publicInputs = extractPublicInputs(witness);
     
-    expect(publicInputs).toHaveLength(7);
+    expect(publicInputs).toHaveLength(8);
     expect(publicInputs[0]).toBe(witness.pool_id);
     expect(publicInputs[1]).toBe(witness.root);
     expect(publicInputs[3]).toBe(witness.recipient);
