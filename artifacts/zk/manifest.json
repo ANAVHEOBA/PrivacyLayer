@@ -25,12 +25,12 @@
         "fee",
         "denomination"
       ],
-      "schema_version": "1.20680.19972"
+      "schema_version": "1.23292.854"
     },
     "commitment": {
       "circuit_id": "commitment",
       "path": "commitment.json",
-      "artifact_sha256": "0xc664b4c5e4bb06f7d54c4e86fd6a81d42a968899941e6f42d91656ddf9f9a661",
+      "artifact_sha256": "0x2456b7e6e0162b8b14a8619914f964734cc7c031727c1a52ac49e3f1e1a93472",
       "bytecode_sha256": "0xdfbdca2108939b0184db56a381088d4698702988647507242598869290c5d5e0",
       "abi_sha256": "0xe084f973bddc1be32518abc050b9f03bcb06ffbef43034b653e9319485a4bb9d",
       "name": "commitment",

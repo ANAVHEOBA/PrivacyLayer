@@ -38,8 +38,9 @@ pub fn execute(
         return Err(Error::InvalidDenomination);
     }
 
-    // Step 3: Validate and decode fee
+    // Step 3: Validate and decode fee and relayer binding
     let fee = validation::decode_and_validate_fee(&pub_inputs.fee, denomination_amount)?;
+    validation::validate_relayer_and_fee(&pub_inputs.relayer, fee)?;
 
     // Step 4: Verify Groth16 proof for this pool
     let vk = config::load_verifying_key(&env, &pool_id)?;

@@ -67,7 +67,7 @@ describe('Schema Versioning End-to-End Tests', () => {
       // Requirement 2.3: SDK returns validated schema_version
       const schemaVersion = backend.getSchemaVersion();
       expect(schemaVersion).toBe(manifest.circuits.withdraw.schema_version);
-      expect(schemaVersion).toBe('1.20680.19972');
+      expect(schemaVersion).toBe('1.23292.854');
     });
 
     it('should verify SDK compatibility checking works correctly', () => {
@@ -354,9 +354,9 @@ describe('Schema Versioning End-to-End Tests', () => {
     it('should verify schema versions match their public_input_schema', () => {
       const manifest = loadManifest();
       
-      // Withdraw has 7 fields
-      expect(manifest.circuits.withdraw.public_input_schema).toHaveLength(7);
-      expect(manifest.circuits.withdraw.schema_version).toBe('1.20680.19972');
+      // Withdraw has 8 fields
+      expect(manifest.circuits.withdraw.public_input_schema).toHaveLength(8);
+      expect(manifest.circuits.withdraw.schema_version).toBe('1.23292.854');
       
       // Commitment has 2 fields
       expect(manifest.circuits.commitment.public_input_schema).toHaveLength(2);

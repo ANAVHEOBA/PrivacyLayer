@@ -80,7 +80,6 @@ pub fn record_performance(
 /// Returns global aggregate analytics snapshot for public dashboards.
 pub fn analytics_snapshot(env: Env) -> Result<AnalyticsSnapshot, Error> {
     config::load_global_config(&env)?;
-    // Use aggregate withdrawals for now as a placeholder for global deposits
-    let withdrawals = analytics::withdrawal_count(&env);
-    Ok(analytics::snapshot(&env, withdrawals as u32))
+    let deposits = analytics::deposit_count(&env);
+    Ok(analytics::snapshot(&env, deposits as u32))
 }

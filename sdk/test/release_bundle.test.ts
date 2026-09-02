@@ -18,8 +18,8 @@ describe('Release bundle helpers', () => {
     expect(bundle.artifact_version).toBe('1');
     expect(bundle.manifest_sha256).toMatch(/^0x[0-9a-f]{64}$/);
     expect(bundle.verifier_schema.circuit_id).toBe('withdraw');
-    expect(bundle.verifier_schema.public_input_arity).toBe(7);
-    expect(bundle.verifier_schema.contract_public_input_arity).toBe(6);
+    expect(bundle.verifier_schema.public_input_arity).toBe(8);
+    expect(bundle.verifier_schema.contract_public_input_arity).toBe(7);
     expect(bundle.contract_metadata.target_circuit_id).toBe('withdraw');
     expect(bundle.operational_artifacts.benchmark_baselines_path).toBe(
       'artifacts/zk/v1/bundles/benchmark-baselines.json',

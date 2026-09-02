@@ -242,7 +242,10 @@ export function loadReleaseBundle(version: string = ZK_ARTIFACT_VERSION): ZkRele
 export function loadManifestForBundle(version: string = ZK_ARTIFACT_VERSION): ZkArtifactManifest {
   const versionedManifestPath = resolveRepoPath(getManifestPath(version));
   if (fs.existsSync(versionedManifestPath)) {
-    return readJson<ZkArtifactManifest>(versionedManifestPath);
+    const manifest = readJson<ZkArtifactManifest>(versionedManifestPath);
+    if (manifest.circuits && Object.keys(manifest.circuits).length > 0) {
+      return manifest;
+    }
   }
 
   const legacyManifestPath = resolveRepoPath(path.join('artifacts', 'zk', 'manifest.json'));

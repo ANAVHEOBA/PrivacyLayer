@@ -8,11 +8,11 @@
 // Rule set
 // --------
 //  R1. fee <= amount          (prevent fee-only griefing)
-//  R2. fee == 0 → relayer == 0  (no phantom relayer)
-//  R3. fee >  0 → relayer != 0  (relayer must be set when fee is non-zero)
+//  R2. fee == 0 -> relayer == 0  (no phantom relayer)
+//  R3. fee >  0 -> relayer != 0  (relayer must be set when fee is non-zero)
 //
 // All three rules are enforced both here (circuit side) and in
-// the SDK (sdk/src/proof.ts – see `validateRelayerFeeEncoding`).
+// the SDK (sdk/src/proof.ts - see `validateRelayerFeeEncoding`).
 // ============================================================
 
 /// Validate that fee does not exceed the withdrawal amount.
@@ -26,8 +26,8 @@ pub fn validate_fee(fee: Field, amount: Field) {
 /// Validate the canonical relayer/fee encoding rule.
 ///
 /// # Encoding contract
-/// - fee == 0  → relayer MUST be 0   (no fee, no relayer)
-/// - fee >  0  → relayer MUST be != 0  (fee without a relayer is invalid)
+/// - fee == 0  -> relayer MUST be 0   (no fee, no relayer)
+/// - fee >  0  -> relayer MUST be != 0  (fee without a relayer is invalid)
 ///
 /// # Panics
 /// Panics when either encoding invariant is violated.
@@ -39,7 +39,7 @@ pub fn validate_relayer(relayer: Field, fee: Field) {
     }
 }
 
-/// Combined convenience guard – call once in the spend circuit.
+/// Combined convenience guard - call once in the spend circuit.
 pub fn validate_fee_and_relayer(fee: Field, amount: Field, relayer: Field) {
     validate_fee(fee, amount);
     validate_relayer(relayer, fee);
@@ -53,7 +53,6 @@ pub fn validate_fee_and_relayer(fee: Field, amount: Field, relayer: Field) {
 // directly to a reproduction case.
 // ============================================================
 
-#[cfg(test)]
 mod tests {
     use super::{validate_fee, validate_relayer, validate_fee_and_relayer};
 
@@ -83,7 +82,7 @@ mod tests {
 
     #[test(should_fail_with = "fee cannot exceed withdrawal amount")]
     fn fee_equals_max_field_panics_when_amount_is_small() {
-        // Largest value that fits in u64 – must fail when amount is 0
+        // Largest value that fits in u64 - must fail when amount is 0
         validate_fee(18446744073709551615, 0);
     }
 

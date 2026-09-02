@@ -13,7 +13,7 @@ const s31 = () => Buffer.from('01'.repeat(31), 'hex');
 const p20 = () => Array.from({ length: 20 }, () => r32);
 
 function makeNote() {
-  return new Note(s31(), s31(), 'cc'.repeat(32), 1000n);
+  return new Note(s31(), s31(), '01'.repeat(32), 1000n);
 }
 
 describe('Malformed Merkle + witness inputs (fail before backend)', () => {

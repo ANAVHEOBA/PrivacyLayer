@@ -12,8 +12,8 @@ import { MOCK_HASH_CONTEXT } from '../src/hash_mode';
 
 class IntegrationProvingBackend implements ProvingBackend {
   async generateProof(witness: PreparedWitness): Promise<Uint8Array> {
-    const amount = BigInt(witness.amount);
-    const fee = BigInt(witness.fee);
+    const amount = BigInt('0x' + witness.amount);
+    const fee = BigInt('0x' + witness.fee);
 
     if (fee > amount) {
       throw new Error('invalid witness: fee exceeds amount');
@@ -38,12 +38,16 @@ class IntegrationVerifyingBackend implements VerifyingBackend {
       return false;
     }
 
-    // publicInputs order: pool_id(0) root(1) nullifier_hash(2) recipient(3) amount(4) relayer(5) fee(6)
-    const amount = BigInt(publicInputs[4]);
-    const fee = BigInt(publicInputs[6]);
+    // publicInputs order: pool_id(0) root(1) nullifier_hash(2) recipient(3) amount(4) relayer(5) fee(6) denomination(7)
+    const amount = BigInt('0x' + publicInputs[4]);
+    const fee = BigInt('0x' + publicInputs[6]);
     return fee <= amount;
   }
 }
+
+import { Keypair } from '@stellar/stellar-base';
+
+const VALID_RELAYER = Keypair.random().publicKey();
 
 const FIXTURES = {
   valid: {
@@ -51,7 +55,7 @@ const FIXTURES = {
     poolId: '01'.repeat(32),
     amount: 1000000000n, // DEFAULT_DENOMINATION
     recipient: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-    relayer: 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5',
+    relayer: VALID_RELAYER,
     fee: 5n
   },
   invalid: {
@@ -59,7 +63,7 @@ const FIXTURES = {
     poolId: '02'.repeat(32),
     amount: 1000000000n, // DEFAULT_DENOMINATION
     recipient: 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF',
-    relayer: 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5',
+    relayer: VALID_RELAYER,
     fee: 1000000001n // fee > amount
   }
 };

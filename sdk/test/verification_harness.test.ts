@@ -29,6 +29,7 @@ function makePublicInputs(overrides: Partial<WithdrawalPublicInputs> = {}): With
     amount: fieldToHex(1000000000n), // DEFAULT_DENOMINATION
     relayer: '05'.repeat(32),
     fee: fieldToHex(0n),
+    denomination: fieldToHex(1000000000n),
     ...overrides,
   };
 }
@@ -42,6 +43,7 @@ function asVerifierFieldList(publicInputs: WithdrawalPublicInputs): string[] {
     publicInputs.amount,
     publicInputs.relayer,
     publicInputs.fee,
+    publicInputs.denomination,
   ];
 }
 
@@ -129,7 +131,7 @@ describe('Verification Harness', () => {
     );
     const publicInputs = extractPublicInputs(witness);
     
-    expect(publicInputs).toHaveLength(7);
+    expect(publicInputs).toHaveLength(8);
     expect(publicInputs[0]).toBe(witness.pool_id);
     expect(publicInputs[1]).toBe(witness.root);
     expect(publicInputs[3]).toBe(witness.recipient);

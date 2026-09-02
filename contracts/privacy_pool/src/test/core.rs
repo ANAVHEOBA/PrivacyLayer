@@ -61,7 +61,7 @@ impl TestEnv {
         StellarAssetClient::new(&env, &token_id).mint(&alice, &(50 * DENOM_AMOUNT));
         StellarAssetClient::new(&env, &token_id).mint(&bob,   &(50 * DENOM_AMOUNT));
 
-        let pool_1 = PoolId(BytesN::from_array(&env, &[1u8; 32]));
+        let pool_1 = crate::types::state::derive_canonical_pool_id(&env, &token_id, &Denomination::Xlm100);
 
         TestEnv { env, client, token_id, admin, alice, bob, pool_1 }
     }

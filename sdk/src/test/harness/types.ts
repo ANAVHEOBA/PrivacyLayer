@@ -46,9 +46,9 @@ export interface TestConfig {
  */
 export interface CircuitArtifacts {
   /** ACIR bytecode */
-  acir: Buffer;
+  acir: Buffer | Uint8Array;
   /** Verification key */
-  vkey: Buffer;
+  vkey: Buffer | Uint8Array;
   /** Circuit ABI */
   abi: Record<string, any>;
   /** Optional bytecode string (for NoirBackend) */

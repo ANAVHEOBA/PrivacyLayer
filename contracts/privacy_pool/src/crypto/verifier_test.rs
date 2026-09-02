@@ -6,6 +6,8 @@
 
 #[cfg(test)]
 mod tests {
+    extern crate std;
+    use std::format;
     use crate::crypto::verifier::validate_schema_version;
     use crate::types::errors::Error;
     use crate::types::state::SchemaVersion;
