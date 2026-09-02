@@ -42,9 +42,9 @@ function buildMerkle(v: any): MerkleProof {
   };
 }
 
-const RECIPIENT = 'GBFGGCJAB5W35GFPVAPNWBFKQDLZSTMILCJHASHXIIMPRWBGYWH37PFKF';
-const POOL_A = 'a'.repeat(64);  // canonical pool A
-const POOL_B = 'b'.repeat(64);  // canonical pool B (different)
+const RECIPIENT = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
+const POOL_A = '01'.repeat(32);  // canonical pool A
+const POOL_B = '02'.repeat(32);  // canonical pool B (different)
 
 // ---------------------------------------------------------------------------
 // Replay Matrix

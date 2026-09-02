@@ -982,7 +982,7 @@ export class WithdrawHarness {
       
       // Replace the root with an unknown root (random bytes)
       const unknownRoot = Buffer.alloc(32);
-      unknownRoot.fill(0xFF); // Fill with 0xFF to ensure it's different from any real root
+      unknownRoot.fill(0x01); // Fill with 0x01 to ensure it's different from any real root and in field
       
       // Update the witness with the unknown root
       const invalidWitness = {

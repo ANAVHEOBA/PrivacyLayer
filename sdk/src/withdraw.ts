@@ -70,7 +70,7 @@ interface WithdrawalCacheMaterial {
 }
 
 function buildCacheMaterial(
-  request: WithdrawalRequest,
+  _request: WithdrawalRequest,
   witness: PreparedWitness,
 ): WithdrawalCacheMaterial {
   const serialized = serializeWithdrawalPublicInputs(witness);
@@ -82,7 +82,7 @@ function buildCacheMaterial(
       hash_path: witness.hash_path.slice(),
     },
     publicInputs: serialized.values,
-    pool: request.note.poolId,
+    pool: witness.pool_id,
     denomination: witness.denomination,
   };
 }
@@ -238,4 +238,12 @@ export async function verifyWithdrawalProof(
     buildWithdrawalPublicInputLayout(publicInputs).fields,
     artifacts,
   );
+}
+
+export function canGenerateWithdrawalProof(): boolean {
+  return detectCapabilities().canProve;
+}
+
+export function getWithdrawalCapabilities(): ZkCapabilities {
+  return detectCapabilities();
 }

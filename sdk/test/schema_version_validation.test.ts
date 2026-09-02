@@ -233,7 +233,7 @@ describe('NoirBackend schema version validation', () => {
       });
 
       const schemaVersion = backend.getSchemaVersion();
-      expect(schemaVersion).toBe('1.20680.19972');
+      expect(schemaVersion).toBe('1.23292.854');
     });
 
     it('should correctly load and validate commitment circuit schema version', () => {

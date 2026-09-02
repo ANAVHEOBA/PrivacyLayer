@@ -1,5 +1,6 @@
 import fs from 'fs';
 import path from 'path';
+import { Keypair } from '@stellar/stellar-base';
 import { Note, NoteBackupError } from '../src/note';
 import {
   MerkleProof,
@@ -12,10 +13,10 @@ import { buildWithdrawalProofCacheKey, WithdrawalRequest } from '../src/withdraw
 import { MOCK_HASH_CONTEXT } from '../src/hash_mode';
 
 const G = 'GAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAWHF';
-const RELAYER = 'GBZXN7PIRZGNMHGAH5Q4D5B4H3B7BWQ7M4CW67A4V6APSLW7M4Q6TLE5';
+const RELAYER = Keypair.random().publicKey();
 const VECTORS_PATH = path.resolve(__dirname, 'golden/vectors.json');
 
-function makeNote(poolId: string = '11'.repeat(32), amount: bigint = 1000n): Note {
+function makeNote(poolId: string = '11'.repeat(32), amount: bigint = 1000000000n): Note {
   return new Note(
     Buffer.from('01'.repeat(31), 'hex'),
     Buffer.from('02'.repeat(31), 'hex'),
@@ -154,7 +155,15 @@ describe('Privacy surface regression', () => {
   it('golden vector fixture exports stay on the allowed field set only', () => {
     const fixture = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf8'));
 
-    expect(Object.keys(fixture).sort()).toEqual(['description', 'hash_algorithm', 'vectors', 'version']);
+    expect(Object.keys(fixture).sort()).toEqual([
+      'description',
+      'hash_algorithm',
+      'offline_tree_depth',
+      'privacy_notice',
+      'production_tree_depth',
+      'vectors',
+      'version',
+    ]);
 
     for (const vector of fixture.vectors as any[]) {
       expect(Object.keys(vector).sort()).toEqual([
@@ -173,6 +182,7 @@ describe('Privacy surface regression', () => {
         'amount',
         'fee',
         'nullifier_hash',
+        'pool_id',
         'recipient',
         'relayer',
         'root',

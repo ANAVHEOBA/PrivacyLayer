@@ -5,7 +5,9 @@ import { Note } from '../src/note';
 import { computeNoteCommitmentField } from '../src/poseidon';
 import { FIELD_MODULUS } from '../src/zk_constants';
 
-const VECTORS_PATH = path.resolve(__dirname, '../../artifacts/zk/v1/commitment_vectors.json');
+const candidate1 = path.resolve(__dirname, '../../artifacts/zk/commitment_vectors.json');
+const candidate2 = path.resolve(__dirname, '../../artifacts/zk/v1/commitment_vectors.json');
+const VECTORS_PATH = fs.existsSync(candidate1) ? candidate1 : candidate2;
 const fixture = JSON.parse(fs.readFileSync(VECTORS_PATH, 'utf8'));
 
 function buildNote(v: any): Note {

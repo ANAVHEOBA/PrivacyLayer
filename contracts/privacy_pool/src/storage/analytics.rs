@@ -127,6 +127,10 @@ pub fn record_performance(env: &Env, kind: PerformanceMetricKind, duration_ms: u
     save_state(env, &state);
 }
 
+pub fn deposit_count(env: &Env) -> u64 {
+    load_state(env).successful_deposits
+}
+
 pub fn withdrawal_count(env: &Env) -> u64 {
     load_state(env).successful_withdrawals
 }

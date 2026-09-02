@@ -80,6 +80,14 @@ impl Denomination {
     pub fn canonical_bytes(&self) -> [u8; 16] {
         self.amount().to_be_bytes()
     }
+
+    /// Encode denomination amount as a 32-byte big-endian field element.
+    pub fn encode_as_field(&self, env: &Env) -> BytesN<32> {
+        let mut bytes = [0u8; 32];
+        let amount_bytes = self.amount().to_be_bytes();
+        bytes[16..32].copy_from_slice(&amount_bytes);
+        BytesN::from_array(env, &bytes)
+    }
 }
 
 const POOL_ID_DOMAIN_TAG: &[u8] = b"PrivacyLayerPoolId:v1";
@@ -107,7 +115,7 @@ fn derive_pool_id_from_identity(
 /// Derive canonical pool id from a token address, denomination, and current network domain.
 pub fn derive_canonical_pool_id(env: &Env, token: &Address, denomination: &Denomination) -> PoolId {
     let token_text: String = token.to_string();
-    let token_bytes = token_text.into_bytes();
+    let token_bytes = token_text.to_bytes();
     let network_domain = env.ledger().network_id();
     derive_pool_id_from_identity(env, &token_bytes, denomination, &network_domain)
 }
@@ -252,15 +260,19 @@ impl SchemaVersion {
     
     /// Parses a schema version from a string (e.g., "1.2.3").
     pub fn from_string(version: &str) -> Result<Self, &'static str> {
-        let parts: Vec<&str> = version.split('.').collect();
-        if parts.len() != 3 {
+        if version.is_empty() {
             return Err("Invalid schema version format");
         }
-        
-        let major = parts[0].parse::<u32>().map_err(|_| "Invalid major version")?;
-        let minor = parts[1].parse::<u32>().map_err(|_| "Invalid minor version")?;
-        let patch = parts[2].parse::<u32>().map_err(|_| "Invalid patch version")?;
-        
+        let mut parts = version.split('.');
+        let major = parts.next().ok_or("Invalid schema version format")?
+            .parse::<u32>().map_err(|_| "Invalid major version")?;
+        let minor = parts.next().ok_or("Invalid schema version format")?
+            .parse::<u32>().map_err(|_| "Invalid minor version")?;
+        let patch = parts.next().ok_or("Invalid schema version format")?
+            .parse::<u32>().map_err(|_| "Invalid patch version")?;
+        if parts.next().is_some() {
+            return Err("Invalid schema version format");
+        }
         Ok(Self::new(major, minor, patch))
     }
     

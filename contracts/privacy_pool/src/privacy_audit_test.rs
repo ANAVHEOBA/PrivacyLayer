@@ -74,40 +74,42 @@ fn test_withdraw_event_no_note_material() {
 #[test]
 fn test_analytics_state_no_user_identifiers() {
     let env = Env::default();
+    let contract_id = env.register(crate::PrivacyPool, ());
     
-    // Initialize analytics
-    crate::storage::analytics::initialize(&env);
+    env.as_contract(&contract_id, || {
+        // Initialize analytics
+        crate::storage::analytics::initialize(&env);
 
-    // Record some operations
-    record_deposit_success(&env);
-    record_deposit_success(&env);
-    record_withdraw_success(&env);
+        // Record some operations
+        record_deposit_success(&env);
+        record_deposit_success(&env);
+        record_withdraw_success(&env);
 
-    // Create snapshot
-    let deposit_count: u32 = 2;
-    let snap = snapshot(&env, deposit_count);
+        // Create snapshot
+        let deposit_count: u32 = 2;
+        let snap = snapshot(&env, deposit_count);
 
-    // Verify snapshot contains ONLY aggregate counters
-    // No user addresses, no nullifiers, no commitments, no proof data
-    assert_eq!(snap.deposit_count, 2);
-    assert_eq!(snap.withdrawal_count, 1);
-    assert_eq!(snap.page_views, 0);
-    assert_eq!(snap.error_count, 0);
+        // Verify snapshot contains ONLY aggregate counters
+        // No user addresses, no nullifiers, no commitments, no proof data
+        assert_eq!(snap.deposit_count, 2);
+        assert_eq!(snap.withdrawal_count, 1);
+        assert_eq!(snap.page_views, 0);
+        assert_eq!(snap.error_count, 0);
 
-    // Hourly trend should contain only bucket aggregates
-    for bucket in snap.hourly_trend.iter() {
-        assert!(bucket.page_views <= u32::MAX);
-        assert!(bucket.deposits <= u32::MAX);
-        assert!(bucket.withdrawals <= u32::MAX);
-        assert!(bucket.errors <= u32::MAX);
-        // No user-specific data in buckets
-    }
+        // Hourly trend should contain only bucket aggregates
+        for bucket in snap.hourly_trend.iter() {
+            assert!(bucket.page_views <= u32::MAX);
+            assert!(bucket.deposits <= u32::MAX);
+            assert!(bucket.withdrawals <= u32::MAX);
+            assert!(bucket.errors <= u32::MAX);
+            // No user-specific data in buckets
+        }
+    });
 }
 
 #[test]
 fn test_analytics_bucket_structure_privacy() {
-    let env = Env::default();
-    crate::storage::analytics::initialize(&env);
+    let _env = Env::default();
 
     // AnalyticsBucket should only contain:
     // - hour_epoch: timestamp (public)
@@ -199,30 +201,34 @@ fn test_events_forbidden_zk_data_classes() {
 #[test]
 fn test_analytics_snapshot_public_boundary() {
     let env = Env::default();
-    crate::storage::analytics::initialize(&env);
+    let contract_id = env.register(crate::PrivacyPool, ());
 
-    // Record operations
-    for _ in 0..5 {
-        record_deposit_success(&env);
-    }
-    for _ in 0..3 {
-        record_withdraw_success(&env);
-    }
+    env.as_contract(&contract_id, || {
+        crate::storage::analytics::initialize(&env);
 
-    // Build snapshot
-    let snap = snapshot(&env, 5);
+        // Record operations
+        for _ in 0..5 {
+            record_deposit_success(&env);
+        }
+        for _ in 0..3 {
+            record_withdraw_success(&env);
+        }
 
-    // Snapshot should be safe for public dashboard exposure
-    // All fields are aggregate counters or averages
-    assert!(snap.deposit_count <= u32::MAX);
-    assert!(snap.withdrawal_count <= u64::MAX);
-    assert!(snap.error_rate_bps <= 10_000); // basis points (0-100%)
-    assert!(snap.avg_page_load_ms <= u32::MAX);
-    assert!(snap.avg_deposit_ms <= u32::MAX);
-    assert!(snap.avg_withdraw_ms <= u32::MAX);
+        // Build snapshot
+        let snap = snapshot(&env, 5);
 
-    // Verify hourly trend length
-    assert_eq!(snap.hourly_trend.len() as u32, SNAPSHOT_WINDOW_HOURS);
+        // Snapshot should be safe for public dashboard exposure
+        // All fields are aggregate counters or averages
+        assert!(snap.deposit_count <= u32::MAX);
+        assert!(snap.withdrawal_count <= u64::MAX);
+        assert!(snap.error_rate_bps <= 10_000); // basis points (0-100%)
+        assert!(snap.avg_page_load_ms <= u32::MAX);
+        assert!(snap.avg_deposit_ms <= u32::MAX);
+        assert!(snap.avg_withdraw_ms <= u32::MAX);
+
+        // Verify hourly trend length
+        assert_eq!(snap.hourly_trend.len() as u32, SNAPSHOT_WINDOW_HOURS);
+    });
 }
 
 #[test]

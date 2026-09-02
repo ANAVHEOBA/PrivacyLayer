@@ -54,7 +54,7 @@ pub fn build_valid_fixture() -> (Field, Field, Field, Field, [Field; 20], Field,
 
     let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
 
     (nullifier, secret, pool_id, leaf_index, hash_path, root, nullifier_hash)
 }
@@ -81,7 +81,7 @@ pub fn build_fixture_at_index(
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let hash_path = hash::zero_sibling_path();
     let root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
     (hash_path, root, nullifier_hash)
 }
 
@@ -164,7 +164,7 @@ fn test_build_valid_fixture_is_consistent() {
     // Re-derive all values and verify consistency
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let recomputed_root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, root);
+    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, pool_id);
 
     assert(recomputed_root == root, "fixture root must match recomputed root");
     assert(recomputed_nh  == nullifier_hash, "fixture nullifier_hash must match recomputed value");
@@ -211,7 +211,7 @@ fn test_build_fixture_at_high_index() {
 
     let commitment = hash::compute_commitment(nullifier, secret, pool_id);
     let recomputed_root = merkle::compute_root(commitment, leaf_index, hash_path);
-    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, root);
+    let recomputed_nh   = hash::compute_nullifier_hash(nullifier, pool_id);
 
     assert(recomputed_root == root);
     assert(recomputed_nh   == nullifier_hash);
@@ -339,6 +339,7 @@ impl WithdrawalBuilder {
 
     pub fn with_amount(mut self, amount: Field) -> Self {
         self.amount = amount;
+        self.denomination = amount;
         self
     }
 
@@ -395,7 +396,7 @@ impl WithdrawalBuilder {
         let nullifier_hash = if self.override_nullifier_hash {
             self.nullifier_hash
         } else {
-            hash::compute_nullifier_hash(self.nullifier, root)
+            hash::compute_nullifier_hash(self.nullifier, self.pool_id)
         };
 
         (

@@ -113,6 +113,10 @@ describe("Golden Vector Corpus", () => {
         const relayer = v.public_inputs.relayer;
         const fee = parseField(v.public_inputs.fee);
 
+        const denomination = v.public_inputs.denomination
+          ? parseField(v.public_inputs.denomination)
+          : amount;
+
         const packed = packWithdrawalPublicInputs(
           poolId,
           root,
@@ -121,9 +125,10 @@ describe("Golden Vector Corpus", () => {
           amount,
           relayer,
           fee,
+          denomination,
         );
 
-        expect(packed).toHaveLength(7);
+        expect(packed).toHaveLength(8);
         expect(packed[0]).toBe(poolId);
         expect(packed[1]).toBe(root);
         expect(packed[2]).toBe(nh);
@@ -131,6 +136,7 @@ describe("Golden Vector Corpus", () => {
         expect(parseField(packed[4])).toBe(amount);
         expect(packed[5]).toBe(relayer);
         expect(parseField(packed[6])).toBe(fee);
+        expect(parseField(packed[7])).toBe(denomination);
       });
 
       it("ProofGenerator.prepareWitness produces public inputs consistent with golden values", async () => {
@@ -289,11 +295,11 @@ describe("Cross-stack fixture stability", () => {
 // ---------------------------------------------------------------------------
 
 describe("Withdrawal public-input schema ordering (ZK-032)", () => {
-  it("schema has exactly 7 entries", () => {
-    expect(WITHDRAWAL_PUBLIC_INPUT_SCHEMA).toHaveLength(7);
+  it("schema has exactly 8 entries", () => {
+    expect(WITHDRAWAL_PUBLIC_INPUT_SCHEMA).toHaveLength(8);
   });
 
-  it("schema order is stable — pool_id first, fee last", () => {
+  it("schema order is stable — pool_id first, denomination last", () => {
     const expected = [
       "pool_id",
       "root",
@@ -302,6 +308,7 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       "amount",
       "relayer",
       "fee",
+      "denomination",
     ];
     expect(Array.from(WITHDRAWAL_PUBLIC_INPUT_SCHEMA)).toEqual(expected);
   });
@@ -320,9 +327,10 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       999n,
       relayer,
       7n,
+      999n,
     );
 
-    expect(packed).toHaveLength(7);
+    expect(packed).toHaveLength(8);
     expect(packed[0]).toBe(poolId);
     expect(packed[1]).toBe(root);
     expect(packed[2]).toBe(nh);
@@ -330,6 +338,7 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
     expect(parseField(packed[4])).toBe(999n);
     expect(packed[5]).toBe(relayer);
     expect(parseField(packed[6])).toBe(7n);
+    expect(parseField(packed[7])).toBe(999n);
   });
 
   it('serializeWithdrawalPublicInputs emits canonical verifier byte order', () => {
@@ -341,6 +350,7 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       amount: fieldToHex(999n),
       relayer: '0'.repeat(63) + '5',
       fee: fieldToHex(7n),
+      denomination: fieldToHex(999n),
     });
 
     expect(serialized.fields).toEqual([
@@ -351,6 +361,7 @@ describe("Withdrawal public-input schema ordering (ZK-032)", () => {
       fieldToHex(999n),
       '0'.repeat(63) + '5',
       fieldToHex(7n),
+      fieldToHex(999n),
     ]);
   });
 

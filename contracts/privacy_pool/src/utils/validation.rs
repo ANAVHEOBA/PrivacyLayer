@@ -82,3 +82,22 @@ pub fn decode_and_validate_fee(
         Ok(fee)
     }
 }
+
+/// Validate bidirectional relationship between relayer address and fee.
+///
+/// If relayer is zero bytes ([0u8; 32]), fee MUST be 0.
+/// If fee is 0, relayer MUST be zero bytes ([0u8; 32]).
+/// If fee > 0, relayer MUST be non-zero.
+///
+/// # Errors
+/// Returns `Error::InvalidRelayerFee` if relayer is zero but fee > 0, or relayer is non-zero but fee == 0.
+pub fn validate_relayer_and_fee(relayer: &BytesN<32>, fee: i128) -> Result<(), Error> {
+    let is_zero_relayer = relayer.to_array() == [0u8; 32];
+    if is_zero_relayer && fee > 0 {
+        return Err(Error::InvalidRelayerFee);
+    }
+    if !is_zero_relayer && fee == 0 {
+        return Err(Error::InvalidRelayerFee);
+    }
+    Ok(())
+}

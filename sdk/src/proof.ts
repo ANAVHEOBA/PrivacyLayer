@@ -14,6 +14,7 @@ import { WitnessValidationError } from "./errors";
 import {
   assertValidGroth16ProofBytes,
   assertValidPreparedWithdrawalWitness,
+  assertValidStellarAccountId,
 } from "./witness";
 import { STELLAR_ZERO_ACCOUNT, ZERO_FIELD_HEX, DEFAULT_DENOMINATION } from "./zk_constants";
 import {
@@ -267,18 +268,7 @@ export class ProofGenerator {
         "BACKEND_ERROR",
       );
     }
-    try {
-      assertValidPreparedWithdrawalWitness(witness, options);
-    } catch (e: any) {
-      const witnessInfo = witness && typeof witness === 'object' 
-        ? redactPreparedWitnessToString(witness as PreparedWitness)
-        : '[invalid witness]';
-      throw new ProvingError(
-        `Invalid witness: ${e.message}. Witness summary: ${witnessInfo}`,
-        "WITNESS_ERROR",
-        e,
-      );
-    }
+    assertValidPreparedWithdrawalWitness(witness, options);
 
     // ZK-106: Guard against mock-hash witnesses entering a real proving backend.
     // Witness validation runs first so structural errors (bad field length, etc.)
@@ -357,10 +347,10 @@ export class ProofGenerator {
     }
 
     // ZK-030: Validate denomination matches note amount
-    const expectedDenomination = options.denomination ?? DEFAULT_DENOMINATION;
-    if (note.amount !== expectedDenomination) {
+    const expectedDenomination = options.denomination ?? note.amount;
+    if (options.denomination !== undefined && note.amount !== options.denomination) {
       throw new WitnessValidationError(
-        `Denomination mismatch: note amount ${note.amount} does not match pool denomination ${expectedDenomination}`,
+        `Denomination mismatch: note amount ${note.amount} does not match pool denomination ${options.denomination}`,
         "DENOMINATION",
         "domain",
       );
@@ -373,6 +363,9 @@ export class ProofGenerator {
     // ZK-035: Pool-scoped nullifier hash - stable across roots, prevents cross-pool replay
     const nullifierHash = computeNullifierHash(nullifierField, poolIdField);
     const recipientField = stellarAddressToField(recipient);
+    if (relayer !== undefined && relayer !== STELLAR_ZERO_ACCOUNT) {
+      assertValidStellarAccountId(relayer, "relayer");
+    }
     const relayerField =
       fee === 0n ? ZERO_FIELD_HEX : stellarAddressToField(relayer);
 

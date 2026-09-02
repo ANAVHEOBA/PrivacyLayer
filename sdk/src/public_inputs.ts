@@ -154,11 +154,15 @@ export function fieldToBuffer(n: bigint, byteLength: number = 32): Buffer {
  * Pool IDs are 32-byte hex strings representing unique pool identifiers.
  */
 export function encodePoolId(poolId: string): string {
-  const buf = Buffer.from(poolId, 'hex');
-  if (buf.length !== 32) {
-    throw new Error(`Pool ID must be 32 bytes hex, got ${buf.length}`);
+  const clean = poolId.startsWith('0x') ? poolId.slice(2) : poolId;
+  if (clean.length !== 64 || !/^[0-9a-fA-F]{64}$/.test(clean)) {
+    throw new Error(`Pool ID must be 32 bytes hex, got ${poolId.length}`);
   }
-  return fieldToHex(bufferToField(buf));
+  const n = BigInt('0x' + clean);
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError('Pool ID must be < BN254 field modulus');
+  }
+  return fieldToHex(n);
 }
 
 /**
@@ -169,7 +173,11 @@ export function encodeMerkleRoot(root: Buffer): string {
   if (root.length !== MERKLE_NODE_BYTE_LENGTH) {
     throw new Error(`Merkle root must be ${MERKLE_NODE_BYTE_LENGTH} bytes, got ${root.length}`);
   }
-  return fieldToHex(bufferToField(root));
+  const n = BigInt('0x' + root.toString('hex'));
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError('Merkle root must be < BN254 field modulus');
+  }
+  return fieldToHex(n);
 }
 
 /**
@@ -180,7 +188,11 @@ export function encodeNullifier(nullifier: Buffer): string {
   if (nullifier.length !== NOTE_SCALAR_BYTE_LENGTH) {
     throw new Error(`Nullifier must be ${NOTE_SCALAR_BYTE_LENGTH} bytes, got ${nullifier.length}`);
   }
-  return fieldToHex(bufferToField(nullifier));
+  const n = BigInt('0x' + nullifier.toString('hex'));
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError('Nullifier must be < BN254 field modulus');
+  }
+  return fieldToHex(n);
 }
 
 /**
@@ -191,7 +203,11 @@ export function encodeSecret(secret: Buffer): string {
   if (secret.length !== NOTE_SCALAR_BYTE_LENGTH) {
     throw new Error(`Secret must be ${NOTE_SCALAR_BYTE_LENGTH} bytes, got ${secret.length}`);
   }
-  return fieldToHex(bufferToField(secret));
+  const n = BigInt('0x' + secret.toString('hex'));
+  if (n >= FIELD_MODULUS) {
+    throw new RangeError('Secret must be < BN254 field modulus');
+  }
+  return fieldToHex(n);
 }
 
 /**
@@ -293,7 +309,7 @@ export function encodeNullifierHash(nullifierField: string, poolIdField: string)
  * Canonical order of withdrawal public inputs.
  * Matches the circuit parameter declaration order in circuits/withdraw/src/main.nr.
  */
-export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
+export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = Object.freeze([
   'pool_id',
   'root',
   'nullifier_hash',
@@ -302,7 +318,7 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'relayer',
   'fee',
   'denomination',
-] as const;
+] as const);
 
 /**
  * Order of public inputs expected by the contract verifier.

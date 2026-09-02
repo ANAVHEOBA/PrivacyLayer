@@ -57,27 +57,27 @@ describe("Withdrawal proof pool_id (ZK-029)", () => {
   });
 
   it("prepared witness exposes a non-empty pool_id field", async () => {
-    const witness = await prepareFor("aa".repeat(32));
+    const witness = await prepareFor("01".repeat(32));
     expect(typeof witness.pool_id).toBe("string");
     expect(witness.pool_id).toMatch(/^[0-9a-f]{64}$/);
     expect(witness.pool_id).not.toBe("0".repeat(64));
   });
 
   it("witness validation rejects a witness whose pool_id is not a canonical field hex string", async () => {
-    const good = await prepareFor("aa".repeat(32));
+    const good = await prepareFor("01".repeat(32));
     const bad: PreparedWitness = { ...good, pool_id: "not-a-hex-string" };
     expect(() => assertValidPreparedWithdrawalWitness(bad)).toThrow();
   });
 
   it("differing pool_ids produce differing prepared witnesses (everything else equal)", async () => {
-    const a = await prepareFor("aa".repeat(32));
-    const b = await prepareFor("bb".repeat(32));
+    const a = await prepareFor("01".repeat(32));
+    const b = await prepareFor("02".repeat(32));
 
     expect(a.pool_id).not.toBe(b.pool_id);
 
-    // Every other field must be identical so the test isolates pool_id.
+    // Every other field must be identical so the test isolates pool_id (and pool-scoped nullifier_hash).
     for (const key of WITHDRAWAL_PUBLIC_INPUT_SCHEMA) {
-      if (key === "pool_id") continue;
+      if (key === "pool_id" || key === "nullifier_hash") continue;
       expect(a[key]).toBe(b[key]);
     }
     expect(a.nullifier).toBe(b.nullifier);
@@ -87,8 +87,8 @@ describe("Withdrawal proof pool_id (ZK-029)", () => {
   });
 
   it("differing pool_ids yield different cache keys (proof fixtures diverge)", async () => {
-    const note1 = buildNote("aa".repeat(32));
-    const note2 = buildNote("bb".repeat(32));
+    const note1 = buildNote("01".repeat(32));
+    const note2 = buildNote("02".repeat(32));
     const merkleProof = buildMerkleProof();
 
     const witness1 = await ProofGenerator.prepareWitness(note1, merkleProof, RECIPIENT);
@@ -108,8 +108,8 @@ describe("Withdrawal proof pool_id (ZK-029)", () => {
 
   it("identical pool_ids yield identical cache keys (cache stays warm)", async () => {
     const merkleProof = buildMerkleProof();
-    const note1 = buildNote("aa".repeat(32));
-    const note2 = buildNote("aa".repeat(32));
+    const note1 = buildNote("01".repeat(32));
+    const note2 = buildNote("01".repeat(32));
 
     const witness1 = await ProofGenerator.prepareWitness(note1, merkleProof, RECIPIENT);
     const witness2 = await ProofGenerator.prepareWitness(note2, merkleProof, RECIPIENT);

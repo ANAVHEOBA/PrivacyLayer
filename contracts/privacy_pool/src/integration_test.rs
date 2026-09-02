@@ -295,10 +295,13 @@ fn test_e2e_stale_root_evicted_after_overflow() {
 
 #[test]
 fn test_e2e_pool_scoping_keeps_roots_and_nullifiers_isolated() {
-    let (env, client, token_id, admin, alice, _bob, pool_a) = setup();
-    let pool_b = make_pool_id(&env, 9);
+    let (env, client, _token_id, admin, alice, _bob, pool_a) = setup();
+    let token_b_admin = Address::generate(&env);
+    let token_b = env.register_stellar_asset_contract_v2(token_b_admin).address();
+    StellarAssetClient::new(&env, &token_b).mint(&alice, &(200 * DENOM_AMOUNT));
+    let pool_b = derive_canonical_pool_id(&env, &token_b, &Denomination::Xlm100);
 
-    client.create_pool(&pool_b, &token_id, &Denomination::Xlm100, &dummy_vk(&env));
+    client.create_pool(&pool_b, &token_b, &Denomination::Xlm100, &dummy_vk(&env));
 
     let (_, root_a) = client.deposit(&pool_a, &alice, &make_commit(&env, 21));
     let (_, root_b) = client.deposit(&pool_b, &alice, &make_commit(&env, 22));
@@ -319,11 +322,11 @@ fn test_e2e_pool_scoping_keeps_roots_and_nullifiers_isolated() {
 #[test]
 fn test_e2e_withdraw_rejects_wrong_pool_id_in_public_inputs() {
     let (env, client, _token_id, _admin, alice, _bob, pool_a) = setup();
-    let pool_b = make_pool_id(&env, 9);
 
     // Create pool B with different token
     let token_admin = Address::generate(&env);
     let token_b = env.register_stellar_asset_contract_v2(token_admin).address();
+    let pool_b = derive_canonical_pool_id(&env, &token_b, &Denomination::Xlm100);
     client.create_pool(&pool_b, &token_b, &Denomination::Xlm100, &dummy_vk(&env));
 
     // Deposit into pool A
@@ -522,7 +525,7 @@ fn test_e2e_vk_metadata_allows_upgrade_auditability() {
 
     // Retrieve and verify VK metadata
     let stored_vk = client.get_verifying_key(&pool_id);
-    assert_eq!(stored_vk.circuit_id.to_string(), "withdraw");
+    assert_eq!(stored_vk.circuit_id, soroban_sdk::String::from_str(&env, "withdraw"));
     assert_eq!(stored_vk.public_input_count, 8);
     assert_eq!(stored_vk.manifest_hash, manifest_v1);
 

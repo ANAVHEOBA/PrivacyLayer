@@ -42,7 +42,7 @@ const EXPECTED_IC_VECTOR_LENGTH: u32 = EXPECTED_PUBLIC_INPUT_COUNT + 1; // IC[0]
 /// - `MalformedProofA` if proof.a is not 64 bytes
 /// - `MalformedProofB` if proof.b is not 128 bytes
 /// - `MalformedProofC` if proof.c is not 64 bytes
-fn validate_proof_structure(proof: &Proof) -> Result<(), Error> {
+pub(crate) fn validate_proof_structure(proof: &Proof) -> Result<(), Error> {
     // Validate G1 point A (64 bytes)
     if proof.a.len() != G1_POINT_BYTE_LENGTH {
         return Err(Error::MalformedProofA);
@@ -73,7 +73,7 @@ fn validate_proof_structure(proof: &Proof) -> Result<(), Error> {
 /// - `VkDeltaG2WrongLength` if delta_g2 is not 128 bytes
 /// - `VkIcVectorWrongLength` if gamma_abc_g1 doesn't have exactly 9 elements
 /// - `VkIcPointWrongLength` if any IC point is not 64 bytes
-fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
+pub(crate) fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
     // Validate G1 point alpha (64 bytes)
     if vk.alpha_g1.len() != G1_POINT_BYTE_LENGTH {
         return Err(Error::VkAlphaG1WrongLength);
@@ -116,7 +116,7 @@ fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
 ///
 /// # Errors
 /// - `PublicInputWrongLength` if any public input is not 32 bytes
-fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Error> {
+pub(crate) fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Error> {
     // All public inputs must be 32-byte field elements
     let inputs: [&BytesN<32>; 8] = [
         &pub_inputs.pool_id,
@@ -150,9 +150,9 @@ fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Err
 /// - gamma_abc_g1 length matches public_input_count + 1 (for IC_0)
 ///
 /// This allows mismatched proofs to fail fast before pairing work begins.
-fn validate_vk_metadata(vk: &VerifyingKey, expected_circuit_id: &str) -> Result<(), Error> {
+fn validate_vk_metadata(env: &Env, vk: &VerifyingKey, expected_circuit_id: &str) -> Result<(), Error> {
     // Check circuit ID
-    if vk.circuit_id.to_string() != expected_circuit_id {
+    if vk.circuit_id != soroban_sdk::String::from_str(env, expected_circuit_id) {
         return Err(Error::CircuitIdMismatch);
     }
 
@@ -175,9 +175,9 @@ fn compute_vk_x(
     vk: &VerifyingKey,
     pub_inputs: &PublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
-    // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
-    // [root, nullifier_hash, recipient, amount, relayer, fee]
-    if vk.gamma_abc_g1.len() != 7 {
+    // The VK must have exactly 9 IC points: IC[0] + 8 public inputs
+    // [pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination]
+    if vk.gamma_abc_g1.len() != 9 {
         return Err(Error::MalformedVerifyingKey);
     }
 
@@ -193,13 +193,15 @@ fn compute_vk_x(
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
     // Public inputs as 32-byte field elements → Fr scalars
-    let inputs: [&BytesN<32>; 6] = [
+    let inputs: [&BytesN<32>; 8] = [
+        &pub_inputs.pool_id,
         &pub_inputs.root,
         &pub_inputs.nullifier_hash,
         &pub_inputs.recipient,
         &pub_inputs.amount,
         &pub_inputs.relayer,
         &pub_inputs.fee,
+        &pub_inputs.denomination,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
@@ -249,7 +251,7 @@ pub fn verify_proof(
     validate_public_inputs_structure(pub_inputs)?;
 
     // Step 0b: Validate VK metadata before expensive operations (ZK-074)
-    validate_vk_metadata(vk, "withdraw")?;
+    validate_vk_metadata(env, vk, "withdraw")?;
 
     let bn254 = env.crypto().bn254();
 
