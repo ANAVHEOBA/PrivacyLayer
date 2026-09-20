@@ -1,0 +1,55 @@
+name: ZK Validation CI
+
+on:
+  push:
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - '.github/workflows/zk-validation.yml'
+  pull_request:
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - '.github/workflows/zk-validation.yml'
+
+jobs:
+  zk-validation:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        shell: bash
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install SDK dependencies
+        working-directory: ./sdk
+        run: npm ci
+
+      - name: Run SDK ZK tests
+        working-directory: ./sdk
+        run: npm test
+
+      - name: Install Noir (nargo)
+        # Assumes nargo binary is available via the official installer.
+        # If not, you can replace this step with a custom install script.
+        run: |
+          curl -L https://raw.githubusercontent.com/noir-lang/noir/master/scripts/install_nargo.sh | bash
+          echo "$HOME/.cargo/bin" >> $GITHUB_PATH
+
+      - name: Run Nargo circuit tests
+        working-directory: ./circuits
+        run: nargo test
+
+      - name: Validate rebuilt artifacts
+        run: |
+          chmod +x ./scripts/run_zk_validation.sh
+          ./scripts/run_zk_validation.sh
