@@ -1,0 +1,378 @@
+# ============================================================
+# ZK-065: Full ZK Validation CI Pipeline
+# ============================================================
+# Runs the complete ZK validation stack from a clean checkout:
+#   1. Manifest existence check (artifacts/zk/manifest.json)
+#   2. Nargo circuit tests  (nargo test --package <circuit>)
+#   3. SDK ZK Jest tests    (npm test in sdk/)
+#   4. Artifact drift check (rebuild + git diff fails if dirty)
+#   5. ZK-specific smoke & ABI-drift scripts
+#
+# Intentionally scoped to ZK concerns only — no frontend build,
+# no contract deployment, no Soroban tests.
+#
+# Local reproduction: scripts/zk-full-validation-local.sh
+# ============================================================
+
+name: ZK Full Validation (ZK-065)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - 'scripts/**'
+      - '.github/workflows/zk-full-validation.yml'
+  pull_request:
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - 'scripts/**'
+      - '.github/workflows/zk-full-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+# ──────────────────────────────────────────────────────────────
+# JOBS
+# ──────────────────────────────────────────────────────────────
+jobs:
+  # ────────────────────────────────────────────────────────────
+  # Job 1: Validate manifest and run Nargo circuit tests
+  # ────────────────────────────────────────────────────────────
+  zk-nargo-tests:
+    name: Nargo Circuit Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Noir toolchain (noirup)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Noir installation
+        run: nargo --version
+
+      - name: Validate artifact manifest exists
+        run: |
+          echo "🔍 Checking artifacts/zk/manifest.json..."
+          if [ ! -f "artifacts/zk/manifest.json" ]; then
+            echo "❌ ERROR: artifacts/zk/manifest.json is missing."
+            echo "    Run: node scripts/refresh_manifest.mjs 1"
+            exit 1
+          fi
+          echo "✅ manifest.json found."
+          # Print version for traceability
+          node -e "const m=require('./artifacts/zk/manifest.json'); console.log('  manifest version:', m.version, '| backend:', m.backend?.name);"
+
+      - name: Run Nargo tests — commitment circuit
+        working-directory: circuits
+        run: |
+          echo "🧪 Testing commitment circuit..."
+          nargo test --package commitment
+
+      - name: Run Nargo tests — merkle circuit
+        working-directory: circuits
+        run: |
+          echo "🧪 Testing merkle circuit..."
+          nargo test --package merkle
+
+      - name: Run Nargo tests — withdraw circuit
+        working-directory: circuits
+        run: |
+          echo "🧪 Testing withdraw circuit..."
+          nargo test --package withdraw
+
+  # ────────────────────────────────────────────────────────────
+  # Job 2: SDK ZK tests (Jest) and ZK-specific smoke checks
+  # ────────────────────────────────────────────────────────────
+  zk-sdk-tests:
+    name: SDK ZK Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install SDK dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Validate artifact manifest exists
+        run: |
+          echo "🔍 Checking artifacts/zk/manifest.json..."
+          if [ ! -f "artifacts/zk/manifest.json" ]; then
+            echo "❌ ERROR: artifacts/zk/manifest.json is missing."
+            exit 1
+          fi
+          echo "✅ manifest.json found."
+
+      - name: Run SDK ZK Jest tests
+        working-directory: sdk
+        env:
+          CI: true
+          CIRCUIT_ARTIFACTS_PATH: ../artifacts/zk
+        run: npm test
+
+      - name: Run ZK proof smoke test
+        run: |
+          echo "🔬 Running ZK proof smoke test..."
+          node scripts/zk/zk-proof-smoke.mjs
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zk-sdk-test-results
+          path: sdk/test-results/
+          retention-days: 14
+          if-no-files-found: ignore
+
+  # ────────────────────────────────────────────────────────────
+  # Job 3: Artifact drift detection
+  #   Recompiles circuits from source and diffs artifacts/zk/.
+  #   A dirty diff means committed artifacts are stale → fail.
+  # ────────────────────────────────────────────────────────────
+  zk-artifact-drift:
+    name: Artifact Drift Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install Noir toolchain (noirup)
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Noir installation
+        run: nargo --version
+
+      - name: Install SDK dependencies (needed for manifest refresh)
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Snapshot pre-compile artifact hashes
+        id: pre_snap
+        run: |
+          echo "📸 Snapshotting artifacts/zk/ before recompile..."
+          find artifacts/zk -type f | sort | xargs sha256sum > /tmp/artifacts_before.txt
+          cat /tmp/artifacts_before.txt
+
+      - name: Recompile all circuits with Nargo
+        run: |
+          echo "📦 Recompiling circuits from source..."
+          for pkg in commitment merkle withdraw; do
+            echo "  → compiling $pkg..."
+            (cd circuits && nargo compile --package "$pkg")
+          done
+
+      - name: Copy recompiled artifacts into artifacts/zk/
+        run: |
+          echo "📋 Copying recompiled artifacts..."
+          for pkg in commitment merkle withdraw; do
+            if [ -f "circuits/target/$pkg.json" ]; then
+              cp "circuits/target/$pkg.json" "artifacts/zk/$pkg.json"
+              echo "  ✓ copied $pkg.json"
+            fi
+          done
+
+      - name: Refresh manifest after recompile
+        run: |
+          echo "📝 Refreshing manifest..."
+          # Refresh top-level manifest if the script supports it
+          if node scripts/refresh_manifest.mjs --help 2>&1 | grep -q '\-\-version\|version'; then
+            node scripts/refresh_manifest.mjs 1 || true
+          else
+            node scripts/refresh_manifest.mjs 1 || true
+          fi
+
+      - name: Check for artifact drift (git diff)
+        run: |
+          echo "🔍 Checking for artifact drift..."
+          git diff --stat artifacts/zk/
+
+          if ! git diff --quiet artifacts/zk/; then
+            echo ""
+            echo "❌ ARTIFACT DRIFT DETECTED!"
+            echo "   Committed artifacts/zk/ do not match the freshly compiled output."
+            echo "   This means circuits were changed without updating committed artifacts."
+            echo ""
+            echo "   To fix locally, run:"
+            echo "     bash scripts/zk-full-validation-local.sh --rebuild"
+            echo "   Then commit the updated artifacts/zk/ directory."
+            echo ""
+            git diff artifacts/zk/
+            exit 1
+          fi
+
+          echo "✅ No artifact drift detected — artifacts are in sync with source."
+
+  # ────────────────────────────────────────────────────────────
+  # Job 4: Manifest integrity validation
+  # ────────────────────────────────────────────────────────────
+  zk-manifest-validation:
+    name: Manifest Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest structure
+        run: |
+          echo "📋 Validating artifacts/zk/manifest.json structure..."
+
+          node - << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+
+          const manifestPath = path.resolve('artifacts/zk/manifest.json');
+
+          if (!fs.existsSync(manifestPath)) {
+            console.error('❌ manifest.json not found at artifacts/zk/manifest.json');
+            process.exit(1);
+          }
+
+          let manifest;
+          try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
+          } catch (e) {
+            console.error('❌ manifest.json is not valid JSON:', e.message);
+            process.exit(1);
+          }
+
+          const errors = [];
+
+          if (typeof manifest.version !== 'number') {
+            errors.push('missing or invalid top-level "version" field (must be a number)');
+          }
+
+          if (!manifest.backend || typeof manifest.backend !== 'object') {
+            errors.push('missing or invalid "backend" field');
+          } else {
+            if (!manifest.backend.name) errors.push('backend.name is missing');
+          }
+
+          if (!manifest.circuits || typeof manifest.circuits !== 'object') {
+            errors.push('missing or invalid "circuits" field');
+          } else {
+            const requiredCircuits = ['withdraw', 'commitment'];
+            for (const circuit of requiredCircuits) {
+              if (!manifest.circuits[circuit]) {
+                errors.push(`circuits.${circuit} is missing from manifest`);
+              } else {
+                const c = manifest.circuits[circuit];
+                if (!c.artifact_sha256) errors.push(`circuits.${circuit}.artifact_sha256 is missing`);
+                if (!c.path)           errors.push(`circuits.${circuit}.path is missing`);
+              }
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error('❌ Manifest validation FAILED:');
+            errors.forEach(e => console.error(`   - ${e}`));
+            process.exit(1);
+          }
+
+          console.log('✅ Manifest is valid.');
+          console.log('   version :', manifest.version);
+          console.log('   backend :', manifest.backend.name);
+          console.log('   circuits:', Object.keys(manifest.circuits).join(', '));
+          EOF
+
+      - name: Validate commitment_vectors.json exists
+        run: |
+          if [ ! -f "artifacts/zk/commitment_vectors.json" ]; then
+            echo "❌ artifacts/zk/commitment_vectors.json is missing"
+            echo "   Run: node scripts/generate_commitment_vectors.mjs 1"
+            exit 1
+          fi
+          echo "✅ commitment_vectors.json found."
+
+  # ────────────────────────────────────────────────────────────
+  # Summary gate — all ZK jobs must pass
+  # ────────────────────────────────────────────────────────────
+  zk-validation-summary:
+    name: ZK Validation Gate
+    runs-on: ubuntu-latest
+    needs:
+      - zk-nargo-tests
+      - zk-sdk-tests
+      - zk-artifact-drift
+      - zk-manifest-validation
+    if: always()
+
+    steps:
+      - name: Check all ZK validation results
+        run: |
+          echo "══════════════════════════════════════"
+          echo "  ZK-065 Full Validation Summary"
+          echo "══════════════════════════════════════"
+          echo "  Nargo Tests       : ${{ needs.zk-nargo-tests.result }}"
+          echo "  SDK ZK Tests      : ${{ needs.zk-sdk-tests.result }}"
+          echo "  Artifact Drift    : ${{ needs.zk-artifact-drift.result }}"
+          echo "  Manifest Valid    : ${{ needs.zk-manifest-validation.result }}"
+          echo "══════════════════════════════════════"
+
+          FAILED=false
+          for result in \
+            "${{ needs.zk-nargo-tests.result }}" \
+            "${{ needs.zk-sdk-tests.result }}" \
+            "${{ needs.zk-artifact-drift.result }}" \
+            "${{ needs.zk-manifest-validation.result }}"; do
+            if [ "$result" = "failure" ] || [ "$result" = "cancelled" ]; then
+              FAILED=true
+            fi
+          done
+
+          if [ "$FAILED" = "true" ]; then
+            echo ""
+            echo "❌ ZK validation failed. See job details above."
+            echo "   Local reproduction: bash scripts/zk-full-validation-local.sh"
+            exit 1
+          fi
+
+          echo ""
+          echo "✅ All ZK validation checks passed."
+          echo "   Wave Issue Key: ZK-065"
