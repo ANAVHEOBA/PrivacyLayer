@@ -384,3 +384,24 @@ fn test_all_equal_inputs_valid_and_unique() {
     let c2 = hash::compute_commitment(v, v, 0);
     assert(c != c2, "all-equal inputs must yield a different commitment than a partially-zero variant");
 }
+
+/// ZK-011: Circuit rejects legacy undomain-separated commitment hash.
+#[test(should_fail_with = "commitment mismatch")]
+fn test_commitment_rejects_legacy_undomain_separated_hash() {
+    let nullifier: Field = 0x112233;
+    let secret: Field = 0x445566;
+    let pool_id: Field = 1;
+    let legacy_hash = hash::commitment::legacy_undomain_separated_commitment(nullifier, secret, pool_id);
+    main(nullifier, secret, pool_id, legacy_hash);
+}
+
+/// ZK-011: Circuit rejects nullifier hash supplied as commitment.
+#[test(should_fail_with = "commitment mismatch")]
+fn test_commitment_rejects_nullifier_hash_as_commitment() {
+    let nullifier: Field = 0x112233;
+    let secret: Field = 0x445566;
+    let pool_id: Field = 1;
+    let nh = hash::compute_nullifier_hash(nullifier, pool_id);
+    main(nullifier, secret, pool_id, nh);
+}
+

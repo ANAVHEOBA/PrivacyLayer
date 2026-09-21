@@ -70,10 +70,6 @@ fn test_domain_separated_hash_differs_from_undomain_separated_two_input() {
 fn test_nullifier_hash_stable_across_roots() {
     let nullifier: Field = 42;
     let pool_id: Field = 1;
-    let root1: Field = 100;
-    let root2: Field = 200;
-    
-    // Nullifier hash should only depend on nullifier and pool_id, not root
     let nh = compute_nullifier_hash(nullifier, pool_id);
     
     // The hash should be the same regardless of which root we would have used

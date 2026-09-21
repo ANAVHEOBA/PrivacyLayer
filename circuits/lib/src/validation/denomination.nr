@@ -6,7 +6,6 @@
 // consistency between note commitments and withdrawal proofs.
 // ============================================================
 
-use crate::constants;
 
 /// Validate that the withdrawal amount matches the expected denomination.
 ///
