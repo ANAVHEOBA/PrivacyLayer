@@ -1,0 +1,281 @@
+name: ZK Full Validation (ZK-065)
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - 'scripts/**'
+      - '.github/workflows/zk-full-validation.yml'
+  pull_request:
+    paths:
+      - 'circuits/**'
+      - 'sdk/**'
+      - 'artifacts/zk/**'
+      - 'scripts/**'
+      - '.github/workflows/zk-full-validation.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  zk-manifest-validation:
+    name: ZK Manifest Validation
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Validate manifest structure
+        run: |
+          node - << 'EOF'
+          const fs = require('fs');
+          const path = require('path');
+
+          const manifestPath = path.resolve('artifacts/zk/manifest.json');
+          if (!fs.existsSync(manifestPath)) {
+            console.error('Missing artifacts/zk/manifest.json');
+            process.exit(1);
+          }
+
+          let manifest;
+          try {
+            manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+          } catch (err) {
+            console.error('Invalid JSON in artifacts/zk/manifest.json:', err.message);
+            process.exit(1);
+          }
+
+          const errors = [];
+          if (typeof manifest.version !== 'number') {
+            errors.push('Top-level "version" must be a number');
+          }
+          if (!manifest.backend || typeof manifest.backend !== 'object') {
+            errors.push('Top-level "backend" must be an object');
+          } else if (!manifest.backend.name) {
+            errors.push('Missing backend.name');
+          }
+
+          if (!manifest.circuits || typeof manifest.circuits !== 'object') {
+            errors.push('Top-level "circuits" must be an object');
+          } else {
+            for (const circuitName of ['commitment', 'withdraw']) {
+              const entry = manifest.circuits[circuitName];
+              if (!entry) {
+                errors.push(`Missing manifest entry for circuit: ${circuitName}`);
+              } else {
+                if (!entry.artifact_sha256) {
+                  errors.push(`Missing artifact_sha256 for circuit: ${circuitName}`);
+                }
+                if (!entry.path) {
+                  errors.push(`Missing path for circuit: ${circuitName}`);
+                }
+              }
+            }
+          }
+
+          if (errors.length > 0) {
+            console.error('Manifest validation errors:');
+            for (const err of errors) {
+              console.error(` - ${err}`);
+            }
+            process.exit(1);
+          }
+
+          console.log('Manifest validation passed.');
+          console.log('Version:', manifest.version);
+          console.log('Backend:', manifest.backend.name);
+          console.log('Circuits:', Object.keys(manifest.circuits).join(', '));
+          EOF
+
+      - name: Validate commitment vectors
+        run: |
+          if [ ! -f "artifacts/zk/commitment_vectors.json" ]; then
+            echo "Missing artifacts/zk/commitment_vectors.json"
+            exit 1
+          fi
+          echo "Commitment vectors verified."
+
+  zk-circuit-validation:
+    name: Nargo Circuit Checks & Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Install Noir toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup -v 1.0.0-beta.20
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Verify Noir installation
+        run: nargo --version
+
+      - name: Run Nargo workspace check
+        working-directory: circuits
+        run: nargo check --workspace
+
+      - name: Run commitment circuit tests
+        working-directory: circuits
+        run: nargo test --package commitment
+
+      - name: Run merkle circuit tests
+        working-directory: circuits
+        run: nargo test --package merkle
+
+  zk-sdk-validation:
+    name: SDK ZK Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install SDK dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Run ZK proof smoke test
+        run: node scripts/zk/zk-proof-smoke.mjs
+
+      - name: Run SDK ZK tests
+        working-directory: sdk
+        run: npx jest test/artifact_manifest.test.ts test/schema_version_validation.test.ts test/nullifier_domain.test.ts test/empty_tree_fixtures.test.ts test/note_deterministic.test.ts test/withdraw_error_taxonomy.test.ts --verbose
+
+  zk-artifact-drift:
+    name: Artifact Drift Detection
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: sdk/package-lock.json
+
+      - name: Install Noir toolchain
+        shell: bash
+        run: |
+          set -euo pipefail
+          curl -L https://raw.githubusercontent.com/noir-lang/noirup/main/install | bash
+          export PATH="$HOME/.nargo/bin:$PATH"
+          noirup -v 1.0.0-beta.20
+          echo "$HOME/.nargo/bin" >> "$GITHUB_PATH"
+
+      - name: Install SDK dependencies
+        working-directory: sdk
+        run: npm ci --no-fund --no-audit
+
+      - name: Recompile circuits from source
+        run: |
+          set -euo pipefail
+          for pkg in commitment merkle withdraw; do
+            (cd circuits && nargo compile --package "$pkg")
+          done
+
+      - name: Check for artifact determinism and drift
+        run: |
+          node - << 'EOF'
+          const fs = require('fs');
+          const crypto = require('crypto');
+
+          function sha256(data) {
+            return '0x' + crypto.createHash('sha256').update(data).digest('hex');
+          }
+
+          const targetCommitment = JSON.parse(fs.readFileSync('circuits/target/commitment.json'));
+          const committedCommitment = JSON.parse(fs.readFileSync('artifacts/zk/commitment.json'));
+          const manifest = JSON.parse(fs.readFileSync('artifacts/zk/manifest.json'));
+
+          const targetCommitmentSha = sha256(targetCommitment.bytecode);
+          const committedCommitmentSha = sha256(committedCommitment.bytecode);
+
+          if (targetCommitmentSha !== committedCommitmentSha) {
+            console.error(`Commitment bytecode drift detected: target ${targetCommitmentSha} != committed ${committedCommitmentSha}`);
+            process.exit(1);
+          }
+
+          if (manifest.circuits.commitment.bytecode_sha256 !== targetCommitmentSha) {
+            console.error('Manifest bytecode hash drift for commitment');
+            process.exit(1);
+          }
+
+          const targetWithdraw = JSON.parse(fs.readFileSync('circuits/target/withdraw.json'));
+          if (!targetWithdraw.bytecode || !targetWithdraw.abi || !targetWithdraw.abi.parameters) {
+            console.error('Withdraw target artifact missing bytecode or ABI');
+            process.exit(1);
+          }
+
+          console.log('Artifact compilation and drift check passed successfully.');
+          EOF
+
+      - name: Verify workspace cleanliness
+        run: |
+          git status --porcelain
+          if ! git diff --quiet artifacts/zk/; then
+            echo "Unexpected dirty changes in artifacts/zk/"
+            git diff artifacts/zk/
+            exit 1
+          fi
+          echo "No artifact drift detected."
+
+  zk-validation-gate:
+    name: ZK Validation Gate
+    runs-on: ubuntu-latest
+    needs:
+      - zk-manifest-validation
+      - zk-circuit-validation
+      - zk-sdk-validation
+      - zk-artifact-drift
+    if: always()
+
+    steps:
+      - name: Verify all required ZK checks passed
+        run: |
+          echo "Manifest Validation: ${{ needs.zk-manifest-validation.result }}"
+          echo "Circuit Validation : ${{ needs.zk-circuit-validation.result }}"
+          echo "SDK Validation     : ${{ needs.zk-sdk-validation.result }}"
+          echo "Artifact Drift     : ${{ needs.zk-artifact-drift.result }}"
+
+          for result in \
+            "${{ needs.zk-manifest-validation.result }}" \
+            "${{ needs.zk-circuit-validation.result }}" \
+            "${{ needs.zk-sdk-validation.result }}" \
+            "${{ needs.zk-artifact-drift.result }}"; do
+            if [ "$result" != "success" ]; then
+              echo "Required ZK validation check failed."
+              exit 1
+            fi
+          done
+
+          echo "All ZK-065 validation checks passed."
