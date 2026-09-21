@@ -188,9 +188,9 @@ export async function verifyWithManifest(
   let manifestCircuit: ZkArtifactManifestCircuit;
   try {
     manifestCircuit = await assertManifestMatchesNoirArtifacts(
-      manifest,
+      manifest as any,
       circuitName,
-      artifacts,
+      artifacts as any,
       options.artifactPath,
     );
   } catch (err) {

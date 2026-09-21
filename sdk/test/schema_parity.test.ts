@@ -85,7 +85,7 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
   });
 
   describe('Schema Content Validation', () => {
-    it('should include all required withdrawal public inputs', () => {
+    it('should include all required withdrawal public inputs in full circuit schema', () => {
       const requiredFields = [
         'pool_id',
         'root',
@@ -94,31 +94,68 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
         'amount',
         'relayer',
         'fee',
+        'denomination',
       ];
 
+      expect(publicInputsSchema).toHaveLength(8);
       for (const field of requiredFields) {
-        expect(encodingSchema).toContain(field);
         expect(publicInputsSchema).toContain(field);
       }
     });
 
-    it('should have denomination field in public_inputs.ts schema (ZK-030)', () => {
-      // public_inputs.ts includes denomination as per ZK-030
+    it('should have denomination field in full circuit schema (ZK-030)', () => {
       expect(publicInputsSchema).toContain('denomination');
     });
 
-    it('should include pool_id and denomination in contract verifier schema (ZK-087)', () => {
-      // ZK-087: Contract verifier now receives all public inputs for parity
-      expect(contractVerifierSchema).toContain('pool_id');
-      expect(contractVerifierSchema).toContain('denomination');
+    it('should have contract verifier schema contain exactly 6 reduced fields (ZK-071)', () => {
+      expect(contractVerifierSchema).toEqual([
+        'root',
+        'nullifier_hash',
+        'recipient',
+        'amount',
+        'relayer',
+        'fee',
+      ]);
     });
 
-    it('should have contract verifier schema match full schema exactly (ZK-087)', () => {
-      // All contract verifier fields should be in the full schema
-      expect(contractVerifierSchema.length).toBe(publicInputsSchema.length);
-      for (let i = 0; i < publicInputsSchema.length; i++) {
-        expect(contractVerifierSchema[i]).toBe(publicInputsSchema[i]);
-      }
+    it('should explicitly exclude pool_id and denomination from contract verifier schema (ZK-071)', () => {
+      expect(contractVerifierSchema).not.toContain('pool_id');
+      expect(contractVerifierSchema).not.toContain('denomination');
+    });
+
+    it('should prove reduced contract payload is derived from full circuit payload deterministically (ZK-071)', () => {
+      const publicInputs = require('../src/public_inputs');
+      const { deriveContractVerifierInputs, encodeAmount, encodeFee, encodeDenomination } = publicInputs;
+
+      const fullInputs = {
+        pool_id: 'a'.repeat(64),
+        root: 'b'.repeat(64),
+        nullifier_hash: 'c'.repeat(64),
+        recipient: 'd'.repeat(64),
+        amount: encodeAmount(100n),
+        relayer: 'e'.repeat(64),
+        fee: encodeFee(10n),
+        denomination: encodeDenomination(100n),
+      };
+
+      const derived = deriveContractVerifierInputs(fullInputs);
+      expect(derived).toEqual({
+        root: 'b'.repeat(64),
+        nullifier_hash: 'c'.repeat(64),
+        recipient: 'd'.repeat(64),
+        amount: encodeAmount(100n),
+        relayer: 'e'.repeat(64),
+        fee: encodeFee(10n),
+      });
+
+      // No helper silently drops missing fields
+      const incompleteInputs = { ...fullInputs };
+      delete (incompleteInputs as any).pool_id;
+      expect(() => deriveContractVerifierInputs(incompleteInputs)).toThrow('Missing public input: pool_id');
+
+      const incompleteDenom = { ...fullInputs };
+      delete (incompleteDenom as any).denomination;
+      expect(() => deriveContractVerifierInputs(incompleteDenom)).toThrow('Missing public input: denomination');
     });
   });
 
@@ -214,7 +251,7 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
     });
   });
 
-  describe('Artifact Schema Parity (ZK-087)', () => {
+  describe('Artifact Schema Parity (ZK-087, ZK-071)', () => {
     it('should match the verifier_schema.json artifact', () => {
       const fs = require('fs');
       const path = require('path');
@@ -225,8 +262,13 @@ describe('ZK-108: Withdrawal Schema Order Parity', () => {
         const artifactInputNames = schema.public_inputs.map((i: any) => i.name);
         
         expect(Array.from(publicInputsSchema)).toEqual(artifactInputNames);
-        expect(Array.from(contractVerifierSchema)).toEqual(artifactInputNames);
         expect(Array.from(encodingSchema)).toEqual(artifactInputNames);
+
+        // Contract verifier schema explicitly matches reduced subset (excluding pool_id and denomination)
+        const expectedContractFields = artifactInputNames.filter(
+          (name: string) => name !== 'pool_id' && name !== 'denomination'
+        );
+        expect(Array.from(contractVerifierSchema)).toEqual(expectedContractFields);
       }
     });
   });

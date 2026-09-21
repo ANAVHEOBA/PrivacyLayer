@@ -20,18 +20,26 @@ use soroban_sdk::{
 };
 
 use crate::types::errors::Error;
-use crate::types::state::{Proof, PublicInputs, SchemaVersion, VerifyingKey};
+use crate::types::state::{
+    CircuitPublicInputs, ContractVerifierPublicInputs, Proof, PublicInputs, SchemaVersion,
+    VerifyingKey,
+};
 
 // ──────────────────────────────────────────────────────────────
-// Structural Guards (ZK-075)
+// Structural Guards (ZK-075, ZK-071)
 // ──────────────────────────────────────────────────────────────
 
 /// Expected byte lengths for BN254 curve points
-const G1_POINT_BYTE_LENGTH: u32 = 64;
-const G2_POINT_BYTE_LENGTH: u32 = 128;
-const FIELD_ELEMENT_BYTE_LENGTH: u32 = 32;
-const EXPECTED_PUBLIC_INPUT_COUNT: u32 = 8;
-const EXPECTED_IC_VECTOR_LENGTH: u32 = EXPECTED_PUBLIC_INPUT_COUNT + 1; // IC[0] + 8 inputs
+pub const G1_POINT_BYTE_LENGTH: u32 = 64;
+pub const G2_POINT_BYTE_LENGTH: u32 = 128;
+pub const FIELD_ELEMENT_BYTE_LENGTH: u32 = 32;
+
+/// Full circuit public inputs count (8 fields: pool_id, root, nullifier_hash, recipient, amount, relayer, fee, denomination)
+pub const CIRCUIT_PUBLIC_INPUT_COUNT: u32 = 8;
+/// Reduced contract verifier inputs count (6 fields: root, nullifier_hash, recipient, amount, relayer, fee)
+pub const CONTRACT_VERIFIER_INPUT_COUNT: u32 = 6;
+/// IC vector length for contract verifier: IC[0] + 6 contract inputs = 7
+pub const EXPECTED_IC_VECTOR_LENGTH: u32 = CONTRACT_VERIFIER_INPUT_COUNT + 1;
 
 /// Validates proof structure before deserialization (ZK-075).
 ///
@@ -71,7 +79,7 @@ fn validate_proof_structure(proof: &Proof) -> Result<(), Error> {
 /// - `VkBetaG2WrongLength` if beta_g2 is not 128 bytes
 /// - `VkGammaG2WrongLength` if gamma_g2 is not 128 bytes
 /// - `VkDeltaG2WrongLength` if delta_g2 is not 128 bytes
-/// - `VkIcVectorWrongLength` if gamma_abc_g1 doesn't have exactly 9 elements
+/// - `VkIcVectorWrongLength` if gamma_abc_g1 doesn't have exactly 7 elements
 /// - `VkIcPointWrongLength` if any IC point is not 64 bytes
 fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
     // Validate G1 point alpha (64 bytes)
@@ -94,8 +102,8 @@ fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
         return Err(Error::VkDeltaG2WrongLength);
     }
 
-    // Validate IC vector length (must be exactly 9: IC[0] + 8 public inputs)
-    if vk.gamma_abc_g1.len() != EXPECTED_IC_VECTOR_LENGTH {
+    // Validate IC vector length (must match contract verifier input count + 1: 7, or full circuit count + 1: 9)
+    if vk.gamma_abc_g1.len() != EXPECTED_IC_VECTOR_LENGTH && vk.gamma_abc_g1.len() != (CIRCUIT_PUBLIC_INPUT_COUNT + 1) {
         return Err(Error::VkIcVectorWrongLength);
     }
 
@@ -110,14 +118,13 @@ fn validate_vk_structure(vk: &VerifyingKey) -> Result<(), Error> {
     Ok(())
 }
 
-/// Validates public inputs structure before deserialization (ZK-075).
+/// Validates full circuit public inputs structure before deserialization (ZK-075, ZK-071).
 ///
-/// Checks that all public input fields are exactly 32 bytes (field elements).
+/// Checks that all 8 circuit public input fields are exactly 32 bytes (field elements).
 ///
 /// # Errors
 /// - `PublicInputWrongLength` if any public input is not 32 bytes
-fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Error> {
-    // All public inputs must be 32-byte field elements
+pub fn validate_circuit_public_inputs_structure(pub_inputs: &CircuitPublicInputs) -> Result<(), Error> {
     let inputs: [&BytesN<32>; 8] = [
         &pub_inputs.pool_id,
         &pub_inputs.root,
@@ -136,6 +143,36 @@ fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Err
     }
 
     Ok(())
+}
+
+/// Validates reduced contract verifier public inputs structure (ZK-071).
+///
+/// Checks that all 6 contract public input fields are exactly 32 bytes (field elements).
+///
+/// # Errors
+/// - `PublicInputWrongLength` if any public input is not 32 bytes
+pub fn validate_contract_verifier_inputs_structure(pub_inputs: &ContractVerifierPublicInputs) -> Result<(), Error> {
+    let inputs: [&BytesN<32>; 6] = [
+        &pub_inputs.root,
+        &pub_inputs.nullifier_hash,
+        &pub_inputs.recipient,
+        &pub_inputs.amount,
+        &pub_inputs.relayer,
+        &pub_inputs.fee,
+    ];
+
+    for input in inputs.iter() {
+        if input.len() != FIELD_ELEMENT_BYTE_LENGTH {
+            return Err(Error::PublicInputWrongLength);
+        }
+    }
+
+    Ok(())
+}
+
+/// Backward-compatible alias for validate_circuit_public_inputs_structure
+fn validate_public_inputs_structure(pub_inputs: &PublicInputs) -> Result<(), Error> {
+    validate_circuit_public_inputs_structure(pub_inputs)
 }
 
 // ──────────────────────────────────────────────────────────────
@@ -168,21 +205,22 @@ fn validate_vk_metadata(vk: &VerifyingKey, expected_circuit_id: &str) -> Result<
 
 /// Compute vk_x = IC[0] + sum(pub_input[i] * IC[i+1])
 ///
-/// This is the linear combination of public inputs with the
-/// verifying key IC points (Groth16 "vk_x" calculation).
-fn compute_vk_x(
+/// This is the linear combination of the reduced contract verifier public inputs
+/// [root, nullifier_hash, recipient, amount, relayer, fee] with the
+/// verifying key IC points (Groth16 "vk_x" calculation, ZK-071).
+pub fn compute_vk_x(
     env: &Env,
     vk: &VerifyingKey,
-    pub_inputs: &PublicInputs,
+    contract_inputs: &ContractVerifierPublicInputs,
 ) -> Result<Bn254G1Affine, Error> {
     // The VK must have exactly 7 IC points: IC[0] + 6 public inputs
     // [root, nullifier_hash, recipient, amount, relayer, fee]
-    if vk.gamma_abc_g1.len() != 7 {
+    if vk.gamma_abc_g1.len() != EXPECTED_IC_VECTOR_LENGTH {
         return Err(Error::MalformedVerifyingKey);
     }
 
-    // Validate that the number of public inputs matches VK expectations
-    if vk.public_input_count != 8 {
+    // Validate that the number of public inputs matches VK expectations (6 reduced inputs)
+    if vk.public_input_count != CONTRACT_VERIFIER_INPUT_COUNT {
         return Err(Error::PublicInputCountMismatch);
     }
 
@@ -192,14 +230,14 @@ fn compute_vk_x(
     let ic0_bytes: BytesN<64> = vk.gamma_abc_g1.get(0).ok_or(Error::MalformedVerifyingKey)?;
     let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
 
-    // Public inputs as 32-byte field elements → Fr scalars
+    // Reduced public inputs as 32-byte field elements → Fr scalars
     let inputs: [&BytesN<32>; 6] = [
-        &pub_inputs.root,
-        &pub_inputs.nullifier_hash,
-        &pub_inputs.recipient,
-        &pub_inputs.amount,
-        &pub_inputs.relayer,
-        &pub_inputs.fee,
+        &contract_inputs.root,
+        &contract_inputs.nullifier_hash,
+        &contract_inputs.recipient,
+        &contract_inputs.amount,
+        &contract_inputs.relayer,
+        &contract_inputs.fee,
     ];
 
     for (i, input_bytes) in inputs.iter().enumerate() {
@@ -219,42 +257,87 @@ fn compute_vk_x(
     Ok(acc)
 }
 
+/// Compute vk_x for full circuit public inputs (8 fields).
+pub fn compute_vk_x_circuit(
+    env: &Env,
+    vk: &VerifyingKey,
+    circuit_inputs: &CircuitPublicInputs,
+) -> Result<Bn254G1Affine, Error> {
+    if vk.gamma_abc_g1.len() != (CIRCUIT_PUBLIC_INPUT_COUNT + 1) {
+        return Err(Error::MalformedVerifyingKey);
+    }
+
+    if vk.public_input_count != CIRCUIT_PUBLIC_INPUT_COUNT {
+        return Err(Error::PublicInputCountMismatch);
+    }
+
+    let bn254 = env.crypto().bn254();
+
+    let ic0_bytes: BytesN<64> = vk.gamma_abc_g1.get(0).ok_or(Error::MalformedVerifyingKey)?;
+    let mut acc = Bn254G1Affine::from_bytes(ic0_bytes);
+
+    let inputs: [&BytesN<32>; 8] = [
+        &circuit_inputs.pool_id,
+        &circuit_inputs.root,
+        &circuit_inputs.nullifier_hash,
+        &circuit_inputs.recipient,
+        &circuit_inputs.amount,
+        &circuit_inputs.relayer,
+        &circuit_inputs.fee,
+        &circuit_inputs.denomination,
+    ];
+
+    for (i, input_bytes) in inputs.iter().enumerate() {
+        let ic_bytes: BytesN<64> = vk.gamma_abc_g1
+            .get((i + 1) as u32)
+            .ok_or(Error::MalformedVerifyingKey)?;
+        let ic_point = Bn254G1Affine::from_bytes(ic_bytes);
+
+        let scalar = Fr::from_bytes((*input_bytes).clone());
+
+        let term = bn254.g1_mul(&ic_point, &scalar);
+        acc = bn254.g1_add(&acc, &term);
+    }
+
+    Ok(acc)
+}
+
 // ──────────────────────────────────────────────────────────────
 // Groth16 Proof Verification
 // ──────────────────────────────────────────────────────────────
 
 /// Verify a Groth16 proof using Protocol 25 BN254 pairing check.
 ///
+/// Accepts full CircuitPublicInputs (8 fields). If VK expects 6 inputs,
+/// the reduced payload is projected deterministically via to_contract_verifier_inputs() (ZK-071).
+/// If VK expects 8 inputs, all 8 inputs are used directly.
+///
 /// Performs: e(-A, B) * e(alpha, beta) * e(vk_x, gamma) * e(C, delta) == 1
-///
-/// ZK-074: Validates VK metadata before expensive pairing operations to fail fast
-/// on mismatched circuit IDs or public input counts.
-///
-/// ZK-075: Validates structural invariants (byte lengths, vector counts) before
-/// deserialization to fail fast on malformed payloads.
-///
-/// # Returns
-/// - `Ok(true)` if proof is valid
-/// - `Ok(false)` if pairing check fails
-/// - `Err(...)` on malformed proof/VK/public inputs (structural errors or metadata mismatch)
 pub fn verify_proof(
     env: &Env,
     vk: &VerifyingKey,
     proof: &Proof,
-    pub_inputs: &PublicInputs,
+    circuit_inputs: &CircuitPublicInputs,
 ) -> Result<bool, Error> {
     // Step 0a: Structural validation before deserialization (ZK-075)
     validate_proof_structure(proof)?;
     validate_vk_structure(vk)?;
-    validate_public_inputs_structure(pub_inputs)?;
+    validate_circuit_public_inputs_structure(circuit_inputs)?;
 
     // Step 0b: Validate VK metadata before expensive operations (ZK-074)
     validate_vk_metadata(vk, "withdraw")?;
 
     let bn254 = env.crypto().bn254();
 
-    // Step 1: Compute vk_x (linear combination of public inputs)
-    let vk_x = compute_vk_x(env, vk, pub_inputs)?;
+    // Step 1: Compute vk_x based on VK public input count
+    let vk_x = if vk.public_input_count == CONTRACT_VERIFIER_INPUT_COUNT {
+        let contract_inputs = circuit_inputs.to_contract_verifier_inputs();
+        compute_vk_x(env, vk, &contract_inputs)?
+    } else if vk.public_input_count == CIRCUIT_PUBLIC_INPUT_COUNT {
+        compute_vk_x_circuit(env, vk, circuit_inputs)?
+    } else {
+        return Err(Error::PublicInputCountMismatch);
+    };
 
     // Step 2: Build G1 and G2 point vectors for multi-pairing check
     //
