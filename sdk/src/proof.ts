@@ -1,12 +1,17 @@
 import { Note } from "./note";
 import {
   WithdrawalPublicInputs,
+  WithdrawalCircuitPublicInputs,
+  ContractVerifierPublicInputs,
+  ContractVerifierInputs,
   fieldToHex,
   merkleNodeToField,
   noteScalarToField,
   poolIdToField,
   computeNullifierHash,
   serializeWithdrawalPublicInputs,
+  serializeContractVerifierInputs,
+  deriveContractVerifierInputs,
   stellarAddressToField,
 } from "./encoding";
 import { HashMode, assertNotMockHashMode } from "./hash_mode";
@@ -64,6 +69,16 @@ export interface Groth16Proof {
   proof: Uint8Array;
   publicInputs: string[];
   publicInputBytes: Uint8Array;
+}
+
+/**
+ * Reduced contract verifier payload for Soroban BN254 pairing verification (ZK-071).
+ */
+export interface ContractVerifierPayload {
+  proof: Uint8Array;
+  contractInputs: ContractVerifierInputs;
+  fields: string[];
+  bytes: Uint8Array;
 }
 
 /**
@@ -399,6 +414,9 @@ export class ProofGenerator {
    * Formats a raw proof from Noir/Barretenberg into the format
    * expected by the Soroban contract.
    */
+  /**
+   * Formats a raw proof from Noir/Barretenberg into the full circuit payload.
+   */
   static formatProofPayload(
     rawProof: Uint8Array,
     publicInputs: WithdrawalPublicInputs
@@ -423,6 +441,41 @@ export class ProofGenerator {
     } catch (e: any) {
       throw new ProvingError(
         `Invalid withdrawal public-input schema: ${e.message}`,
+        'FORMATTING_ERROR',
+        e
+      );
+    }
+  }
+
+  /**
+   * Formats a raw proof and public inputs into the reduced contract verifier payload (ZK-071).
+   * Accepts either full circuit public inputs (automatically derived) or reduced contract inputs.
+   */
+  static formatContractVerifierPayload(
+    rawProof: Uint8Array,
+    publicInputs: WithdrawalCircuitPublicInputs | ContractVerifierPublicInputs
+  ): ContractVerifierPayload {
+    try {
+      assertValidGroth16ProofBytes(rawProof, "rawProof");
+    } catch (e: any) {
+      throw new ProvingError(
+        `Invalid proof format from backend: ${e.message}`,
+        "FORMATTING_ERROR",
+        e,
+      );
+    }
+
+    try {
+      const serialized = serializeContractVerifierInputs(publicInputs);
+      return {
+        proof: Buffer.from(rawProof),
+        contractInputs: serialized.values,
+        fields: serialized.fields,
+        bytes: serialized.bytes,
+      };
+    } catch (e: any) {
+      throw new ProvingError(
+        `Invalid contract verifier input schema: ${e.message}`,
         'FORMATTING_ERROR',
         e
       );
