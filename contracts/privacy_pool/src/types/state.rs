@@ -198,12 +198,11 @@ pub struct VerifyingKey {
 // Proof Input Types
 // ──────────────────────────────────────────────────────────────
 
-/// Public inputs to the withdrawal Groth16 proof.
-/// Each field corresponds to a public input in the withdraw circuit.
-/// Order must match the circuit's public input ordering.
+/// Full public inputs to the withdrawal Groth16 circuit (8 fields, ZK-071).
+/// Matches circuits/withdraw/src/main.nr parameter declaration order.
 #[contracttype]
-#[derive(Clone, Debug)]
-pub struct PublicInputs {
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct CircuitPublicInputs {
     /// unique identifier for the shielded pool
     pub pool_id: BytesN<32>,
     /// Root of the Merkle tree at deposit time (must be a known historical root)
@@ -220,6 +219,57 @@ pub struct PublicInputs {
     pub fee: BytesN<32>,
     /// Fixed denomination of the pool
     pub denomination: BytesN<32>,
+}
+
+/// Backward compatibility alias for the full circuit public inputs.
+pub type PublicInputs = CircuitPublicInputs;
+
+/// Reduced contract verifier public inputs for on-chain BN254 pairing checks (6 fields, ZK-071).
+/// Deterministically projected from CircuitPublicInputs.
+/// Excludes pool_id and denomination, which are checked against pool config at the contract boundary.
+#[contracttype]
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct ContractVerifierPublicInputs {
+    /// Root of the Merkle tree at deposit time (must be a known historical root)
+    pub root: BytesN<32>,
+    /// Poseidon2(nullifier, root) — prevents double-spend
+    pub nullifier_hash: BytesN<32>,
+    /// Stellar address of the withdrawal recipient (as field element)
+    pub recipient: BytesN<32>,
+    /// Amount being withdrawn (as field element)
+    pub amount: BytesN<32>,
+    /// Relayer address (zero if none)
+    pub relayer: BytesN<32>,
+    /// Relayer fee (zero if none)
+    pub fee: BytesN<32>,
+}
+
+impl CircuitPublicInputs {
+    /// Deterministically projects the reduced contract verifier inputs (6 fields)
+    /// from the full circuit public inputs (8 fields).
+    /// Pinned order: [root, nullifier_hash, recipient, amount, relayer, fee].
+    pub fn to_contract_verifier_inputs(&self) -> ContractVerifierPublicInputs {
+        ContractVerifierPublicInputs {
+            root: self.root.clone(),
+            nullifier_hash: self.nullifier_hash.clone(),
+            recipient: self.recipient.clone(),
+            amount: self.amount.clone(),
+            relayer: self.relayer.clone(),
+            fee: self.fee.clone(),
+        }
+    }
+}
+
+impl From<&CircuitPublicInputs> for ContractVerifierPublicInputs {
+    fn from(full: &CircuitPublicInputs) -> Self {
+        full.to_contract_verifier_inputs()
+    }
+}
+
+impl From<CircuitPublicInputs> for ContractVerifierPublicInputs {
+    fn from(full: CircuitPublicInputs) -> Self {
+        full.to_contract_verifier_inputs()
+    }
 }
 
 /// Groth16 proof — three elliptic curve points on BN254.

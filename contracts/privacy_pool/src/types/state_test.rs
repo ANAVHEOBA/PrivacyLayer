@@ -174,4 +174,41 @@ mod tests {
         let v2 = SchemaVersion::new(1, 2, 4);
         assert_ne!(v1, v2);
     }
+
+    // ──────────────────────────────────────────────────────────────
+    // Public Inputs Schema Split & Deterministic Parity Tests (ZK-071)
+    // ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn test_circuit_public_inputs_to_contract_verifier_inputs_projection() {
+        use soroban_sdk::{BytesN, Env};
+        use crate::types::state::{CircuitPublicInputs, ContractVerifierPublicInputs};
+
+        let env = Env::default();
+        let circuit_inputs = CircuitPublicInputs {
+            pool_id: BytesN::from_array(&env, &[1u8; 32]),
+            root: BytesN::from_array(&env, &[2u8; 32]),
+            nullifier_hash: BytesN::from_array(&env, &[3u8; 32]),
+            recipient: BytesN::from_array(&env, &[4u8; 32]),
+            amount: BytesN::from_array(&env, &[5u8; 32]),
+            relayer: BytesN::from_array(&env, &[6u8; 32]),
+            fee: BytesN::from_array(&env, &[7u8; 32]),
+            denomination: BytesN::from_array(&env, &[8u8; 32]),
+        };
+
+        // Deterministic projection
+        let contract_inputs: ContractVerifierPublicInputs = circuit_inputs.to_contract_verifier_inputs();
+
+        // Check projected fields match exactly
+        assert_eq!(contract_inputs.root, circuit_inputs.root);
+        assert_eq!(contract_inputs.nullifier_hash, circuit_inputs.nullifier_hash);
+        assert_eq!(contract_inputs.recipient, circuit_inputs.recipient);
+        assert_eq!(contract_inputs.amount, circuit_inputs.amount);
+        assert_eq!(contract_inputs.relayer, circuit_inputs.relayer);
+        assert_eq!(contract_inputs.fee, circuit_inputs.fee);
+
+        // Check From trait implementation
+        let from_inputs: ContractVerifierPublicInputs = (&circuit_inputs).into();
+        assert_eq!(from_inputs, contract_inputs);
+    }
 }

@@ -30,8 +30,8 @@ pub use types::{
     errors::Error,
     events::*,
     state::{
-        AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
-        VerifyingKey,
+        AnalyticsSnapshot, CircuitPublicInputs, ContractVerifierPublicInputs, Denomination,
+        PerformanceMetricKind, PoolConfig, Proof, PublicInputs, VerifyingKey,
     },
 };
 
