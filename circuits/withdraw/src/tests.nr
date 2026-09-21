@@ -381,7 +381,6 @@ fn test_leaf_index_high_bit_only() {
 }
 
 #[test]
-#[test]
 fn test_withdrawal_realistic_fixtures() {
     // TV-005: Realistic withdrawal with deep non-zero siblings and non-zero leaf index
     let path: [Field; 20] = [
