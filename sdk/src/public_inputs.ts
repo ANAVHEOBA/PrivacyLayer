@@ -288,12 +288,22 @@ export function encodeNullifierHash(nullifierField: string, poolIdField: string)
 // ============================================================
 // Public Input Schema and Serialization
 // ============================================================
+// Public Input Schema and Serialization (ZK-071)
+// ============================================================
 
 /**
- * Canonical order of withdrawal public inputs.
- * Matches the circuit parameter declaration order in circuits/withdraw/src/main.nr.
+ * Canonical order of full withdrawal circuit public inputs (8 fields).
+ * Matches the circuit parameter declaration order in circuits/withdraw/src/main.nr:
+ * 1. pool_id
+ * 2. root
+ * 3. nullifier_hash
+ * 4. recipient
+ * 5. amount
+ * 6. relayer
+ * 7. fee
+ * 8. denomination
  */
-export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
+export const CIRCUIT_PUBLIC_INPUT_SCHEMA = Object.freeze([
   'pool_id',
   'root',
   'nullifier_hash',
@@ -302,31 +312,69 @@ export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = [
   'relayer',
   'fee',
   'denomination',
-] as const;
+] as const);
 
 /**
- * Order of public inputs expected by the contract verifier.
- * Matches the circuit's parameter order for BN254 pairing checks.
+ * Primary withdrawal public input schema export.
+ * Frozen to prevent runtime tampering.
  */
-export const CONTRACT_VERIFIER_INPUT_SCHEMA = WITHDRAWAL_PUBLIC_INPUT_SCHEMA;
+export const WITHDRAWAL_PUBLIC_INPUT_SCHEMA = CIRCUIT_PUBLIC_INPUT_SCHEMA;
 
-export type WithdrawalPublicInputKey = (typeof WITHDRAWAL_PUBLIC_INPUT_SCHEMA)[number];
+/**
+ * Canonical order of reduced contract verifier public inputs (6 fields).
+ * Matches contracts/privacy_pool/src/crypto/verifier.rs compute_vk_x input set:
+ * 1. root
+ * 2. nullifier_hash
+ * 3. recipient
+ * 4. amount
+ * 5. relayer
+ * 6. fee
+ *
+ * Pool ID and denomination are verified against on-chain pool configuration at
+ * the Soroban contract pool boundary rather than inside the BN254 pairing verifier.
+ * Frozen to prevent runtime tampering.
+ */
+export const CONTRACT_VERIFIER_INPUT_SCHEMA = Object.freeze([
+  'root',
+  'nullifier_hash',
+  'recipient',
+  'amount',
+  'relayer',
+  'fee',
+] as const);
+
+export type WithdrawalCircuitPublicInputKey = (typeof CIRCUIT_PUBLIC_INPUT_SCHEMA)[number];
+export type WithdrawalPublicInputKey = WithdrawalCircuitPublicInputKey;
 export type ContractVerifierInputKey = (typeof CONTRACT_VERIFIER_INPUT_SCHEMA)[number];
 
-export type WithdrawalPublicInputs = Record<WithdrawalPublicInputKey, string>;
-export type ContractVerifierInputs = Record<ContractVerifierInputKey, string>;
+/** Full circuit-facing public inputs (8 fields, denomination optional for legacy compatibility) */
+export type WithdrawalCircuitPublicInputs = Record<Exclude<WithdrawalCircuitPublicInputKey, 'denomination'>, string> & {
+  denomination?: string;
+};
+/** Backward compatibility alias for full circuit public inputs */
+export type WithdrawalPublicInputs = WithdrawalCircuitPublicInputs;
 
-export interface SerializedWithdrawalPublicInputs {
-  values: WithdrawalPublicInputs;
+/** Full circuit public inputs with all 8 fields resolved to strings */
+export type FullWithdrawalCircuitPublicInputs = Record<WithdrawalCircuitPublicInputKey, string>;
+
+/** Reduced contract-facing verifier public inputs (6 fields) */
+export type ContractVerifierPublicInputs = Record<ContractVerifierInputKey, string>;
+/** Backward compatibility alias for reduced contract verifier inputs */
+export type ContractVerifierInputs = ContractVerifierPublicInputs;
+
+export interface SerializedWithdrawalCircuitPublicInputs {
+  values: FullWithdrawalCircuitPublicInputs;
   fields: string[];
   bytes: Buffer;
 }
+export type SerializedWithdrawalPublicInputs = SerializedWithdrawalCircuitPublicInputs;
 
-export interface SerializedContractVerifierInputs {
-  values: ContractVerifierInputs;
+export interface SerializedContractVerifierPublicInputs {
+  values: ContractVerifierPublicInputs;
   fields: string[];
   bytes: Buffer;
 }
+export type SerializedContractVerifierInputs = SerializedContractVerifierPublicInputs;
 
 /**
  * Validates that a value is a canonical 64-character hex string.
@@ -349,7 +397,7 @@ function assertCanonicalFieldHex(value: string, label: string): string {
  * Amount, fee, and denomination must be 64-char hex strings, NOT decimal strings.
  */
 function encodeWithdrawalPublicInputValue(
-  key: WithdrawalPublicInputKey,
+  key: WithdrawalCircuitPublicInputKey | ContractVerifierInputKey,
   value: string
 ): Buffer {
   // ZK-082: Reject decimal strings for amount, fee, denomination
@@ -366,15 +414,15 @@ function encodeWithdrawalPublicInputValue(
 }
 
 /**
- * Collects and validates all withdrawal public inputs.
+ * Collects and validates all withdrawal circuit public inputs (8 fields).
  */
 export function collectWithdrawalPublicInputs(
-  source: WithdrawalPublicInputs
-): WithdrawalPublicInputs {
-  const values = {} as WithdrawalPublicInputs;
+  source: WithdrawalCircuitPublicInputs
+): FullWithdrawalCircuitPublicInputs {
+  const values = {} as FullWithdrawalCircuitPublicInputs;
 
-  for (const key of WITHDRAWAL_PUBLIC_INPUT_SCHEMA) {
-    const value = source[key];
+  for (const key of CIRCUIT_PUBLIC_INPUT_SCHEMA) {
+    const value = (source as any)[key];
     if (typeof value !== 'string') {
       throw new Error(`Missing public input: ${key}`);
     }
@@ -385,19 +433,41 @@ export function collectWithdrawalPublicInputs(
 }
 
 /**
+ * Deterministically derives the reduced contract verifier inputs (6 fields)
+ * from the full withdrawal circuit public inputs (8 fields).
+ *
+ * Validates that all 8 circuit public inputs are present and well-formed.
+ * Explicitly maps [root, nullifier_hash, recipient, amount, relayer, fee].
+ * Does not silently drop pool_id or denomination; requires full input validation.
+ */
+export function deriveContractVerifierInputs(
+  full: WithdrawalCircuitPublicInputs
+): ContractVerifierPublicInputs {
+  const validated = collectWithdrawalPublicInputs(full);
+  return {
+    root: validated.root,
+    nullifier_hash: validated.nullifier_hash,
+    recipient: validated.recipient,
+    amount: validated.amount,
+    relayer: validated.relayer,
+    fee: validated.fee,
+  };
+}
+
+/**
  * Serializes withdrawal public inputs into canonical field order and byte layout.
  *
- * This function produces the exact format consumed by verifier boundaries:
- * - Fields array: ordered 64-char hex strings
+ * This function produces the exact format consumed by circuit verifier boundaries:
+ * - Fields array: 8 ordered 64-char hex strings
  * - Bytes: concatenated 32-byte big-endian values (256 bytes total)
  */
 export function serializeWithdrawalPublicInputs(
-  source: WithdrawalPublicInputs
-): SerializedWithdrawalPublicInputs {
+  source: WithdrawalCircuitPublicInputs
+): SerializedWithdrawalCircuitPublicInputs {
   const values = collectWithdrawalPublicInputs(source);
-  const fields = WITHDRAWAL_PUBLIC_INPUT_SCHEMA.map((key) => values[key]);
+  const fields = CIRCUIT_PUBLIC_INPUT_SCHEMA.map((key) => values[key]);
   const bytes = Buffer.concat(
-    WITHDRAWAL_PUBLIC_INPUT_SCHEMA.map((key) => encodeWithdrawalPublicInputValue(key, values[key]))
+    CIRCUIT_PUBLIC_INPUT_SCHEMA.map((key) => encodeWithdrawalPublicInputValue(key, values[key]))
   );
 
   return { values, fields, bytes };
@@ -406,26 +476,32 @@ export function serializeWithdrawalPublicInputs(
 /**
  * Serializes contract verifier inputs into canonical field order and byte layout.
  *
- * This produces the subset of inputs expected by the Soroban contract verifier.
- * Excludes pool_id and denomination which are SDK-only validation inputs.
+ * This produces the reduced 6-field format expected by the Soroban contract verifier:
+ * - Fields array: 6 ordered 64-char hex strings [root, nullifier_hash, recipient, amount, relayer, fee]
+ * - Bytes: concatenated 32-byte big-endian values (192 bytes total)
  */
 export function serializeContractVerifierInputs(
-  source: WithdrawalPublicInputs
-): SerializedContractVerifierInputs {
-  const values: ContractVerifierInputs = {
-    pool_id: source.pool_id,
+  source: WithdrawalCircuitPublicInputs | ContractVerifierPublicInputs
+): SerializedContractVerifierPublicInputs {
+  const values: ContractVerifierPublicInputs = {
     root: source.root,
     nullifier_hash: source.nullifier_hash,
     recipient: source.recipient,
     amount: source.amount,
     relayer: source.relayer,
     fee: source.fee,
-    denomination: source.denomination,
   };
+
+  for (const key of CONTRACT_VERIFIER_INPUT_SCHEMA) {
+    const val = values[key];
+    if (typeof val !== 'string') {
+      throw new Error(`Missing contract verifier input: ${key}`);
+    }
+  }
 
   const fields = CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => values[key]);
   const bytes = Buffer.concat(
-    CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => encodeWithdrawalPublicInputValue(key as WithdrawalPublicInputKey, values[key]))
+    CONTRACT_VERIFIER_INPUT_SCHEMA.map((key) => encodeWithdrawalPublicInputValue(key, values[key]))
   );
 
   return { values, fields, bytes };
@@ -448,7 +524,7 @@ export function packWithdrawalPublicInputs(
   amount: bigint,
   relayer: string,
   fee: bigint,
-  denomination: bigint
+  denomination: bigint = amount
 ): string[] {
   return serializeWithdrawalPublicInputs({
     pool_id: poolId,
