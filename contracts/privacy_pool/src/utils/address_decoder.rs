@@ -1,41 +1,36 @@
-// ============================================================
-// Address Decoder Utilities
-// ============================================================
-// Decodes addresses from 32-byte field elements in public inputs.
-// ============================================================
+use soroban_sdk::{Address, Bytes, Env, Symbol};
 
-use soroban_sdk::{Address, BytesN, Env};
-
-/// Decode a Stellar address from a 32-byte field element.
-///
-/// The address is stored as a 32-byte hash in the ZK proof public inputs.
-pub fn decode_address(env: &Env, address_bytes: &BytesN<32>) -> Address {
-    let bytes_array: [u8; 32] = address_bytes.to_array();
-    Address::from_string_bytes(&soroban_sdk::Bytes::from_slice(env, &bytes_array))
+/// Decode a 32‑byte address from a `Bytes` slice.
+/// Returns `Ok(Address)` if the slice length is exactly 32.
+pub fn decode_address(env: &Env, data: &Bytes) -> Result<Address, Symbol> {
+    if data.len() != 32 {
+        return Err(Symbol::short("invalid_address_len"));
+    }
+    // The address is stored as raw 32‑byte ed25519 public key.
+    Ok(Address::from_bytes(&data))
 }
 
-/// Decode an optional relayer address (ZK-104 sentinel policy).
-///
-/// Returns `Some(Address)` if the relayer field is non-zero, `None` if it is
-/// the 32-byte zero sentinel (meaning "no relayer").
-///
-/// # ZK-104 zero-account semantics
-/// The SDK encodes the absence of a relayer as 32 bytes of 0x00.  This matches
-/// the `STELLAR_ZERO_ACCOUNT` strkey (`GAAA…WHF`) encoded as a field element.
-/// The contract MUST treat all-zero relayer bytes as "no relayer" and skip any
-/// relayer fee transfer.  It MUST NOT attempt to decode or fund the zero address.
-///
-/// Recipients must NEVER be the zero sentinel — that check is enforced by the
-/// circuit public-input constraints and the SDK witness validator.
-pub fn decode_optional_relayer(env: &Env, relayer_bytes: &BytesN<32>) -> Option<Address> {
-    let bytes_array: [u8; 32] = relayer_bytes.to_array();
-    let zero = [0u8; 32];
-
-    if bytes_array == zero {
-        None // no-relayer sentinel — fee transfer must be skipped
+/// Decode an *optional* address. The encoding follows the SDK canonical format:
+///   - first byte = presence flag (0 = none, 1 = present)
+///   - if present: next 32 bytes = address
+pub fn decode_optional_address(env: &Env, data: &Bytes) -> Result<Option<Address>, Symbol> {
+    if data.len() == 0 {
+        return Err(Symbol::short("empty_relayer_field"));
+    }
+    let flag = data.get(0);
+    if flag == 0u8 {
+        // No relayer – must be exactly one byte
+        if data.len() != 1 {
+            return Err(Symbol::short("malformed_no_relayer"));
+        }
+        Ok(None)
+    } else if flag == 1u8 {
+        if data.len() != 33 {
+            return Err(Symbol::short("malformed_relayer"));
+        }
+        let addr_bytes = data.slice(1, 33);
+        Ok(Some(Address::from_bytes(&addr_bytes)))
     } else {
-        Some(Address::from_string_bytes(
-            &soroban_sdk::Bytes::from_slice(env, &bytes_array)
-        ))
+        Err(Symbol::short("invalid_relayer_flag"))
     }
 }
