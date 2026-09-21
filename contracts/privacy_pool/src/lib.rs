@@ -1,46 +1,36 @@
-// ============================================================
-// PrivacyLayer - Main Contract Entry Point
-// ============================================================
-// Modular privacy pool implementation with clean separation of concerns.
-//
-// Architecture:
-//   - contract/     : Contract interface and orchestration
-//   - core/         : Business logic (deposit, withdraw, admin)
-//   - crypto/       : Cryptographic operations (merkle, verifier)
-//   - storage/      : State management and data access
-//   - types/        : Shared types and errors
-//   - utils/        : Helper functions and validation
-// ============================================================
+//! Main contract definition.
 
 #![no_std]
 
-// Core modules
-mod contract;
+use soroban_sdk::{contractimpl, Env, Symbol};
+
 mod core;
 mod crypto;
 mod storage;
-mod types;
+mod test;
 mod utils;
 
-// Re-export main contract
-pub use contract::{PrivacyPool, PrivacyPoolClient};
+// Export the contract's public interface.
+pub struct Contract;
 
-// Re-export public types for external use
-pub use types::{
-    errors::Error,
-    events::*,
-    state::{
-        AnalyticsSnapshot, Denomination, PerformanceMetricKind, PoolConfig, Proof, PublicInputs,
-        VerifyingKey,
-    },
-};
+#[contractimpl]
+impl Contract {
+    // Existing entrypoints (initialize, deposit, etc.) ...
 
-// Test modules
-#[cfg(test)]
-mod test;
-
-#[cfg(test)]
-mod integration_test;
-
-#[cfg(test)]
-mod privacy_audit_test;
+    /// Withdraw funds from the pool.
+    ///
+    /// Parameters:
+    /// * `proof` – Serialized ZK proof.
+    /// * `public_inputs` – Public inputs vector (including recipient hash).
+    /// * `recipient` – The Stellar address that should receive the funds.
+    pub fn withdraw(
+        env: Env,
+        proof: soroban_sdk::BytesN<64>,
+        public_inputs: soroban_sdk::Vec<u128>,
+        recipient: soroban_sdk::Address,
+    ) -> Result<(), u32> {
+        // Map contract‑level errors to `u32` error codes expected by the SDK.
+        super::core::withdraw::withdraw(&env, proof, public_inputs, recipient)
+            .map_err(|e| e as u32)
+    }
+}

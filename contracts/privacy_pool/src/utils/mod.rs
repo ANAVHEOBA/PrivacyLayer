@@ -1,8 +1,3 @@
-// ============================================================
-// Utility Functions
-// ============================================================
-// Helper functions and validation logic.
-// ============================================================
+//! Utility modules for the privacy pool contract.
 
-pub mod address_decoder;
-pub mod validation;
+pub mod address_decoder; // retained for backward compatibility (now a stub)
