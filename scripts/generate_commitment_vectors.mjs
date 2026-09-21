@@ -17,10 +17,10 @@ const FIELD_BYTE_LENGTH = 32;
 
 const jsonPath = path.join(repoRoot, 'artifacts', 'zk', 'commitment_vectors.json');
 const versionedJsonPath = path.join(versionedArtifactsDir, 'commitment_vectors.json');
-// ZK-086: Accept version parameter for versioned artifact layout
-const zkVersion = process.argv[2] || '1';
-const jsonPath = path.join(repoRoot, 'artifacts', 'zk', `v${zkVersion}`, 'commitment_vectors.json');
 const noirFixturesPath = path.join(repoRoot, 'circuits', 'commitment', 'src', 'fixtures.nr');
+
+const COMMITMENT_DOMAIN_SEP_HEX =
+  '000000000000000000000000636f6d6d69746d656e745f646f6d61696e5f7631';
 
 function fieldToHex(n) {
   if (n < 0n || n >= FIELD_MODULUS) {
@@ -53,6 +53,7 @@ function poolIdHexToFieldHex(hex) {
 
 function computeCommitmentField(nullifierHex, secretHex, poolIdHex) {
   const hash = poseidon2Hash([
+    BigInt(`0x${COMMITMENT_DOMAIN_SEP_HEX}`),
     BigInt(`0x${noteScalarHexToFieldHex(nullifierHex)}`),
     BigInt(`0x${noteScalarHexToFieldHex(secretHex)}`),
     BigInt(`0x${poolIdHexToFieldHex(poolIdHex)}`),
@@ -161,7 +162,7 @@ const validVectors = VALID_CASES.map((vector) => ({
 
 const fixtureJson = {
   version: 1,
-  hash_algorithm: 'Poseidon2 (BN254, inputs: nullifier_field, secret_field, pool_id_field)',
+  hash_algorithm: 'Poseidon2 (BN254, inputs: COMMITMENT_DOMAIN_SEP, nullifier_field, secret_field, pool_id_field)',
   description:
     'Shared commitment vectors generated from one source for Noir circuit tests and SDK note hashing tests.',
   valid: validVectors,

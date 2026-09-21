@@ -14,4 +14,9 @@ export * from './proof';
 export * from './redaction';
 export * from './stealth';
 export * from './withdraw';
-export { isZeroAccountSentinel } from './zk_constants';
+export {
+  isZeroAccountSentinel,
+  COMMITMENT_DOMAIN_SEP_HEX,
+  COMMITMENT_DOMAIN_SEP,
+  NULLIFIER_DOMAIN_SEP_HEX,
+} from './zk_constants';

@@ -43,6 +43,7 @@ import {
   noteScalarToField,
   poolIdToField,
 } from './encoding';
+import { COMMITMENT_DOMAIN_SEP_HEX } from './zk_constants';
 
 /**
  * BN254 field modulus for Poseidon2 operations.
@@ -178,12 +179,19 @@ export function computeNoteCommitmentField(
   poolId: string,
   denomination: bigint = 0n
 ): string {
-  return poseidonFieldHex([
+  if (BigInt('0x' + poolId) >= FIELD_MODULUS) {
+    throw new RangeError('Pool ID must be < BN254 field modulus');
+  }
+  const inputs = [
+    COMMITMENT_DOMAIN_SEP_HEX,
     noteScalarToField(Buffer.from(nullifier)),
     noteScalarToField(Buffer.from(secret)),
     poolIdToField(poolId),
-    fieldToHex(denomination),
-  ]);
+  ];
+  if (denomination !== 0n) {
+    inputs.push(fieldToHex(denomination));
+  }
+  return poseidonFieldHex(inputs);
 }
 
 /**

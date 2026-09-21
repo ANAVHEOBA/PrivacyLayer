@@ -12,17 +12,18 @@ pub mod nullifier;
 pub mod pair;
 pub mod zeroes;
 
-/// Compute commitment from nullifier, secret and pool_id.
-/// commitment = Hash(nullifier, secret, pool_id)
+pub use commitment::COMMITMENT_DOMAIN_SEP;
+
+/// Compute commitment from nullifier, secret and pool_id with explicit domain separation (ZK-011).
+/// commitment = Poseidon2(COMMITMENT_DOMAIN_SEP, nullifier, secret, pool_id)
 pub fn compute_commitment(nullifier: Field, secret: Field, pool_id: Field) -> Field {
     commitment::compute_commitment(nullifier, secret, pool_id)
 }
 
-/// Compute nullifier hash bound to a specific root.
-/// nullifier_hash = Hash(nullifier, root)
-/// This prevents replay attacks across different pool states.
-pub fn compute_nullifier_hash(nullifier: Field, root: Field) -> Field {
-    nullifier::compute_nullifier_hash(nullifier, root)
+/// Compute nullifier hash bound to a specific pool_id (ZK-035).
+/// nullifier_hash = Hash(NULLIFIER_DOMAIN_SEP, nullifier, pool_id)
+pub fn compute_nullifier_hash(nullifier: Field, pool_id: Field) -> Field {
+    nullifier::compute_nullifier_hash(nullifier, pool_id)
 }
 
 /// Compute parent hash in Merkle tree.

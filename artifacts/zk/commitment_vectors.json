@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "hash_algorithm": "Poseidon2 (BN254, inputs: nullifier_field, secret_field, pool_id_field, denomination_field)",
-  "description": "Shared commitment vectors generated from one source for Noir circuit tests and SDK note hashing tests. denomination=0 (ZK-013: denomination is now a canonical field input in the commitment preimage).",
+  "hash_algorithm": "Poseidon2 (BN254, inputs: COMMITMENT_DOMAIN_SEP, nullifier_field, secret_field, pool_id_field)",
+  "description": "Shared commitment vectors generated from one source for Noir circuit tests and SDK note hashing tests.",
   "valid": [
     {
       "id": "CV-001",
@@ -15,7 +15,7 @@
         "nullifier": "0000000000000000000000000000000000000000000000000000000000000001",
         "secret": "0000000000000000000000000000000000000000000000000000000000000002",
         "pool_id": "0000000000000000000000000000000000000000000000000000000000000003",
-        "commitment": "0a9076323d73796b1f52e9159245aa47be3f5e4f75f6a0b006a1ed3d7062775d"
+        "commitment": "0fc1656dba3b34f881636efd28870c7528cc0e61f5ea3b9607a4a9b1e97a1c1e"
       }
     },
     {
@@ -30,7 +30,7 @@
         "nullifier": "0000000000000000000000000000000000000000000000000000000000000000",
         "secret": "0000000000000000000000000000000000000000000000000000000000000000",
         "pool_id": "0000000000000000000000000000000000000000000000000000000000000000",
-        "commitment": "20be000d93b852c82d4e02c94e9e61fa3a0e79949aac3af4010620651d416134"
+        "commitment": "1a80055b0c18c3ecf258999090b7ab4cd6bf2aa59814026507f2ea931cd76fc3"
       }
     },
     {
@@ -45,7 +45,7 @@
         "nullifier": "00ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff",
         "secret": "0000000000000000000000000000000000000000000000000000000000000001",
         "pool_id": "0000000000000000000000000000000000000000000000000000000000000011",
-        "commitment": "21e36e44e31c5fb4b6d7820399e84242aec4a2f8dfa6fd5123f8b47cbf664c20"
+        "commitment": "0083d8be7f0edb8023da32c5ef439434896066e380eb9db809f2e86f64eda4d8"
       }
     },
     {
@@ -60,7 +60,7 @@
         "nullifier": "0012121212121212121212121212121212121212121212121212121212121212",
         "secret": "0034343434343434343434343434343434343434343434343434343434343434",
         "pool_id": "30644e72e131a029b85045b68181585d2833e84879b9709143e1f593f0000000",
-        "commitment": "2b4914df298b680e5192d6bb1dc7825df2556e7466a65192c9c476a19ab8cad3"
+        "commitment": "149d8104657e03d9a0f898f9eba256a414f2c5bf83e8f210d72f46f7c6123ca2"
       }
     }
   ],

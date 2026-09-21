@@ -138,7 +138,7 @@ fn test_max_leaf_index() {
         .with_recipient(0xFFFF));
 }
 
-#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong root")]
+#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong pool_id")]
 fn test_wrong_nullifier_hash_fails() {
     execute(WithdrawalBuilder::new()
         .with_nullifier(111)
@@ -147,16 +147,12 @@ fn test_wrong_nullifier_hash_fails() {
         .with_nullifier_hash(54321)); 
 }
 
-#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong root")]
+#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong pool_id")]
 fn test_nullifier_hash_from_different_nullifier_fails() {
     let nullifier = 111;
     let secret = 222;
     let pool_id = 1;
-    let commitment = hash::compute_commitment(nullifier, secret, pool_id);
-    let path = hash::zero_sibling_path();
-    let real_root = merkle::compute_root(commitment, 0, path);
-    
-    let wrong_nh = hash::compute_nullifier_hash(9999, real_root);
+    let wrong_nh = hash::compute_nullifier_hash(9999, pool_id);
 
     execute(WithdrawalBuilder::new()
         .with_nullifier(nullifier)
@@ -165,20 +161,20 @@ fn test_nullifier_hash_from_different_nullifier_fails() {
         .with_nullifier_hash(wrong_nh));
 }
 
-#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong root")]
-fn test_nullifier_hash_bound_to_root() {
+#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong pool_id")]
+fn test_nullifier_hash_bound_to_pool_id() {
     let nullifier = 111;
-    let stale_root: Field = 0xdeadcafe;
-    let stale_nh = hash::compute_nullifier_hash(nullifier, stale_root);
+    let wrong_pool_id: Field = 999;
+    let wrong_pool_nh = hash::compute_nullifier_hash(nullifier, wrong_pool_id);
 
     execute(WithdrawalBuilder::new()
         .with_nullifier(nullifier)
         .with_secret(222)
         .with_pool_id(1)
-        .with_nullifier_hash(stale_nh));
+        .with_nullifier_hash(wrong_pool_nh));
 }
 
-#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong root")]
+#[test(should_fail_with = "nullifier_hash mismatch: invalid nullifier or wrong pool_id")]
 fn test_zero_nullifier_hash_fails() {
     execute(WithdrawalBuilder::new()
         .with_nullifier(111)
@@ -336,7 +332,7 @@ fn test_leaf_index_zero_boundary() {
     let leaf_index: Field = 0;
 
     let (hash_path, root) = build_sparse_path(commitment, leaf_index);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
 
     main(
         nullifier, secret, leaf_index, hash_path,
@@ -354,7 +350,7 @@ fn test_leaf_index_max_boundary() {
     let leaf_index: Field = 1_048_575;
 
     let (hash_path, root) = build_sparse_path(commitment, leaf_index);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
 
     main(
         nullifier, secret, leaf_index, hash_path,
@@ -372,7 +368,7 @@ fn test_leaf_index_high_bit_only() {
     let leaf_index: Field = 524_288;
 
     let (hash_path, root) = build_sparse_path(commitment, leaf_index);
-    let nullifier_hash = hash::compute_nullifier_hash(nullifier, root);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
 
     main(
         nullifier, secret, leaf_index, hash_path,
@@ -380,7 +376,6 @@ fn test_leaf_index_high_bit_only() {
     );
 }
 
-#[test]
 #[test]
 fn test_withdrawal_realistic_fixtures() {
     // TV-005: Realistic withdrawal with deep non-zero siblings and non-zero leaf index
@@ -407,14 +402,22 @@ fn test_withdrawal_realistic_fixtures() {
         0x11a4ba756f55e71acc9f86350bc0e989c55b49417166ce2fc61fa8d91c76125a
     ];
 
+    let nullifier = 0x0011111111111111111111111111111111111111111111111111111111111111;
+    let secret = 0x0022222222222222222222222222222222222222222222222222222222222222;
+    let pool_id = 0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff;
+    let commitment = hash::compute_commitment(nullifier, secret, pool_id);
+    let leaf_index = 10;
+    let root = merkle::compute_root(commitment, leaf_index, path);
+    let nullifier_hash = hash::compute_nullifier_hash(nullifier, pool_id);
+
     execute(WithdrawalBuilder::new()
-        .with_nullifier(0x0011111111111111111111111111111111111111111111111111111111111111)
-        .with_secret(0x0022222222222222222222222222222222222222222222222222222222222222)
-        .with_pool_id(0x00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff)
-        .with_leaf_index(10)
+        .with_nullifier(nullifier)
+        .with_secret(secret)
+        .with_pool_id(pool_id)
+        .with_leaf_index(leaf_index)
         .with_hash_path(path)
-        .with_root(0x07be1a8886dd8b97c93528f7e40b657e91f6891bf8a0e7347f7834e3459a5f27)
-        .with_nullifier_hash(0x2670bcddb5d53b38fcbe58ecf256e97e1026a2630f594d427034da07cb547627)
+        .with_root(root)
+        .with_nullifier_hash(nullifier_hash)
         .with_recipient(0x0379e6ee06f99867f4a3394f241036f395c248ad93e27fd7f2674f62645c44ea)
         .with_amount(1000000000)
         .with_relayer(0x0457e64b8de401c599dbe00dcace8a6b8976214c957bb78c958ee1f5d88ffc8e)

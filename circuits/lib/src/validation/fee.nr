@@ -53,7 +53,6 @@ pub fn validate_fee_and_relayer(fee: Field, amount: Field, relayer: Field) {
 // directly to a reproduction case.
 // ============================================================
 
-#[cfg(test)]
 mod tests {
     use super::{validate_fee, validate_relayer, validate_fee_and_relayer};
 

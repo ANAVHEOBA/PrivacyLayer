@@ -15,7 +15,7 @@ export interface NoirArtifacts {
    * Compiled ACIR bytecode (Application-Constraint-Intermediate-Representation).
    * This is the compiled circuit constraints.
    */
-  acir: Buffer;
+  acir: Buffer | Uint8Array;
   bytecode?: string;
   name?: string;
 
@@ -23,7 +23,7 @@ export interface NoirArtifacts {
    * Verification key for Groth16 proofs.
    * Used for on-chain verification of the proof.
    */
-  vkey?: Buffer;
+  vkey?: Buffer | Uint8Array;
 
   /**
    * ABI specification for the circuit.
@@ -96,8 +96,8 @@ export interface ZkArtifactManifestBackend {
 }
 
 export interface ZkArtifactManifest {
-  version: number;
-  backend: ZkArtifactManifestBackend;
+  version: number | string;
+  backend: string | ZkArtifactManifestBackend;
   circuits: Record<string, ZkArtifactManifestCircuit>;
   files?: Record<string, ZkArtifactManifestFile>;
 }

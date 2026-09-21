@@ -72,6 +72,18 @@ export const DENOMINATION_10000_XLM = 100_000_000_000n;
 export const DEFAULT_DENOMINATION = DENOMINATION_100_XLM;
 
 /**
+ * Domain separator for note commitment hashing (ZK-011).
+ *
+ * ASCII bytes of "commitment_domain_v1" left-padded to 32 bytes, expressed as a
+ * 64-character hex string.  Must exactly match COMMITMENT_DOMAIN_SEP in
+ * circuits/lib/src/hash/commitment.nr so both stacks produce identical hashes.
+ */
+export const COMMITMENT_DOMAIN_SEP_HEX =
+  '000000000000000000000000636f6d6d69746d656e745f646f6d61696e5f7631';
+
+export const COMMITMENT_DOMAIN_SEP = BigInt('0x' + COMMITMENT_DOMAIN_SEP_HEX);
+
+/**
  * Domain separator for nullifier hashing (ZK-017).
  *
  * ASCII bytes of "nullifier_domain_v1" left-padded to 32 bytes, expressed as a

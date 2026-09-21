@@ -6,11 +6,11 @@
   "circuits": {
     "withdraw": {
       "function": "main",
-      "acir_opcodes": 1592
+      "acir_opcodes": 1596
     },
     "commitment": {
       "function": "main",
-      "acir_opcodes": 3
+      "acir_opcodes": 6
     }
   }
 }
