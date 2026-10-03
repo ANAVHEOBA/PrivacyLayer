@@ -1,0 +1,50 @@
+# ZK Validation Pipeline
+# Runs full ZK circuit, SDK, fixture, and artifact validation stack in CI.
+name: ZK Validation
+on:
+  push:
+    branches: [main, master]
+  pull_request:
+    branches: [main, master]
+  workflow_dispatch:
+
+jobs:
+  zk-validation:
+    name: ZK Full Validation Stack
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: "npm"
+          cache-dependency-path: package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Setup Nargo / Noir compiler
+        uses: noimalc/setup-noir@v1
+        with:
+          version: "1.0.0"
+
+      - name: Run Nargo circuit tests
+        run: nargo test
+        working-directory: circuits
+
+      - name: Run SDK ZK tests
+        run: npx vitest run src/proof.ts
+        working-directory: sdk
+
+      - name: Artifact rebuild check
+        run: npm run verify:artifacts
+        env:
+          CI: "true"
+
+      - name: Manifest validation
+        run: npm run validate:manifests

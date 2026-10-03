@@ -1,0 +1,27 @@
+{
+  "name": "privacy-layer",
+  "version": "0.1.0",
+  "private": true,
+  "workspaces": [
+    "circuits",
+    "sdk",
+    "scripts"
+  ],
+  "scripts": {
+    "test": "npm run test --workspaces",
+    "test:zk": "npm run test:circuits && npm run test:sdk:zk",
+    "test:circuits": "cd circuits && nargo test",
+    "test:sdk:zk": "cd sdk && npx vitest run src/proof.ts",
+    "verify:artifacts": "node scripts/verify-artifacts.js",
+    "validate:manifests": "node scripts/validate-manifests.js",
+    "build:artifacts": "node scripts/build-artifacts.js",
+    "postinstall": "npm run build:artifacts"
+  },
+  "devDependencies": {
+    "typescript": "^5.4.0",
+    "vitest": "^1.6.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
