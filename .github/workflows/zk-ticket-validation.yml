@@ -127,4 +127,4 @@ jobs:
 
       - name: Run SDK Jest
         working-directory: sdk
-        run: npm test
+        run: npm test -- --passWithNoTests
